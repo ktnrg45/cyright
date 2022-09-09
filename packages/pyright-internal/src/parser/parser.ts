@@ -375,7 +375,13 @@ export class Parser {
                 return this._parseWithStatement();
 
             case KeywordType.Def:
-                return this._parseFunctionDef();
+                return this._parseFunctionDef(KeywordType.Def);
+
+            case KeywordType.Cdef:
+                return this._parseFunctionDef(KeywordType.Cdef);
+
+            case KeywordType.Cpdef:
+                return this._parseFunctionDef(KeywordType.Cpdef);
 
             case KeywordType.Class:
                 return this._parseClassDef();
@@ -434,7 +440,7 @@ export class Parser {
 
         switch (this._peekKeywordType()) {
             case KeywordType.Def:
-                return this._parseFunctionDef(asyncToken);
+                return this._parseFunctionDef(KeywordType.Def,asyncToken);
 
             case KeywordType.With:
                 return this._parseWithStatement(asyncToken);
@@ -1753,8 +1759,9 @@ export class Parser {
 
     // funcdef: 'def' NAME parameters ['->' test] ':' suite
     // parameters: '(' [typedargslist] ')'
-    private _parseFunctionDef(asyncToken?: KeywordToken, decorators?: DecoratorNode[]): FunctionNode | ErrorNode {
-        const defToken = this._getKeywordToken(KeywordType.Def);
+    private _parseFunctionDef(keywordType: KeywordType, asyncToken?: KeywordToken, decorators?: DecoratorNode[]): FunctionNode | ErrorNode {
+        // TODO: Add parsing for cython
+        const defToken = this._getKeywordToken(keywordType);
 
         const nameToken = this._getTokenIfIdentifier();
         if (!nameToken) {
@@ -2174,10 +2181,10 @@ export class Parser {
                 if (this._peekKeywordType() !== KeywordType.Def) {
                     this._addError(Localizer.Diagnostic.expectedFunctionAfterAsync(), this._peekToken());
                 } else {
-                    return this._parseFunctionDef(nextToken, decoratorList);
+                    return this._parseFunctionDef(KeywordType.Def, nextToken, decoratorList);
                 }
             } else if (nextToken.keywordType === KeywordType.Def) {
-                return this._parseFunctionDef(undefined, decoratorList);
+                return this._parseFunctionDef(KeywordType.Def, undefined, decoratorList);
             } else if (nextToken.keywordType === KeywordType.Class) {
                 return this._parseClassDef(decoratorList);
             }
@@ -2354,7 +2361,7 @@ export class Parser {
             modName.leadingDots === 0 && modName.nameParts.length === 1 && modName.nameParts[0].value === '__future__';
 
         const possibleInputToken = this._peekToken();
-        if (!this._consumeTokenIfKeyword(KeywordType.Import) && !this._consumeTokenIfKeyword(KeywordType.CImport)) {
+        if (!this._consumeTokenIfKeyword(KeywordType.Import) && !this._consumeTokenIfKeyword(KeywordType.Cimport)) {
             this._addError(Localizer.Diagnostic.expectedImport(), this._peekToken());
             if (!modName.hasTrailingDot) {
                 importFromNode.missingImportKeyword = true;
@@ -2795,9 +2802,12 @@ export class Parser {
             case KeywordType.Import:
                 return this._parseImportStatement(KeywordType.Import);
 
-            case KeywordType.CImport:
-                //return this._parseExpressionStatement();
-                return this._parseImportStatement(KeywordType.CImport);
+            case KeywordType.Cimport:
+                return this._parseImportStatement(KeywordType.Cimport);
+            
+            case KeywordType.Cdef:
+                // TODO: Add parsing
+                return this._parseExpressionStatement();
 
             case KeywordType.Global:
                 return this._parseGlobalStatement();

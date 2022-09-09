@@ -87,7 +87,20 @@ const _keywords: Map<string, KeywordType> = new Map([
     ['False', KeywordType.False],
     ['None', KeywordType.None],
     ['True', KeywordType.True],
-    ['cimport', KeywordType.CImport],
+    ['cimport', KeywordType.Cimport],
+    ['cdef', KeywordType.Cdef],
+    ['cpdef', KeywordType.Cpdef],
+    ['ctypedef', KeywordType.Ctypedef],
+    ['extern', KeywordType.Extern],
+    ['gil', KeywordType.Gil],
+    ['nogil', KeywordType.Nogil],
+    ['include', KeywordType.Include],
+    ['DEF', KeywordType.Define],
+    ['inline', KeywordType.Inline],
+    ['const', KeywordType.Const],
+    ['readonly', KeywordType.Readonly],
+    ['signed', KeywordType.Signed],
+    ['unsigned', KeywordType.Unsigned],
 ]);
 
 const _operatorInfo: { [key: number]: OperatorFlags } = {
