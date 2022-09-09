@@ -2467,8 +2467,8 @@ export class Parser {
     // import_name: 'import' dotted_as_names
     // dotted_as_names: dotted_as_name (',' dotted_as_name)*
     // dotted_as_name: dotted_name ['as' NAME]
-    private _parseImportStatement(): ImportNode {
-        const importToken = this._getKeywordToken(KeywordType.Import);
+    private _parseImportStatement(keywordType: KeywordType): ImportNode {
+        const importToken = this._getKeywordToken(keywordType);
 
         const importNode = ImportNode.create(importToken);
 
@@ -2793,7 +2793,11 @@ export class Parser {
                 return this._parseFromStatement();
 
             case KeywordType.Import:
-                return this._parseImportStatement();
+                return this._parseImportStatement(KeywordType.Import);
+
+            case KeywordType.CImport:
+                //return this._parseExpressionStatement();
+                return this._parseImportStatement(KeywordType.CImport);
 
             case KeywordType.Global:
                 return this._parseGlobalStatement();
