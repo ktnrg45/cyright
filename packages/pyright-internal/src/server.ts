@@ -58,7 +58,8 @@ export class PyrightServer extends LanguageServerBase {
 
         super(
             {
-                productName: 'Pyright',
+                // productName: 'Pyright',
+                productName: 'Cython',
                 rootDirectory,
                 version,
                 workspaceMap,
