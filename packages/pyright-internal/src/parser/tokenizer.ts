@@ -87,6 +87,7 @@ const _keywords: Map<string, KeywordType> = new Map([
     ['False', KeywordType.False],
     ['None', KeywordType.None],
     ['True', KeywordType.True],
+    ['cimport', KeywordType.CImport],
 ]);
 
 const _operatorInfo: { [key: number]: OperatorFlags } = {

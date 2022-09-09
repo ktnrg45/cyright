@@ -2354,7 +2354,7 @@ export class Parser {
             modName.leadingDots === 0 && modName.nameParts.length === 1 && modName.nameParts[0].value === '__future__';
 
         const possibleInputToken = this._peekToken();
-        if (!this._consumeTokenIfKeyword(KeywordType.Import)) {
+        if (!this._consumeTokenIfKeyword(KeywordType.Import) && !this._consumeTokenIfKeyword(KeywordType.CImport)) {
             this._addError(Localizer.Diagnostic.expectedImport(), this._peekToken());
             if (!modName.hasTrailingDot) {
                 importFromNode.missingImportKeyword = true;

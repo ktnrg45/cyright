@@ -145,6 +145,7 @@ export const enum KeywordType {
     While,
     With,
     Yield,
+    CImport,
 }
 
 export const softKeywords = [KeywordType.Debug, KeywordType.Match, KeywordType.Case, KeywordType.Type];
