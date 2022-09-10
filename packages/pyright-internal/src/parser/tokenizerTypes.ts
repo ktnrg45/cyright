@@ -162,9 +162,11 @@ export const enum KeywordType {
 }
 
 export const varModifiers = [
-    KeywordType.Inline,
     KeywordType.Const,
     KeywordType.Readonly,
+];
+
+export const varSignedness = [
     KeywordType.Signed,
     KeywordType.Unsigned,
 ];

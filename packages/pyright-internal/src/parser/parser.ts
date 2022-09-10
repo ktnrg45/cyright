@@ -135,6 +135,7 @@ import {
     Token,
     TokenType,
     varModifiers,
+    varSignedness,
 } from './tokenizerTypes';
 
 interface ListResult<T> {
@@ -1765,18 +1766,22 @@ export class Parser {
                 this._getNextToken();
                 return this._parseClassDef();
             }
-        } else if (nextToken.type === TokenType.Colon) {
+        }
+        if (nextToken.type === TokenType.Colon) {
             // Multi line cdef
             return undefined;
-        } else {
-            return this._parseFunctionDefCython(KeywordType.Cdef);
         }
-        return undefined;
+        return this._parseFunctionDefCython(KeywordType.Cdef);
     }
-
 
     private _parseFunctionDefCython(keywordType: KeywordType): FunctionNode | ErrorNode {
         const defToken = this._getKeywordToken(keywordType);
+        const possibleInline = this._peekToken();
+        if (possibleInline.type === TokenType.Keyword) {
+            if ((possibleInline as KeywordToken).keywordType === KeywordType.Inline) {
+                this._getNextToken();
+            }
+        }
         let returnType: ExpressionNode | undefined;
         if (this._peekTokenType() === TokenType.Identifier) {
             returnType = this._parseTestExpression(/* allowAssignmentExpression */ false);
