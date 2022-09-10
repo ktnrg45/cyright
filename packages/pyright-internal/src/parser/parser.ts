@@ -376,13 +376,13 @@ export class Parser {
                 return this._parseWithStatement();
 
             case KeywordType.Def:
-                return this._parseFunctionDef(KeywordType.Def);
+                return this._parseFunctionDef();
 
             case KeywordType.Cdef:
-                return this._parseFunctionDef(KeywordType.Cdef);
+                return this._parseFunctionDefCython(KeywordType.Cdef);
 
             case KeywordType.Cpdef:
-                return this._parseFunctionDef(KeywordType.Cpdef);
+                return this._parseFunctionDefCython(KeywordType.Cpdef);
 
             case KeywordType.Class:
                 return this._parseClassDef();
@@ -441,7 +441,7 @@ export class Parser {
 
         switch (this._peekKeywordType()) {
             case KeywordType.Def:
-                return this._parseFunctionDef(KeywordType.Def,asyncToken);
+                return this._parseFunctionDef(asyncToken);
 
             case KeywordType.With:
                 return this._parseWithStatement(asyncToken);
@@ -1758,11 +1758,80 @@ export class Parser {
         return tryNode;
     }
 
+    private _parseFunctionDefCython(keywordType: KeywordType): FunctionNode | ErrorNode {
+        const defToken = this._getKeywordToken(keywordType);
+        let returnType: ExpressionNode | undefined;
+        if (this._peekTokenType() === TokenType.Identifier) {
+            returnType = this._parseTestExpression(/* allowAssignmentExpression */ false);
+        }
+        let nameToken = this._getTokenIfIdentifier();
+        if (!nameToken) {
+            this._addError(Localizer.Diagnostic.expectedFunctionName(), defToken);
+            return ErrorNode.create(
+                defToken,
+                ErrorExpressionCategory.MissingFunctionParameterList,
+                undefined,
+            );
+        }
+
+        let typeParameters: TypeParameterListNode | undefined;
+        const possibleOpenBracket = this._peekToken();
+        if (possibleOpenBracket.type === TokenType.OpenBracket) {
+            typeParameters = this._parseTypeParameterList();
+
+            if (!this._parseOptions.isStubFile && this._getLanguageVersion() < PythonVersion.V3_12) {
+                this._addError(Localizer.Diagnostic.functionTypeParametersIllegal(), typeParameters);
+            }
+        }
+        const openParenToken = this._peekToken();
+        if (!this._consumeTokenIfType(TokenType.OpenParenthesis)) {
+            this._addError(Localizer.Diagnostic.expectedOpenParen(), this._peekToken());
+            return ErrorNode.create(
+                nameToken,
+                ErrorExpressionCategory.MissingFunctionParameterList,
+                NameNode.create(nameToken),
+            );
+        }
+
+        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true);
+
+        if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
+            this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
+            this._consumeTokensUntilType([TokenType.Colon]);
+        }
+
+        let functionTypeAnnotationToken: StringToken | undefined;
+        const suite = this._parseSuite(/* isFunction */ true, this._parseOptions.skipFunctionAndClassBody, () => {
+            if (!functionTypeAnnotationToken) {
+                functionTypeAnnotationToken = this._getTypeAnnotationCommentText();
+            }
+        });
+
+        const functionNode = FunctionNode.create(defToken, NameNode.create(nameToken), suite, typeParameters);
+
+        functionNode.parameters = paramList;
+        paramList.forEach((param) => {
+            param.parent = functionNode;
+        });
+
+        if (returnType) {
+            functionNode.returnTypeAnnotation = returnType;
+            functionNode.returnTypeAnnotation.parent = functionNode;
+        }
+
+        // If there was a type annotation comment for the function,
+        // parse it now.
+        if (functionTypeAnnotationToken) {
+            this._parseFunctionTypeAnnotationComment(functionTypeAnnotationToken, functionNode);
+        }
+
+        return functionNode;
+    }
+
     // funcdef: 'def' NAME parameters ['->' test] ':' suite
     // parameters: '(' [typedargslist] ')'
-    private _parseFunctionDef(keywordType: KeywordType, asyncToken?: KeywordToken, decorators?: DecoratorNode[]): FunctionNode | ErrorNode {
-        // TODO: Add parsing for cython
-        const defToken = this._getKeywordToken(keywordType);
+    private _parseFunctionDef(asyncToken?: KeywordToken, decorators?: DecoratorNode[]): FunctionNode | ErrorNode {
+        const defToken = this._getKeywordToken(KeywordType.Def);
 
         const nameToken = this._getTokenIfIdentifier();
         if (!nameToken) {
@@ -2182,10 +2251,10 @@ export class Parser {
                 if (this._peekKeywordType() !== KeywordType.Def) {
                     this._addError(Localizer.Diagnostic.expectedFunctionAfterAsync(), this._peekToken());
                 } else {
-                    return this._parseFunctionDef(KeywordType.Def, nextToken, decoratorList);
+                    return this._parseFunctionDef(nextToken, decoratorList);
                 }
             } else if (nextToken.keywordType === KeywordType.Def) {
-                return this._parseFunctionDef(KeywordType.Def, undefined, decoratorList);
+                return this._parseFunctionDef(undefined, decoratorList);
             } else if (nextToken.keywordType === KeywordType.Class) {
                 return this._parseClassDef(decoratorList);
             }
