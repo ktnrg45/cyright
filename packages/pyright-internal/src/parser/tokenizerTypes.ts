@@ -161,6 +161,14 @@ export const enum KeywordType {
     Unsigned,
 }
 
+export const varModifiers = [
+    KeywordType.Inline,
+    KeywordType.Const,
+    KeywordType.Readonly,
+    KeywordType.Signed,
+    KeywordType.Unsigned,
+];
+
 export const softKeywords = [KeywordType.Debug, KeywordType.Match, KeywordType.Case, KeywordType.Type];
 
 export const enum StringTokenFlags {

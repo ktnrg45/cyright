@@ -134,6 +134,7 @@ import {
     StringTokenFlags,
     Token,
     TokenType,
+    varModifiers,
 } from './tokenizerTypes';
 
 interface ListResult<T> {

@@ -146,7 +146,7 @@
         "expectedInExpr": "Expected expression after \"in\"",
         "expectedIn": "Expected \"in\"",
         "expectedFunctionAfterAsync": "Expected function definition after \"async\"",
-        "expectedFunctionName": "Expected function name after \"def\"",
+        "expectedFunctionName": "Expected function name after \"def\", \"cdef\", or \"cpdef\"",
         "expectedMemberName": "Expected member name after \".\"",
         "expectedModuleName": "Expected module name",
         "expectedNameAfterAs": "Expected symbol name after \"as\"",
