@@ -379,7 +379,7 @@ export class Parser {
                 return this._parseFunctionDef();
 
             case KeywordType.Cdef:
-                return this._parseFunctionDefCython(KeywordType.Cdef);
+                return this._parseCdefCython();
 
             case KeywordType.Cpdef:
                 return this._parseFunctionDefCython(KeywordType.Cpdef);
@@ -1757,6 +1757,23 @@ export class Parser {
 
         return tryNode;
     }
+
+    private _parseCdefCython(): StatementNode | ErrorNode | undefined {
+        const nextToken = this._peekToken(1);
+        if (nextToken.type === TokenType.Keyword) {
+            if ((nextToken as KeywordToken).keywordType === KeywordType.Class) {
+                this._getNextToken();
+                return this._parseClassDef();
+            }
+        } else if (nextToken.type === TokenType.Colon) {
+            // Multi line cdef
+            return undefined;
+        } else {
+            return this._parseFunctionDefCython(KeywordType.Cdef);
+        }
+        return undefined;
+    }
+
 
     private _parseFunctionDefCython(keywordType: KeywordType): FunctionNode | ErrorNode {
         const defToken = this._getKeywordToken(keywordType);
