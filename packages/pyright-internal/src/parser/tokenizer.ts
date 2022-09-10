@@ -101,6 +101,7 @@ const _keywords: Map<string, KeywordType> = new Map([
     ['readonly', KeywordType.Readonly],
     ['signed', KeywordType.Signed],
     ['unsigned', KeywordType.Unsigned],
+    ['long', KeywordType.Long],
 ]);
 
 const _operatorInfo: { [key: number]: OperatorFlags } = {

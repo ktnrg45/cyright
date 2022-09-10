@@ -135,7 +135,7 @@ import {
     Token,
     TokenType,
     varModifiers,
-    varSignedness,
+    numericSpecifier,
 } from './tokenizerTypes';
 
 interface ListResult<T> {
@@ -1759,6 +1759,25 @@ export class Parser {
         return tryNode;
     }
 
+    private _consumeTokenPointers(): void {
+        while (this._isTokenPointer()) {
+            this._getNextToken();
+            continue;
+        }
+    }
+
+    private _isTokenPointer(count = 0): boolean {
+        var token = this._peekToken(count);
+        var operatorType: OperatorType;
+        if (token.type === TokenType.Operator) {
+            operatorType = (token as OperatorToken).operatorType;
+            if (operatorType == OperatorType.Multiply || operatorType === OperatorType.Power) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private _parseCdefCython(): StatementNode | ErrorNode | undefined {
         const nextToken = this._peekToken(1);
         if (nextToken.type === TokenType.Keyword) {
@@ -1771,7 +1790,26 @@ export class Parser {
             // Multi line cdef
             return undefined;
         }
-        return this._parseFunctionDefCython(KeywordType.Cdef);
+
+        // Test if var declaration
+        // Maximum token example: const unsigned long long int* var
+        var count = 0;
+        var ptrCount = 0;
+        var iterToken: Token;
+        while (count < 6) {
+            if (this._isTokenPointer(count + 1 + ptrCount)) {
+                ptrCount++;
+                continue;
+            }
+            iterToken = this._peekToken(count + 1 + ptrCount);
+            // If open Parenthesis assume function declaration
+            if (iterToken.type == TokenType.OpenParenthesis) {
+                return this._parseFunctionDefCython(KeywordType.Cdef);
+            }
+            count++;
+        }
+        // TODO: handle var declaration
+        return undefined;
     }
 
     private _parseFunctionDefCython(keywordType: KeywordType): FunctionNode | ErrorNode {
@@ -1782,9 +1820,12 @@ export class Parser {
                 this._getNextToken();
             }
         }
+        // Return type can be optional
         let returnType: ExpressionNode | undefined;
         if (this._peekTokenType() === TokenType.Identifier) {
-            returnType = this._parseTestExpression(/* allowAssignmentExpression */ false);
+            // returnType = this._parseTestExpression(/* allowAssignmentExpression */ false);
+            returnType = NameNode.create(this._getNextToken() as IdentifierToken);
+            this._consumeTokenPointers();
         }
         let nameToken = this._getTokenIfIdentifier();
         if (!nameToken) {

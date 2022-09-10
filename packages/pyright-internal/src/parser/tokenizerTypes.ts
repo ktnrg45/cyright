@@ -159,6 +159,7 @@ export const enum KeywordType {
     Readonly,
     Signed,
     Unsigned,
+    Long,
 }
 
 export const varModifiers = [
@@ -166,9 +167,10 @@ export const varModifiers = [
     KeywordType.Readonly,
 ];
 
-export const varSignedness = [
+export const numericSpecifier = [
     KeywordType.Signed,
     KeywordType.Unsigned,
+    KeywordType.Long,
 ];
 
 export const softKeywords = [KeywordType.Debug, KeywordType.Match, KeywordType.Case, KeywordType.Type];
