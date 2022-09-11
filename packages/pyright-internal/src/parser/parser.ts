@@ -11,6 +11,7 @@
  * into an abstract syntax tree (AST).
  */
 
+import { throws } from 'assert';
 import Char from 'typescript-char';
 
 import { IPythonMode } from '../analyzer/sourceFile';
@@ -135,7 +136,7 @@ import {
     Token,
     TokenType,
     varModifiers,
-    numericSpecifier,
+    numericModifiers,
 } from './tokenizerTypes';
 
 interface ListResult<T> {
@@ -1766,9 +1767,18 @@ export class Parser {
         }
     }
 
+    private _peekTokenPointers(count = 0): number {
+        var ptrCount = 0;
+        while (this._isTokenPointer(ptrCount + count)) {
+            ptrCount++;
+            continue;
+        }
+        return ptrCount
+    }
+
     private _isTokenPointer(count = 0): boolean {
-        var token = this._peekToken(count);
-        var operatorType: OperatorType;
+        let token = this._peekToken(count);
+        let operatorType: OperatorType;
         if (token.type === TokenType.Operator) {
             operatorType = (token as OperatorToken).operatorType;
             if (operatorType == OperatorType.Multiply || operatorType === OperatorType.Power) {
@@ -1776,6 +1786,116 @@ export class Parser {
             }
         }
         return false;
+    }
+
+    private _isNumericModifier(token: Token): KeywordType | undefined {
+        if (token.type === TokenType.Keyword) {
+            const keywordType = (token as KeywordToken).keywordType;
+            if (numericModifiers.find((type) => type === keywordType)) {
+                return keywordType;
+            }
+        }
+        return undefined;
+    }
+
+    private _isVarModifier(token: Token): KeywordType | undefined {
+        if (token.type === TokenType.Keyword) {
+            const keywordType = (token as KeywordToken).keywordType;
+            if (varModifiers.find((type) => type === keywordType)) {
+                return keywordType;
+            }
+        }
+        return undefined;
+    }
+    private _parseVarType(): ExpressionNode | undefined {
+        let ptrCount = 0;
+        let varType: ExpressionNode | undefined;
+        if (this._peekTokenType() === TokenType.Identifier) {
+            // If next token after any pointer annotations is an identifier, this token is a type.
+            ptrCount = this._peekTokenPointers(1);
+            let possibleName = this._peekToken(ptrCount + 1)
+            if (possibleName.type === TokenType.Identifier) {
+                varType = NameNode.create(this._getNextToken() as IdentifierToken);
+                this._consumeTokenPointers();
+            }
+        }
+        return varType;
+    }
+
+    // const unsigned long long int* var
+    private _parseDeclarationCython(isParameter = false) : ParameterNode {
+        var numModifiers = 0;
+        var lastNumModifier: KeywordType | undefined;
+        let foundSigned = false;
+        let longCount = 0;
+        const firstToken = this._peekToken();
+        const varModifier = this._isVarModifier(firstToken);
+
+        if (varModifier) {
+            if (isParameter) {
+                // error
+            }
+            this._getNextToken();
+        }
+
+        while (numModifiers < 4) {
+            lastNumModifier = this._isNumericModifier(this._peekToken());
+            if (lastNumModifier) {
+                if (lastNumModifier === KeywordType.Unsigned || lastNumModifier === KeywordType.Signed) {
+                    if (foundSigned) {
+                        // Error
+                    }
+                    foundSigned = true;
+                } else if (lastNumModifier === KeywordType.Long) {
+                    if (longCount >= 2) {
+                        // Error
+                    }
+                    longCount++;
+                }
+                this._getNextToken();
+                numModifiers++
+            } else if (this._isVarModifier(this._peekToken())) {
+                // error
+            } else {
+                break;
+            }
+        }
+
+        // Types are optional
+        let paramTypeAnnotation = this._parseVarType();
+        const paramName = this._getTokenIfIdentifier();
+        if (!paramName) {
+            // Check for the Python 2.x parameter sublist syntax and handle it gracefully.
+            if (this._peekTokenType() === TokenType.OpenParenthesis) {
+                const sublistStart = this._getNextToken();
+                if (this._consumeTokensUntilType([TokenType.CloseParenthesis])) {
+                    this._getNextToken();
+                }
+                this._addError(Localizer.Diagnostic.sublistParamsIncompatible(), sublistStart);
+            } else {
+                this._addError(Localizer.Diagnostic.expectedParamName(), this._peekToken());
+            }
+        }
+
+        const paramNode = ParameterNode.create(firstToken, ParameterCategory.Simple);
+        if (paramName) {
+            paramNode.name = NameNode.create(paramName);
+            paramNode.name.parent = paramNode;
+            extendRange(paramNode, paramName);
+        }
+        if (paramTypeAnnotation) {
+            paramNode.typeAnnotation = paramTypeAnnotation;
+            paramNode.typeAnnotation.parent = paramNode;
+            extendRange(paramNode, paramNode.typeAnnotation);
+        }
+
+        if (this._consumeTokenIfOperator(OperatorType.Assign)) {
+            paramNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
+            paramNode.defaultValue.parent = paramNode;
+            extendRange(paramNode, paramNode.defaultValue);
+        }
+
+        return paramNode;
     }
 
     private _parseCdefCython(): StatementNode | ErrorNode | undefined {
@@ -1820,13 +1940,8 @@ export class Parser {
                 this._getNextToken();
             }
         }
-        // Return type can be optional
-        let returnType: ExpressionNode | undefined;
-        if (this._peekTokenType() === TokenType.Identifier) {
-            // returnType = this._parseTestExpression(/* allowAssignmentExpression */ false);
-            returnType = NameNode.create(this._getNextToken() as IdentifierToken);
-            this._consumeTokenPointers();
-        }
+        // Return type is optional
+        let returnType = this._parseVarType();
         let nameToken = this._getTokenIfIdentifier();
         if (!nameToken) {
             this._addError(Localizer.Diagnostic.expectedFunctionName(), defToken);
@@ -1838,14 +1953,7 @@ export class Parser {
         }
 
         let typeParameters: TypeParameterListNode | undefined;
-        const possibleOpenBracket = this._peekToken();
-        if (possibleOpenBracket.type === TokenType.OpenBracket) {
-            typeParameters = this._parseTypeParameterList();
 
-            if (!this._parseOptions.isStubFile && this._getLanguageVersion() < PythonVersion.V3_12) {
-                this._addError(Localizer.Diagnostic.functionTypeParametersIllegal(), typeParameters);
-            }
-        }
         const openParenToken = this._peekToken();
         if (!this._consumeTokenIfType(TokenType.OpenParenthesis)) {
             this._addError(Localizer.Diagnostic.expectedOpenParen(), this._peekToken());
@@ -1856,7 +1964,7 @@ export class Parser {
             );
         }
 
-        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true);
+        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* isCython */ true);
 
         if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
             this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
@@ -1995,7 +2103,7 @@ export class Parser {
     //   | '**' tfpdef [','])
     // tfpdef: NAME [':' test]
     // vfpdef: NAME;
-    private _parseVarArgsList(terminator: TokenType, allowAnnotations: boolean): ParameterNode[] {
+    private _parseVarArgsList(terminator: TokenType, allowAnnotations: boolean, isCython = false): ParameterNode[] {
         const paramMap = new Map<string, string>();
         const paramList: ParameterNode[] = [];
         let sawDefaultParam = false;
@@ -2011,7 +2119,7 @@ export class Parser {
                 break;
             }
 
-            const param = this._parseParameter(allowAnnotations);
+            const param = (isCython) ? this._parseDeclarationCython(true) : this._parseParameter(allowAnnotations);
             if (!param) {
                 this._consumeTokensUntilType([terminator]);
                 break;

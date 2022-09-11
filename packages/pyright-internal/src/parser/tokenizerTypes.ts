@@ -167,7 +167,7 @@ export const varModifiers = [
     KeywordType.Readonly,
 ];
 
-export const numericSpecifier = [
+export const numericModifiers = [
     KeywordType.Signed,
     KeywordType.Unsigned,
     KeywordType.Long,
