@@ -1807,16 +1807,57 @@ export class Parser {
         }
         return undefined;
     }
+
+    // [::1] or [] or [:] or [::] after type
+    private _peekView(count = 0): number {
+        const possibleOpenBracket = this._peekToken(count);
+        let sliceIndex = 0;
+        let colonCount = 0;
+
+        if (possibleOpenBracket.type !== TokenType.OpenBracket) {
+            return sliceIndex;
+        }
+
+        count++;
+        sliceIndex++;
+        var lastType: TokenType | undefined = undefined;
+        while (sliceIndex < 5) {
+            const nextTokenType = this._peekToken(count).type;
+            count++
+            sliceIndex++;
+            if (nextTokenType === TokenType.CloseBracket || nextTokenType === TokenType.Comma) {
+                break;
+            }
+            if (nextTokenType === TokenType.Colon) {
+                colonCount++;
+            } else if (lastType === TokenType.Colon && colonCount < 2) {
+                // error Only valid on 'step' position
+            }
+            if (colonCount > 2) {
+                // error too many colons
+            }
+            lastType = nextTokenType;
+        }
+        return sliceIndex;
+    }
+
     private _parseVarType(): ExpressionNode | undefined {
-        let ptrCount = 0;
         let varType: ExpressionNode | undefined;
         if (this._peekTokenType() === TokenType.Identifier) {
-            // If next token after any pointer annotations is an identifier, this token is a type.
-            ptrCount = this._peekTokenPointers(1);
-            let possibleName = this._peekToken(ptrCount + 1)
+            // If the next token after any pointer and view annotations is an identifier, this token is a type.
+            let ptrCount = this._peekTokenPointers(1);
+            let viewTokens = this._peekView(1);
+            if (ptrCount && viewTokens) {
+                // error type cannot be a pointer and a view
+            }
+
+            let possibleName = this._peekToken(ptrCount + viewTokens + 1)
             if (possibleName.type === TokenType.Identifier) {
                 varType = NameNode.create(this._getNextToken() as IdentifierToken);
                 this._consumeTokenPointers();
+                for (let index = 0; index < viewTokens; index++) {
+                    this._getNextToken();
+                }
             }
         }
         return varType;
