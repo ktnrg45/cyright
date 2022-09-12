@@ -988,6 +988,9 @@ export namespace Localizer {
         export const returnTypeCannotBeArray = () => getRawString('Diagnostic.returnTypeCannotBeArray');
         export const unexpectedSignedness = () => getRawString('Diagnostic.unexpectedSignedness');
         export const expectedVarType = () => getRawString('Diagnostic.expectedVarType');
+        export const invalidModifier = () => getRawString('Diagnostic.invalidModifier');
+        export const unexpectedModifier = () => getRawString('Diagnostic.unexpectedModifier');
+        export const viewInvalidAxis = () => getRawString('Diagnostic.viewInvalidAxis');
     }
 
     export namespace DiagnosticAddendum {

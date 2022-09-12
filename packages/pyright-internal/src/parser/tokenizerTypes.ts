@@ -165,6 +165,7 @@ export const enum KeywordType {
 export const varModifiers = [
     KeywordType.Const,
     KeywordType.Readonly,
+    KeywordType.Inline,
 ];
 
 export const numericModifiers = [

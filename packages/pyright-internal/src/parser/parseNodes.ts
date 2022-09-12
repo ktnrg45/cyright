@@ -2371,6 +2371,12 @@ export namespace PatternValueNode {
 }
 
 // Cython
+
+export const enum TypedVarCategory {
+    Variable,
+    Parameter,
+    Function,
+}
 export interface TypedVarNode extends ParameterNode {
     readonly nodeType: ParseNodeType.Parameter;
     category: ParameterCategory;
@@ -2378,19 +2384,21 @@ export interface TypedVarNode extends ParameterNode {
     typeAnnotation?: ExpressionNode | undefined;
     typeAnnotationComment?: ExpressionNode | undefined;
     defaultValue?: ExpressionNode | undefined;
+    typedVarCategory: TypedVarCategory;
     modifier?: ExpressionNode | undefined;
     numericModifiers?: ExpressionNode[] | undefined;
     
 }
 
 export namespace TypedVarNode {
-    export function create(startToken: Token) {
+    export function create(startToken: Token, typedVarCategory: TypedVarCategory) {
         const node: TypedVarNode = {
             start: startToken.start,
             length: startToken.length,
             nodeType: ParseNodeType.Parameter,
             id: _nextNodeId++,
             category: ParameterCategory.Simple,
+            typedVarCategory: typedVarCategory,
         };
 
         return node;

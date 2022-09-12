@@ -119,6 +119,7 @@ import {
     YieldFromNode,
     YieldNode,
     TypedVarNode,
+    TypedVarCategory,
 } from './parseNodes';
 import * as StringTokenUtils from './stringTokenUtils';
 import { Tokenizer, TokenizerOutput } from './tokenizer';
@@ -1881,7 +1882,7 @@ export class Parser {
                 break;
             }
 
-            const param = (isCython) ? this._parseTypedVar(true) : this._parseParameter(allowAnnotations);
+            const param = (isCython) ? this._parseTypedVar(TypedVarCategory.Parameter) : this._parseParameter(allowAnnotations);
             if (!param) {
                 this._consumeTokensUntilType([terminator]);
                 break;
@@ -5120,38 +5121,41 @@ export class Parser {
     // [::1] or [] or [:] or [::] after type
     private _peekView(count = 0, isFunction = false): number {
         const possibleOpenBracket = this._peekToken(count);
-        let sliceIndex = 0;
-        let colonCount = 0;
+        let tokenIndex = 0;
+        var colonCount = 0;
+        var tokens: Token[] = [];
+        var lastType: TokenType | undefined;
 
         if (possibleOpenBracket.type !== TokenType.OpenBracket) {
-            return sliceIndex;
+            return tokenIndex;
         }
 
         count++;
-        sliceIndex++;
-        var lastType: TokenType | undefined = undefined;
-        while (sliceIndex < 5) {
-            const nextTokenType = this._peekToken(count).type;
+        tokenIndex++;
+        while (tokenIndex < 5) {
+            const nextToken = this._peekToken(count);
             count++
-            sliceIndex++;
-            if (nextTokenType === TokenType.CloseBracket || nextTokenType === TokenType.Comma) {
+            tokenIndex++;
+            tokens.push(nextToken);
+
+            if (nextToken.type === TokenType.CloseBracket || nextToken.type === TokenType.Comma) {
                 break;
             }
-            if (nextTokenType === TokenType.Colon) {
+            if (nextToken.type === TokenType.Colon) {
                 colonCount++;
-            } else if (lastType === TokenType.Colon && colonCount < 2) {
-                // error Only valid on 'step' position
+                if (colonCount > 2) {
+                    this._addError(Localizer.Diagnostic.expectedCloseBracket(), this._peekToken(count));
+                }
+            } else if (colonCount < 2) {
+                this._addError(Localizer.Diagnostic.viewInvalidAxis(), nextToken);
             }
-            if (colonCount > 2) {
-                // error too many colons
-            }
-            lastType = nextTokenType;
+            lastType = nextToken.type;
         }
+
         if (isFunction && colonCount === 0) {
-            // error Function cannot return array
             this._addError(Localizer.Diagnostic.returnTypeCannotBeArray(), this._peekToken());
         }
-        return sliceIndex;
+        return tokenIndex;
     }
 
     private _parseVarType(isFunction = false): ExpressionNode | undefined {
@@ -5160,9 +5164,6 @@ export class Parser {
             // If the next token after any pointer and view annotations is an identifier, this token is a type.
             let ptrCount = this._peekTokenPointers(1);
             let viewTokens = this._peekView(1, isFunction);
-            if (ptrCount && viewTokens) {
-                // error type cannot be a pointer and a view
-            }
 
             let possibleName = this._peekToken(ptrCount + viewTokens + 1)
             if (possibleName.type === TokenType.Identifier) {
@@ -5177,8 +5178,8 @@ export class Parser {
     }
 
     // const unsigned long long int* var
-    private _parseTypedVar(isParameter = false) : TypedVarNode {
-        var numModifiers: ExpressionNode[] = [];
+    private _parseTypedVar(typedVarCategory = TypedVarCategory.Variable) : TypedVarNode {
+        var numModifiers: Token[] = [];
         var lastNumModifier: KeywordType | undefined;
         let foundSigned = false;
         let longCount = 0;
@@ -5186,8 +5187,19 @@ export class Parser {
         const varModifier = this._isVarModifier(firstToken);
 
         if (varModifier) {
-            if (isParameter) {
-                // error
+            switch (typedVarCategory) {
+                case TypedVarCategory.Variable:
+                case TypedVarCategory.Parameter:
+                    if (varModifier === KeywordType.Inline) {
+                        this._addError(Localizer.Diagnostic.invalidModifier(), this._peekToken());
+                    }
+                    break;
+                case TypedVarCategory.Function:
+                    if (varModifier === KeywordType.Const) {
+                        this._addError(Localizer.Diagnostic.invalidModifier(), this._peekToken());
+                    }
+                    break;
+                
             }
             this._getNextToken();
         }
@@ -5201,14 +5213,14 @@ export class Parser {
                     }
                     foundSigned = true;
                 } else if (lastNumModifier === KeywordType.Long) {
-                    if (longCount >= 2) {
-                        // Error
-                    }
                     longCount++;
+                    if (longCount > 2) {
+                        this._addError(Localizer.Diagnostic.expectedVarType(), this._peekToken());
+                    }
                 }
-                numModifiers.push(NameNode.create(this._getNextToken() as IdentifierToken));
+                numModifiers.push(this._getNextToken());
             } else if (this._isVarModifier(this._peekToken())) {
-                // error
+                this._addError(Localizer.Diagnostic.unexpectedModifier(), this._getNextToken());
             } else {
                 break;
             }
@@ -5221,12 +5233,20 @@ export class Parser {
             this._addError(Localizer.Diagnostic.expectedParamName(), this._peekToken());
         }
         if (!varTypeAnnotation && numModifiers.length > 0) {
-            this._addError(Localizer.Diagnostic.expectedVarType(), numModifiers[numModifiers.length - 1]);
+            const possibleLong = numModifiers[numModifiers.length - 1];
+            // TODO: Allow 'long' to be a type
+            // if ((possibleLong as KeywordToken).keywordType === KeywordType.Long) {
+            //     varTypeAnnotation = NameNode.create(possibleLong as IdentifierToken);
+            // } else {
+            //     this._addError(Localizer.Diagnostic.expectedVarType(), possibleLong);
+            // }
+            this._addError(Localizer.Diagnostic.expectedVarType(), possibleLong);
         }
 
-        const typedVarNode = TypedVarNode.create(firstToken);
-        typedVarNode.numericModifiers = numModifiers;
-        numModifiers.forEach(numModifier => {
+        const typedVarNode = TypedVarNode.create(firstToken, typedVarCategory);
+        const numericModifiers = numModifiers.map((modToken) => NameNode.create(modToken as IdentifierToken));
+        typedVarNode.numericModifiers = numericModifiers;
+        numericModifiers.forEach(numModifier => {
             extendRange(typedVarNode, numModifier);
         });
         if (varName) {
@@ -5267,7 +5287,7 @@ export class Parser {
         var count = 0;
         var ptrCount = 0;
         var viewTokens = 0;
-        while (count < 6) {
+        while (count < 7) {
             if (this._isTokenPointer(count + 1 + ptrCount)) {
                 ptrCount = this._peekTokenPointers(count + 1 + ptrCount);
                 continue;
@@ -5290,16 +5310,7 @@ export class Parser {
 
     private _parseFunctionDefCython(keywordType: KeywordType): FunctionNode | ErrorNode {
         const defToken = this._getKeywordToken(keywordType);
-        const possibleInline = this._peekToken();
-        if (possibleInline.type === TokenType.Keyword) {
-            if ((possibleInline as KeywordToken).keywordType === KeywordType.Inline) {
-                this._getNextToken();
-            }
-        }
-        // // Return type is optional
-        // let returnType = this._parseVarType(true);
-        // let nameToken = this._getTokenIfIdentifier();
-        let varAnnotation = this._parseTypedVar(false);
+        let varAnnotation = this._parseTypedVar(TypedVarCategory.Function);
         let returnType = varAnnotation.typeAnnotation;
         let nameToken = varAnnotation.name;
         if (!nameToken) {
@@ -5337,7 +5348,7 @@ export class Parser {
             }
         });
 
-        const functionNode = FunctionNode.create(defToken, NameNode.create(nameToken), suite, typeParameters);
+        const functionNode = FunctionNode.create(defToken, nameToken, suite, typeParameters);
 
         functionNode.parameters = paramList;
         paramList.forEach((param) => {

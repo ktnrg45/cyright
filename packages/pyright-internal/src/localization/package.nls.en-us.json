@@ -512,7 +512,10 @@
         "zeroLengthTupleNotAllowed": "Zero-length tuple not allowed in this context",
         "returnTypeCannotBeArray": "Return type cannot be an array",
         "unexpectedSignedness": "Unexpected \"signed\" or \"unsigned\"",
-        "expectedVarType": "Expected variable type"
+        "expectedVarType": "Expected variable type",
+        "invalidModifier": "Invalid modifier",
+        "unexpectedModifier": "Unexpected modifier",
+        "viewInvalidAxis": "Axis specification only allowed in the \"step\" slot for a view"
     },
     "DiagnosticAddendum": {
         "argParam": "Argument corresponds to parameter \"{paramName}\"",
