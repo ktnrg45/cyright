@@ -1760,298 +1760,6 @@ export class Parser {
         return tryNode;
     }
 
-    private _consumeTokenPointers(node: ExpressionNode | undefined = undefined): void {
-        while (this._isTokenPointer()) {
-            const ptrToken = this._getNextToken();
-            if (node) {
-                extendRange(node, ptrToken);
-            }
-            continue;
-        }
-    }
-
-    private _peekTokenPointers(count = 0): number {
-        var ptrCount = 0;
-        while (this._isTokenPointer(ptrCount + count)) {
-            ptrCount++;
-            continue;
-        }
-        return ptrCount
-    }
-
-    private _isTokenPointer(count = 0): boolean {
-        let token = this._peekToken(count);
-        let operatorType: OperatorType;
-        if (token.type === TokenType.Operator) {
-            operatorType = (token as OperatorToken).operatorType;
-            if (operatorType == OperatorType.Multiply || operatorType === OperatorType.Power) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private _isNumericModifier(token: Token): KeywordType | undefined {
-        if (token.type === TokenType.Keyword) {
-            const keywordType = (token as KeywordToken).keywordType;
-            if (numericModifiers.find((type) => type === keywordType)) {
-                return keywordType;
-            }
-        }
-        return undefined;
-    }
-
-    private _isVarModifier(token: Token): KeywordType | undefined {
-        if (token.type === TokenType.Keyword) {
-            const keywordType = (token as KeywordToken).keywordType;
-            if (varModifiers.find((type) => type === keywordType)) {
-                return keywordType;
-            }
-        }
-        return undefined;
-    }
-
-    // [::1] or [] or [:] or [::] after type
-    private _peekView(count = 0, isFunction = false): number {
-        const possibleOpenBracket = this._peekToken(count);
-        let sliceIndex = 0;
-        let colonCount = 0;
-
-        if (possibleOpenBracket.type !== TokenType.OpenBracket) {
-            return sliceIndex;
-        }
-
-        count++;
-        sliceIndex++;
-        var lastType: TokenType | undefined = undefined;
-        while (sliceIndex < 5) {
-            const nextTokenType = this._peekToken(count).type;
-            count++
-            sliceIndex++;
-            if (nextTokenType === TokenType.CloseBracket || nextTokenType === TokenType.Comma) {
-                break;
-            }
-            if (nextTokenType === TokenType.Colon) {
-                colonCount++;
-            } else if (lastType === TokenType.Colon && colonCount < 2) {
-                // error Only valid on 'step' position
-            }
-            if (colonCount > 2) {
-                // error too many colons
-            }
-            lastType = nextTokenType;
-        }
-        if (isFunction && colonCount === 0) {
-            // error Function cannot return array
-            this._addError(Localizer.Diagnostic.returnTypeCannotBeArray(), this._peekToken());
-        }
-        return sliceIndex;
-    }
-
-    private _parseVarType(isFunction = false): ExpressionNode | undefined {
-        let varType: ExpressionNode | undefined;
-        if (this._peekTokenType() === TokenType.Identifier) {
-            // If the next token after any pointer and view annotations is an identifier, this token is a type.
-            let ptrCount = this._peekTokenPointers(1);
-            let viewTokens = this._peekView(1, isFunction);
-            if (ptrCount && viewTokens) {
-                // error type cannot be a pointer and a view
-            }
-
-            let possibleName = this._peekToken(ptrCount + viewTokens + 1)
-            if (possibleName.type === TokenType.Identifier) {
-                varType = NameNode.create(this._getNextToken() as IdentifierToken);
-                this._consumeTokenPointers(varType);
-                for (let index = 0; index < viewTokens; index++) {
-                    extendRange(varType, this._getNextToken());
-                }
-            }
-        }
-        return varType;
-    }
-
-    // const unsigned long long int* var
-    private _parseDeclarationCython(isParameter = false) : ParameterNode {
-        var numModifiers = 0;
-        var lastNumModifier: KeywordType | undefined;
-        let foundSigned = false;
-        let longCount = 0;
-        const firstToken = this._peekToken();
-        const varModifier = this._isVarModifier(firstToken);
-
-        if (varModifier) {
-            if (isParameter) {
-                // error
-            }
-            this._getNextToken();
-        }
-
-        while (numModifiers < 4) {
-            lastNumModifier = this._isNumericModifier(this._peekToken());
-            if (lastNumModifier) {
-                if (lastNumModifier === KeywordType.Unsigned || lastNumModifier === KeywordType.Signed) {
-                    if (foundSigned) {
-                        // Error
-                    }
-                    foundSigned = true;
-                } else if (lastNumModifier === KeywordType.Long) {
-                    if (longCount >= 2) {
-                        // Error
-                    }
-                    longCount++;
-                }
-                this._getNextToken();
-                numModifiers++
-            } else if (this._isVarModifier(this._peekToken())) {
-                // error
-            } else {
-                break;
-            }
-        }
-
-        // Types are optional
-        let paramTypeAnnotation = this._parseVarType();
-        const paramName = this._getTokenIfIdentifier();
-        if (!paramName) {
-            // Check for the Python 2.x parameter sublist syntax and handle it gracefully.
-            if (this._peekTokenType() === TokenType.OpenParenthesis) {
-                const sublistStart = this._getNextToken();
-                if (this._consumeTokensUntilType([TokenType.CloseParenthesis])) {
-                    this._getNextToken();
-                }
-                this._addError(Localizer.Diagnostic.sublistParamsIncompatible(), sublistStart);
-            } else {
-                this._addError(Localizer.Diagnostic.expectedParamName(), this._peekToken());
-            }
-        }
-
-        const paramNode = ParameterNode.create(firstToken, ParameterCategory.Simple);
-        if (paramName) {
-            paramNode.name = NameNode.create(paramName);
-            paramNode.name.parent = paramNode;
-            extendRange(paramNode, paramName);
-        }
-        if (paramTypeAnnotation) {
-            paramNode.typeAnnotation = paramTypeAnnotation;
-            paramNode.typeAnnotation.parent = paramNode;
-            extendRange(paramNode, paramNode.typeAnnotation);
-        }
-
-        if (this._consumeTokenIfOperator(OperatorType.Assign)) {
-            paramNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
-            paramNode.defaultValue.parent = paramNode;
-            extendRange(paramNode, paramNode.defaultValue);
-        }
-
-        return paramNode;
-    }
-
-    private _parseCdefCython(): StatementNode | ErrorNode | undefined {
-        const nextToken = this._peekToken(1);
-        if (nextToken.type === TokenType.Keyword) {
-            if ((nextToken as KeywordToken).keywordType === KeywordType.Class) {
-                this._getNextToken();
-                return this._parseClassDef();
-            }
-        }
-        if (nextToken.type === TokenType.Colon) {
-            // Multi line cdef
-            return undefined;
-        }
-
-        // Test if var declaration
-        // Maximum token example: const unsigned long long int* var
-        var count = 0;
-        var ptrCount = 0;
-        var viewTokens = 0;
-        while (count < 6) {
-            if (this._isTokenPointer(count + 1 + ptrCount)) {
-                ptrCount = this._peekTokenPointers(count + 1 + ptrCount);
-                continue;
-            }
-            
-            const iterToken = this._peekToken(count + 1 + ptrCount + viewTokens);
-            if (iterToken.type === TokenType.OpenBracket) {
-                viewTokens = this._peekView(count + 1 + ptrCount + viewTokens);
-                continue;
-            }
-            // If open Parenthesis assume function declaration
-            if (iterToken.type == TokenType.OpenParenthesis) {
-                return this._parseFunctionDefCython(KeywordType.Cdef);
-            }
-            count++;
-        }
-        // TODO: handle var declaration
-        return undefined;
-    }
-
-    private _parseFunctionDefCython(keywordType: KeywordType): FunctionNode | ErrorNode {
-        const defToken = this._getKeywordToken(keywordType);
-        const possibleInline = this._peekToken();
-        if (possibleInline.type === TokenType.Keyword) {
-            if ((possibleInline as KeywordToken).keywordType === KeywordType.Inline) {
-                this._getNextToken();
-            }
-        }
-        // Return type is optional
-        let returnType = this._parseVarType(true);
-        let nameToken = this._getTokenIfIdentifier();
-        if (!nameToken) {
-            this._addError(Localizer.Diagnostic.expectedFunctionName(), defToken);
-            return ErrorNode.create(
-                defToken,
-                ErrorExpressionCategory.MissingFunctionParameterList,
-                undefined,
-            );
-        }
-
-        let typeParameters: TypeParameterListNode | undefined;
-
-        const openParenToken = this._peekToken();
-        if (!this._consumeTokenIfType(TokenType.OpenParenthesis)) {
-            this._addError(Localizer.Diagnostic.expectedOpenParen(), this._peekToken());
-            return ErrorNode.create(
-                nameToken,
-                ErrorExpressionCategory.MissingFunctionParameterList,
-                NameNode.create(nameToken),
-            );
-        }
-
-        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* isCython */ true);
-
-        if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
-            this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
-            this._consumeTokensUntilType([TokenType.Colon]);
-        }
-
-        let functionTypeAnnotationToken: StringToken | undefined;
-        const suite = this._parseSuite(/* isFunction */ true, this._parseOptions.skipFunctionAndClassBody, () => {
-            if (!functionTypeAnnotationToken) {
-                functionTypeAnnotationToken = this._getTypeAnnotationCommentText();
-            }
-        });
-
-        const functionNode = FunctionNode.create(defToken, NameNode.create(nameToken), suite, typeParameters);
-
-        functionNode.parameters = paramList;
-        paramList.forEach((param) => {
-            param.parent = functionNode;
-        });
-
-        if (returnType) {
-            functionNode.returnTypeAnnotation = returnType;
-            functionNode.returnTypeAnnotation.parent = functionNode;
-        }
-
-        // If there was a type annotation comment for the function,
-        // parse it now.
-        if (functionTypeAnnotationToken) {
-            this._parseFunctionTypeAnnotationComment(functionTypeAnnotationToken, functionNode);
-        }
-
-        return functionNode;
-    }
-
     // funcdef: 'def' NAME parameters ['->' test] ':' suite
     // parameters: '(' [typedargslist] ')'
     private _parseFunctionDef(asyncToken?: KeywordToken, decorators?: DecoratorNode[]): FunctionNode | ErrorNode {
@@ -5354,5 +5062,298 @@ export class Parser {
                 convertOffsetsToRange(range.start, range.start + range.length, this._tokenizerOutput!.lines)
             );
         }
+    }
+
+    // Cython
+    private _consumeTokenPointers(node: ExpressionNode | undefined = undefined): void {
+        while (this._isTokenPointer()) {
+            const ptrToken = this._getNextToken();
+            if (node) {
+                extendRange(node, ptrToken);
+            }
+            continue;
+        }
+    }
+
+    private _peekTokenPointers(count = 0): number {
+        var ptrCount = 0;
+        while (this._isTokenPointer(ptrCount + count)) {
+            ptrCount++;
+            continue;
+        }
+        return ptrCount
+    }
+
+    private _isTokenPointer(count = 0): boolean {
+        let token = this._peekToken(count);
+        let operatorType: OperatorType;
+        if (token.type === TokenType.Operator) {
+            operatorType = (token as OperatorToken).operatorType;
+            if (operatorType == OperatorType.Multiply || operatorType === OperatorType.Power) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private _isNumericModifier(token: Token): KeywordType | undefined {
+        if (token.type === TokenType.Keyword) {
+            const keywordType = (token as KeywordToken).keywordType;
+            if (numericModifiers.find((type) => type === keywordType)) {
+                return keywordType;
+            }
+        }
+        return undefined;
+    }
+
+    private _isVarModifier(token: Token): KeywordType | undefined {
+        if (token.type === TokenType.Keyword) {
+            const keywordType = (token as KeywordToken).keywordType;
+            if (varModifiers.find((type) => type === keywordType)) {
+                return keywordType;
+            }
+        }
+        return undefined;
+    }
+
+    // [::1] or [] or [:] or [::] after type
+    private _peekView(count = 0, isFunction = false): number {
+        const possibleOpenBracket = this._peekToken(count);
+        let sliceIndex = 0;
+        let colonCount = 0;
+
+        if (possibleOpenBracket.type !== TokenType.OpenBracket) {
+            return sliceIndex;
+        }
+
+        count++;
+        sliceIndex++;
+        var lastType: TokenType | undefined = undefined;
+        while (sliceIndex < 5) {
+            const nextTokenType = this._peekToken(count).type;
+            count++
+            sliceIndex++;
+            if (nextTokenType === TokenType.CloseBracket || nextTokenType === TokenType.Comma) {
+                break;
+            }
+            if (nextTokenType === TokenType.Colon) {
+                colonCount++;
+            } else if (lastType === TokenType.Colon && colonCount < 2) {
+                // error Only valid on 'step' position
+            }
+            if (colonCount > 2) {
+                // error too many colons
+            }
+            lastType = nextTokenType;
+        }
+        if (isFunction && colonCount === 0) {
+            // error Function cannot return array
+            this._addError(Localizer.Diagnostic.returnTypeCannotBeArray(), this._peekToken());
+        }
+        return sliceIndex;
+    }
+
+    private _parseVarType(isFunction = false): ExpressionNode | undefined {
+        let varType: ExpressionNode | undefined;
+        if (this._peekTokenType() === TokenType.Identifier) {
+            // If the next token after any pointer and view annotations is an identifier, this token is a type.
+            let ptrCount = this._peekTokenPointers(1);
+            let viewTokens = this._peekView(1, isFunction);
+            if (ptrCount && viewTokens) {
+                // error type cannot be a pointer and a view
+            }
+
+            let possibleName = this._peekToken(ptrCount + viewTokens + 1)
+            if (possibleName.type === TokenType.Identifier) {
+                varType = NameNode.create(this._getNextToken() as IdentifierToken);
+                this._consumeTokenPointers(varType);
+                for (let index = 0; index < viewTokens; index++) {
+                    extendRange(varType, this._getNextToken());
+                }
+            }
+        }
+        return varType;
+    }
+
+    // const unsigned long long int* var
+    private _parseDeclarationCython(isParameter = false) : ParameterNode {
+        var numModifiers = 0;
+        var lastNumModifier: KeywordType | undefined;
+        let foundSigned = false;
+        let longCount = 0;
+        const firstToken = this._peekToken();
+        const varModifier = this._isVarModifier(firstToken);
+
+        if (varModifier) {
+            if (isParameter) {
+                // error
+            }
+            this._getNextToken();
+        }
+
+        while (numModifiers < 4) {
+            lastNumModifier = this._isNumericModifier(this._peekToken());
+            if (lastNumModifier) {
+                if (lastNumModifier === KeywordType.Unsigned || lastNumModifier === KeywordType.Signed) {
+                    if (foundSigned) {
+                        // Error
+                    }
+                    foundSigned = true;
+                } else if (lastNumModifier === KeywordType.Long) {
+                    if (longCount >= 2) {
+                        // Error
+                    }
+                    longCount++;
+                }
+                this._getNextToken();
+                numModifiers++
+            } else if (this._isVarModifier(this._peekToken())) {
+                // error
+            } else {
+                break;
+            }
+        }
+
+        // Types are optional
+        let paramTypeAnnotation = this._parseVarType();
+        const paramName = this._getTokenIfIdentifier();
+        if (!paramName) {
+            // Check for the Python 2.x parameter sublist syntax and handle it gracefully.
+            if (this._peekTokenType() === TokenType.OpenParenthesis) {
+                const sublistStart = this._getNextToken();
+                if (this._consumeTokensUntilType([TokenType.CloseParenthesis])) {
+                    this._getNextToken();
+                }
+                this._addError(Localizer.Diagnostic.sublistParamsIncompatible(), sublistStart);
+            } else {
+                this._addError(Localizer.Diagnostic.expectedParamName(), this._peekToken());
+            }
+        }
+
+        const paramNode = ParameterNode.create(firstToken, ParameterCategory.Simple);
+        if (paramName) {
+            paramNode.name = NameNode.create(paramName);
+            paramNode.name.parent = paramNode;
+            extendRange(paramNode, paramName);
+        }
+        if (paramTypeAnnotation) {
+            paramNode.typeAnnotation = paramTypeAnnotation;
+            paramNode.typeAnnotation.parent = paramNode;
+            extendRange(paramNode, paramNode.typeAnnotation);
+        }
+
+        if (this._consumeTokenIfOperator(OperatorType.Assign)) {
+            paramNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
+            paramNode.defaultValue.parent = paramNode;
+            extendRange(paramNode, paramNode.defaultValue);
+        }
+
+        return paramNode;
+    }
+
+    private _parseCdefCython(): StatementNode | ErrorNode | undefined {
+        const nextToken = this._peekToken(1);
+        if (nextToken.type === TokenType.Keyword) {
+            if ((nextToken as KeywordToken).keywordType === KeywordType.Class) {
+                this._getNextToken();
+                return this._parseClassDef();
+            }
+        }
+        if (nextToken.type === TokenType.Colon) {
+            // Multi line cdef
+            return undefined;
+        }
+
+        // Test if var declaration
+        // Maximum token example: const unsigned long long int* var
+        var count = 0;
+        var ptrCount = 0;
+        var viewTokens = 0;
+        while (count < 6) {
+            if (this._isTokenPointer(count + 1 + ptrCount)) {
+                ptrCount = this._peekTokenPointers(count + 1 + ptrCount);
+                continue;
+            }
+            
+            const iterToken = this._peekToken(count + 1 + ptrCount + viewTokens);
+            if (iterToken.type === TokenType.OpenBracket) {
+                viewTokens = this._peekView(count + 1 + ptrCount + viewTokens);
+                continue;
+            }
+            // If open Parenthesis assume function declaration
+            if (iterToken.type == TokenType.OpenParenthesis) {
+                return this._parseFunctionDefCython(KeywordType.Cdef);
+            }
+            count++;
+        }
+        // TODO: handle var declaration
+        return undefined;
+    }
+
+    private _parseFunctionDefCython(keywordType: KeywordType): FunctionNode | ErrorNode {
+        const defToken = this._getKeywordToken(keywordType);
+        const possibleInline = this._peekToken();
+        if (possibleInline.type === TokenType.Keyword) {
+            if ((possibleInline as KeywordToken).keywordType === KeywordType.Inline) {
+                this._getNextToken();
+            }
+        }
+        // Return type is optional
+        let returnType = this._parseVarType(true);
+        let nameToken = this._getTokenIfIdentifier();
+        if (!nameToken) {
+            this._addError(Localizer.Diagnostic.expectedFunctionName(), defToken);
+            return ErrorNode.create(
+                defToken,
+                ErrorExpressionCategory.MissingFunctionParameterList,
+                undefined,
+            );
+        }
+
+        let typeParameters: TypeParameterListNode | undefined;
+
+        const openParenToken = this._peekToken();
+        if (!this._consumeTokenIfType(TokenType.OpenParenthesis)) {
+            this._addError(Localizer.Diagnostic.expectedOpenParen(), this._peekToken());
+            return ErrorNode.create(
+                nameToken,
+                ErrorExpressionCategory.MissingFunctionParameterList,
+                NameNode.create(nameToken),
+            );
+        }
+
+        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* isCython */ true);
+
+        if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
+            this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
+            this._consumeTokensUntilType([TokenType.Colon]);
+        }
+
+        let functionTypeAnnotationToken: StringToken | undefined;
+        const suite = this._parseSuite(/* isFunction */ true, this._parseOptions.skipFunctionAndClassBody, () => {
+            if (!functionTypeAnnotationToken) {
+                functionTypeAnnotationToken = this._getTypeAnnotationCommentText();
+            }
+        });
+
+        const functionNode = FunctionNode.create(defToken, NameNode.create(nameToken), suite, typeParameters);
+
+        functionNode.parameters = paramList;
+        paramList.forEach((param) => {
+            param.parent = functionNode;
+        });
+
+        if (returnType) {
+            functionNode.returnTypeAnnotation = returnType;
+            functionNode.returnTypeAnnotation.parent = functionNode;
+        }
+
+        // If there was a type annotation comment for the function,
+        // parse it now.
+        if (functionTypeAnnotationToken) {
+            this._parseFunctionTypeAnnotationComment(functionTypeAnnotationToken, functionNode);
+        }
+
+        return functionNode;
     }
 }
