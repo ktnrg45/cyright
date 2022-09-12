@@ -118,6 +118,7 @@ import {
     WithNode,
     YieldFromNode,
     YieldNode,
+    TypedVarNode,
 } from './parseNodes';
 import * as StringTokenUtils from './stringTokenUtils';
 import { Tokenizer, TokenizerOutput } from './tokenizer';
@@ -1880,7 +1881,7 @@ export class Parser {
                 break;
             }
 
-            const param = (isCython) ? this._parseDeclarationCython(true) : this._parseParameter(allowAnnotations);
+            const param = (isCython) ? this._parseTypedVar(true) : this._parseParameter(allowAnnotations);
             if (!param) {
                 this._consumeTokensUntilType([terminator]);
                 break;
@@ -5176,8 +5177,8 @@ export class Parser {
     }
 
     // const unsigned long long int* var
-    private _parseDeclarationCython(isParameter = false) : ParameterNode {
-        var numModifiers = 0;
+    private _parseTypedVar(isParameter = false) : TypedVarNode {
+        var numModifiers: ExpressionNode[] = [];
         var lastNumModifier: KeywordType | undefined;
         let foundSigned = false;
         let longCount = 0;
@@ -5191,12 +5192,12 @@ export class Parser {
             this._getNextToken();
         }
 
-        while (numModifiers < 4) {
+        while (numModifiers.length < 4) {
             lastNumModifier = this._isNumericModifier(this._peekToken());
             if (lastNumModifier) {
                 if (lastNumModifier === KeywordType.Unsigned || lastNumModifier === KeywordType.Signed) {
                     if (foundSigned) {
-                        // Error
+                        this._addError(Localizer.Diagnostic.unexpectedSignedness(), this._peekToken());
                     }
                     foundSigned = true;
                 } else if (lastNumModifier === KeywordType.Long) {
@@ -5205,8 +5206,7 @@ export class Parser {
                     }
                     longCount++;
                 }
-                this._getNextToken();
-                numModifiers++
+                numModifiers.push(NameNode.create(this._getNextToken() as IdentifierToken));
             } else if (this._isVarModifier(this._peekToken())) {
                 // error
             } else {
@@ -5215,40 +5215,38 @@ export class Parser {
         }
 
         // Types are optional
-        let paramTypeAnnotation = this._parseVarType();
-        const paramName = this._getTokenIfIdentifier();
-        if (!paramName) {
-            // Check for the Python 2.x parameter sublist syntax and handle it gracefully.
-            if (this._peekTokenType() === TokenType.OpenParenthesis) {
-                const sublistStart = this._getNextToken();
-                if (this._consumeTokensUntilType([TokenType.CloseParenthesis])) {
-                    this._getNextToken();
-                }
-                this._addError(Localizer.Diagnostic.sublistParamsIncompatible(), sublistStart);
-            } else {
-                this._addError(Localizer.Diagnostic.expectedParamName(), this._peekToken());
-            }
+        let varTypeAnnotation = this._parseVarType();
+        const varName = this._getTokenIfIdentifier();
+        if (!varName) {
+            this._addError(Localizer.Diagnostic.expectedParamName(), this._peekToken());
+        }
+        if (!varTypeAnnotation && numModifiers.length > 0) {
+            this._addError(Localizer.Diagnostic.expectedVarType(), numModifiers[numModifiers.length - 1]);
         }
 
-        const paramNode = ParameterNode.create(firstToken, ParameterCategory.Simple);
-        if (paramName) {
-            paramNode.name = NameNode.create(paramName);
-            paramNode.name.parent = paramNode;
-            extendRange(paramNode, paramName);
+        const typedVarNode = TypedVarNode.create(firstToken);
+        typedVarNode.numericModifiers = numModifiers;
+        numModifiers.forEach(numModifier => {
+            extendRange(typedVarNode, numModifier);
+        });
+        if (varName) {
+            typedVarNode.name = NameNode.create(varName);
+            typedVarNode.name.parent = typedVarNode;
+            extendRange(typedVarNode, varName);
         }
-        if (paramTypeAnnotation) {
-            paramNode.typeAnnotation = paramTypeAnnotation;
-            paramNode.typeAnnotation.parent = paramNode;
-            extendRange(paramNode, paramNode.typeAnnotation);
+        if (varTypeAnnotation) {
+            typedVarNode.typeAnnotation = varTypeAnnotation;
+            typedVarNode.typeAnnotation.parent = typedVarNode;
+            extendRange(typedVarNode, typedVarNode.typeAnnotation);
         }
 
         if (this._consumeTokenIfOperator(OperatorType.Assign)) {
-            paramNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
-            paramNode.defaultValue.parent = paramNode;
-            extendRange(paramNode, paramNode.defaultValue);
+            typedVarNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
+            typedVarNode.defaultValue.parent = typedVarNode;
+            extendRange(typedVarNode, typedVarNode.defaultValue);
         }
 
-        return paramNode;
+        return typedVarNode;
     }
 
     private _parseCdefCython(): StatementNode | ErrorNode | undefined {
@@ -5298,9 +5296,12 @@ export class Parser {
                 this._getNextToken();
             }
         }
-        // Return type is optional
-        let returnType = this._parseVarType(true);
-        let nameToken = this._getTokenIfIdentifier();
+        // // Return type is optional
+        // let returnType = this._parseVarType(true);
+        // let nameToken = this._getTokenIfIdentifier();
+        let varAnnotation = this._parseTypedVar(false);
+        let returnType = varAnnotation.typeAnnotation;
+        let nameToken = varAnnotation.name;
         if (!nameToken) {
             this._addError(Localizer.Diagnostic.expectedFunctionName(), defToken);
             return ErrorNode.create(
@@ -5318,7 +5319,7 @@ export class Parser {
             return ErrorNode.create(
                 nameToken,
                 ErrorExpressionCategory.MissingFunctionParameterList,
-                NameNode.create(nameToken),
+                nameToken,
             );
         }
 

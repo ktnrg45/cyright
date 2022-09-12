@@ -510,7 +510,9 @@
         "yieldWithinListCompr": "\"yield\" not allowed inside a list comprehension",
         "zeroCaseStatementsFound": "Match statement must include at least one case statement",
         "zeroLengthTupleNotAllowed": "Zero-length tuple not allowed in this context",
-        "returnTypeCannotBeArray": "Return type cannot be an array"
+        "returnTypeCannotBeArray": "Return type cannot be an array",
+        "unexpectedSignedness": "Unexpected \"signed\" or \"unsigned\"",
+        "expectedVarType": "Expected variable type"
     },
     "DiagnosticAddendum": {
         "argParam": "Argument corresponds to parameter \"{paramName}\"",

@@ -986,6 +986,8 @@ export namespace Localizer {
 
         // Cython
         export const returnTypeCannotBeArray = () => getRawString('Diagnostic.returnTypeCannotBeArray');
+        export const unexpectedSignedness = () => getRawString('Diagnostic.unexpectedSignedness');
+        export const expectedVarType = () => getRawString('Diagnostic.expectedVarType');
     }
 
     export namespace DiagnosticAddendum {

@@ -2370,6 +2370,33 @@ export namespace PatternValueNode {
     }
 }
 
+// Cython
+export interface TypedVarNode extends ParameterNode {
+    readonly nodeType: ParseNodeType.Parameter;
+    category: ParameterCategory;
+    name?: NameNode | undefined;
+    typeAnnotation?: ExpressionNode | undefined;
+    typeAnnotationComment?: ExpressionNode | undefined;
+    defaultValue?: ExpressionNode | undefined;
+    modifier?: ExpressionNode | undefined;
+    numericModifiers?: ExpressionNode[] | undefined;
+    
+}
+
+export namespace TypedVarNode {
+    export function create(startToken: Token) {
+        const node: TypedVarNode = {
+            start: startToken.start,
+            length: startToken.length,
+            nodeType: ParseNodeType.Parameter,
+            id: _nextNodeId++,
+            category: ParameterCategory.Simple,
+        };
+
+        return node;
+    }
+}
+
 export type PatternAtomNode =
     | PatternSequenceNode
     | PatternLiteralNode
@@ -2458,7 +2485,8 @@ export type ParseNode =
     | WithNode
     | WithItemNode
     | YieldNode
-    | YieldFromNode;
+    | YieldFromNode
+    | TypedVarNode;
 
 export type EvaluationScopeNode = LambdaNode | FunctionNode | ModuleNode | ClassNode | ListComprehensionNode;
 export type ExecutionScopeNode = LambdaNode | FunctionNode | ModuleNode;
