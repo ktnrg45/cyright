@@ -983,6 +983,9 @@ export namespace Localizer {
         export const yieldWithinListCompr = () => getRawString('Diagnostic.yieldWithinListCompr');
         export const zeroCaseStatementsFound = () => getRawString('Diagnostic.zeroCaseStatementsFound');
         export const zeroLengthTupleNotAllowed = () => getRawString('Diagnostic.zeroLengthTupleNotAllowed');
+
+        // Cython
+        export const returnTypeCannotBeArray = () => getRawString('Diagnostic.returnTypeCannotBeArray');
     }
 
     export namespace DiagnosticAddendum {

@@ -1760,9 +1760,12 @@ export class Parser {
         return tryNode;
     }
 
-    private _consumeTokenPointers(): void {
+    private _consumeTokenPointers(node: ExpressionNode | undefined = undefined): void {
         while (this._isTokenPointer()) {
-            this._getNextToken();
+            const ptrToken = this._getNextToken();
+            if (node) {
+                extendRange(node, ptrToken);
+            }
             continue;
         }
     }
@@ -1809,7 +1812,7 @@ export class Parser {
     }
 
     // [::1] or [] or [:] or [::] after type
-    private _peekView(count = 0): number {
+    private _peekView(count = 0, isFunction = false): number {
         const possibleOpenBracket = this._peekToken(count);
         let sliceIndex = 0;
         let colonCount = 0;
@@ -1838,15 +1841,19 @@ export class Parser {
             }
             lastType = nextTokenType;
         }
+        if (isFunction && colonCount === 0) {
+            // error Function cannot return array
+            this._addError(Localizer.Diagnostic.returnTypeCannotBeArray(), this._peekToken());
+        }
         return sliceIndex;
     }
 
-    private _parseVarType(): ExpressionNode | undefined {
+    private _parseVarType(isFunction = false): ExpressionNode | undefined {
         let varType: ExpressionNode | undefined;
         if (this._peekTokenType() === TokenType.Identifier) {
             // If the next token after any pointer and view annotations is an identifier, this token is a type.
             let ptrCount = this._peekTokenPointers(1);
-            let viewTokens = this._peekView(1);
+            let viewTokens = this._peekView(1, isFunction);
             if (ptrCount && viewTokens) {
                 // error type cannot be a pointer and a view
             }
@@ -1854,9 +1861,9 @@ export class Parser {
             let possibleName = this._peekToken(ptrCount + viewTokens + 1)
             if (possibleName.type === TokenType.Identifier) {
                 varType = NameNode.create(this._getNextToken() as IdentifierToken);
-                this._consumeTokenPointers();
+                this._consumeTokenPointers(varType);
                 for (let index = 0; index < viewTokens; index++) {
-                    this._getNextToken();
+                    extendRange(varType, this._getNextToken());
                 }
             }
         }
@@ -1956,13 +1963,18 @@ export class Parser {
         // Maximum token example: const unsigned long long int* var
         var count = 0;
         var ptrCount = 0;
-        var iterToken: Token;
+        var viewTokens = 0;
         while (count < 6) {
             if (this._isTokenPointer(count + 1 + ptrCount)) {
-                ptrCount++;
+                ptrCount = this._peekTokenPointers(count + 1 + ptrCount);
                 continue;
             }
-            iterToken = this._peekToken(count + 1 + ptrCount);
+            
+            const iterToken = this._peekToken(count + 1 + ptrCount + viewTokens);
+            if (iterToken.type === TokenType.OpenBracket) {
+                viewTokens = this._peekView(count + 1 + ptrCount + viewTokens);
+                continue;
+            }
             // If open Parenthesis assume function declaration
             if (iterToken.type == TokenType.OpenParenthesis) {
                 return this._parseFunctionDefCython(KeywordType.Cdef);
@@ -1982,7 +1994,7 @@ export class Parser {
             }
         }
         // Return type is optional
-        let returnType = this._parseVarType();
+        let returnType = this._parseVarType(true);
         let nameToken = this._getTokenIfIdentifier();
         if (!nameToken) {
             this._addError(Localizer.Diagnostic.expectedFunctionName(), defToken);
