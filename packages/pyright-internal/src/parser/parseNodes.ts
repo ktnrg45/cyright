@@ -2377,27 +2377,40 @@ export const enum TypedVarCategory {
     Parameter,
     Function,
 }
-export interface TypedVarNode extends ParameterNode {
-    readonly nodeType: ParseNodeType.Parameter;
-    category: ParameterCategory;
+export interface TypedVarNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType;
+    readonly typedVarCategory: TypedVarCategory;
+    startToken: Token;
     name?: NameNode | undefined;
     typeAnnotation?: ExpressionNode | undefined;
     typeAnnotationComment?: ExpressionNode | undefined;
-    defaultValue?: ExpressionNode | undefined;
-    typedVarCategory: TypedVarCategory;
-    modifier?: ExpressionNode | undefined;
+    modifier?: Token | undefined;
     numericModifiers?: ExpressionNode[] | undefined;
+    pointers?: Token[] | undefined;
+    viewTokens?: Token[] | undefined;
+    defaultValue?: ExpressionNode | undefined;
     
 }
 
 export namespace TypedVarNode {
     export function create(startToken: Token, typedVarCategory: TypedVarCategory) {
+        let nodeType: ParseNodeType;
+        switch (typedVarCategory) {
+            case TypedVarCategory.Function:
+                nodeType = ParseNodeType.Function;
+                break;
+            case TypedVarCategory.Parameter:
+                nodeType = ParseNodeType.Parameter;
+                break;
+            default:
+                nodeType = ParseNodeType.TypeAlias;
+        }
         const node: TypedVarNode = {
+            startToken: startToken,
             start: startToken.start,
             length: startToken.length,
-            nodeType: ParseNodeType.Parameter,
+            nodeType: nodeType,
             id: _nextNodeId++,
-            category: ParameterCategory.Simple,
             typedVarCategory: typedVarCategory,
         };
 
@@ -2493,8 +2506,7 @@ export type ParseNode =
     | WithNode
     | WithItemNode
     | YieldNode
-    | YieldFromNode
-    | TypedVarNode;
+    | YieldFromNode;
 
 export type EvaluationScopeNode = LambdaNode | FunctionNode | ModuleNode | ClassNode | ListComprehensionNode;
 export type ExecutionScopeNode = LambdaNode | FunctionNode | ModuleNode;

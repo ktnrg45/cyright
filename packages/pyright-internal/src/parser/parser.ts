@@ -1882,7 +1882,7 @@ export class Parser {
                 break;
             }
 
-            const param = (isCython) ? this._parseTypedVar(TypedVarCategory.Parameter) : this._parseParameter(allowAnnotations);
+            const param = (isCython) ? this._parseParameterCython() : this._parseParameter(allowAnnotations);
             if (!param) {
                 this._consumeTokensUntilType([terminator]);
                 break;
@@ -5067,14 +5067,12 @@ export class Parser {
     }
 
     // Cython
-    private _consumeTokenPointers(node: ExpressionNode | undefined = undefined): void {
+    private _consumeTokenPointers(): Token[] {
+        var ptrTokens: Token[] = [];
         while (this._isTokenPointer()) {
-            const ptrToken = this._getNextToken();
-            if (node) {
-                extendRange(node, ptrToken);
-            }
-            continue;
+            ptrTokens.push(this._getNextToken());
         }
+        return ptrTokens;
     }
 
     private _peekTokenPointers(count = 0): number {
@@ -5158,27 +5156,33 @@ export class Parser {
         return tokenIndex;
     }
 
-    private _parseVarType(isFunction = false): ExpressionNode | undefined {
-        let varType: ExpressionNode | undefined;
-        if (this._peekTokenType() === TokenType.Identifier) {
-            // If the next token after any pointer and view annotations is an identifier, this token is a type.
-            let ptrCount = this._peekTokenPointers(1);
-            let viewTokens = this._peekView(1, isFunction);
-
-            let possibleName = this._peekToken(ptrCount + viewTokens + 1)
-            if (possibleName.type === TokenType.Identifier) {
-                varType = NameNode.create(this._getNextToken() as IdentifierToken);
-                this._consumeTokenPointers(varType);
-                for (let index = 0; index < viewTokens; index++) {
-                    extendRange(varType, this._getNextToken());
-                }
-            }
+    private _parseParameterCython(): ParameterNode {
+        let typedVarNode = this._parseTypedVar(TypedVarCategory.Parameter);
+        if (!typedVarNode) {
+            return ParameterNode.create(this._peekToken(), ParameterCategory.Simple);
         }
-        return varType;
+        let paramNode = ParameterNode.create(typedVarNode.startToken, ParameterCategory.Simple);
+
+        if (typedVarNode.name) {
+            paramNode.name = typedVarNode.name;
+            paramNode.name.parent = paramNode;
+            extendRange(paramNode, paramNode.name);
+        }
+        if (typedVarNode.typeAnnotation) {
+            paramNode.typeAnnotation = typedVarNode.typeAnnotation;
+            paramNode.typeAnnotation.parent = paramNode;
+            extendRange(paramNode, paramNode.typeAnnotation);
+        }
+        if (this._consumeTokenIfOperator(OperatorType.Assign)) {
+            paramNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
+            paramNode.defaultValue.parent = paramNode;
+            extendRange(paramNode, paramNode.defaultValue);
+        }
+        return paramNode;
     }
 
     // const unsigned long long int* var
-    private _parseTypedVar(typedVarCategory = TypedVarCategory.Variable) : TypedVarNode {
+    private _parseTypedVar(typedVarCategory = TypedVarCategory.Variable) : TypedVarNode | undefined{
         var numModifiers: Token[] = [];
         var lastNumModifier: KeywordType | undefined;
         let foundSigned = false;
@@ -5226,45 +5230,50 @@ export class Parser {
             }
         }
 
+        var varType: NameNode | undefined;
+        var varName: NameNode | undefined;
+        var viewTokens: Token[] = [];
+        var ptrTokens: Token[] = [];
+        if (this._peekTokenType() === TokenType.Identifier) {
+            // If the next token after any pointer and view annotations is an identifier, this token is a type.
+            let ptrCount = this._peekTokenPointers(1);
+            let viewTokensCount = this._peekView(1, (typedVarCategory === TypedVarCategory.Function));
+
+            let possibleName = this._peekToken(ptrCount + viewTokensCount + 1)
+            if (possibleName.type === TokenType.Identifier) {
+                varType = NameNode.create(this._getNextToken() as IdentifierToken);
+                ptrTokens = this._consumeTokenPointers();
+                for (let index = 0; index < viewTokensCount; index++) {
+                    viewTokens.push(this._getNextToken());
+                }
+            }
+            varName = NameNode.create(this._getNextToken() as IdentifierToken);
+        }
+
         // Types are optional
-        let varTypeAnnotation = this._parseVarType();
-        const varName = this._getTokenIfIdentifier();
         if (!varName) {
             this._addError(Localizer.Diagnostic.expectedParamName(), this._peekToken());
+            return undefined;
         }
-        if (!varTypeAnnotation && numModifiers.length > 0) {
+
+        if (!varType && numModifiers.length > 0) {
             const possibleLong = numModifiers[numModifiers.length - 1];
             // TODO: Allow 'long' to be a type
             // if ((possibleLong as KeywordToken).keywordType === KeywordType.Long) {
-            //     varTypeAnnotation = NameNode.create(possibleLong as IdentifierToken);
+            //     varType = NameNode.create(possibleLong as IdentifierToken);
             // } else {
             //     this._addError(Localizer.Diagnostic.expectedVarType(), possibleLong);
             // }
             this._addError(Localizer.Diagnostic.expectedVarType(), possibleLong);
         }
 
-        const typedVarNode = TypedVarNode.create(firstToken, typedVarCategory);
-        const numericModifiers = numModifiers.map((modToken) => NameNode.create(modToken as IdentifierToken));
-        typedVarNode.numericModifiers = numericModifiers;
-        numericModifiers.forEach(numModifier => {
-            extendRange(typedVarNode, numModifier);
-        });
-        if (varName) {
-            typedVarNode.name = NameNode.create(varName);
-            typedVarNode.name.parent = typedVarNode;
-            extendRange(typedVarNode, varName);
-        }
-        if (varTypeAnnotation) {
-            typedVarNode.typeAnnotation = varTypeAnnotation;
-            typedVarNode.typeAnnotation.parent = typedVarNode;
-            extendRange(typedVarNode, typedVarNode.typeAnnotation);
-        }
-
-        if (this._consumeTokenIfOperator(OperatorType.Assign)) {
-            typedVarNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
-            typedVarNode.defaultValue.parent = typedVarNode;
-            extendRange(typedVarNode, typedVarNode.defaultValue);
-        }
+        let typedVarNode = TypedVarNode.create(firstToken, typedVarCategory)
+        typedVarNode.name = varName;
+        typedVarNode.typeAnnotation = varType;
+        typedVarNode.modifier = (varModifier) ? firstToken : undefined;
+        typedVarNode.pointers = ptrTokens;
+        typedVarNode.viewTokens = viewTokens;
+        typedVarNode.numericModifiers = numModifiers.map((modToken) => NameNode.create(modToken as IdentifierToken));
 
         return typedVarNode;
     }
@@ -5310,10 +5319,8 @@ export class Parser {
 
     private _parseFunctionDefCython(keywordType: KeywordType): FunctionNode | ErrorNode {
         const defToken = this._getKeywordToken(keywordType);
-        let varAnnotation = this._parseTypedVar(TypedVarCategory.Function);
-        let returnType = varAnnotation.typeAnnotation;
-        let nameToken = varAnnotation.name;
-        if (!nameToken) {
+        let typedVarNode = this._parseTypedVar(TypedVarCategory.Function);
+        if (!typedVarNode || !typedVarNode.name) {
             this._addError(Localizer.Diagnostic.expectedFunctionName(), defToken);
             return ErrorNode.create(
                 defToken,
@@ -5321,7 +5328,8 @@ export class Parser {
                 undefined,
             );
         }
-
+        let returnType = typedVarNode.typeAnnotation;
+        let nameToken = typedVarNode.name;
         let typeParameters: TypeParameterListNode | undefined;
 
         const openParenToken = this._peekToken();
