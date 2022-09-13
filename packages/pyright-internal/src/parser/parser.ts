@@ -11,7 +11,6 @@
  * into an abstract syntax tree (AST).
  */
 
-import { throws } from 'assert';
 import Char from 'typescript-char';
 
 import { IPythonMode } from '../analyzer/sourceFile';
@@ -5156,6 +5155,62 @@ export class Parser {
         return tokenIndex;
     }
 
+    private _parseTypeAliasStatementCython(): StatementListNode | undefined{
+        const statements = StatementListNode.create(this._peekToken());
+        const typedVarNode = this._parseTypedVar();
+
+        if (!typedVarNode) {
+            return undefined;
+        }
+        if (!typedVarNode.typeAnnotation) {
+            this._addError(Localizer.Diagnostic.expectedVarType(), this._peekToken())
+            return undefined;
+        }
+        if (!typedVarNode.name) {
+            this._addError(Localizer.Diagnostic.expectedTypeParameterName(), this._peekToken())
+            return undefined;
+        }
+
+        const varName = typedVarNode.name;
+        const varType = typedVarNode.typeAnnotation;
+
+        const firstExpression = AssignmentExpressionNode.create(varName, varType);
+        statements.statements.push(firstExpression);
+        firstExpression.parent = statements;
+
+        while (this._peekTokenType() !== TokenType.NewLine) {
+            // if (nextToken.type === TokenType.Operator) {
+            //     if (next)
+                // // Make a shallow copy of the dest expression but give it a new ID.
+                // const destExpr = Object.assign({}, firstExpression);
+                // destExpr.id = getNextNodeId();
+                // const rightExpr = AssignmentExpressionNode.create(name, varName);
+                // const expression = AugmentedAssignmentNode.create(firstExpression, rightExpr, OperatorType.Equals, destExpr);
+            //     break;
+            // }
+
+            // double name, name2
+            let nextToken = this._getNextToken();
+            if (nextToken.type !== TokenType.Comma) {
+                this._addError(Localizer.Diagnostic.expectedNewlineOrSemicolon(), nextToken);
+                break;
+            }
+            nextToken = this._getNextToken();
+            if (nextToken.type !== TokenType.Identifier) {
+                this._addError(Localizer.Diagnostic.expectedTypeParameterName(), nextToken);
+                break;
+            }
+            let name = NameNode.create(nextToken as IdentifierToken);
+            const expression = AssignmentExpressionNode.create(name, varType);
+            statements.statements.push(expression);
+            expression.parent = statements;
+        }
+        // const typeToken = KeywordToken.create(varType.start, varType.length, KeywordType.Type, undefined);
+        // const paramNode = TypeParameterNode.create(varType as NameNode, TypeParameterCategory.TypeVar)
+        // const typeParameters = TypeParameterListNode.create(typeToken, typeToken, [paramNode]);
+        return statements;
+    }
+
     private _parseParameterCython(): ParameterNode {
         let typedVarNode = this._parseTypedVar(TypedVarCategory.Parameter);
         if (!typedVarNode) {
@@ -5278,6 +5333,67 @@ export class Parser {
         return typedVarNode;
     }
 
+    private _parseSuiteCython(): StatementListNode {
+        this._consumeTokenIfType(TokenType.Colon);
+        if (!this._consumeTokenIfType(TokenType.NewLine)) {
+            // error
+        }
+        const statements = StatementListNode.create(this._peekToken());
+        while (true) {
+            const nextToken = this._peekToken();
+
+            if (nextToken.type === TokenType.Dedent) {
+                this._getNextToken();
+                break;
+            }
+            if (nextToken.type === TokenType.NewLine) {
+                this._getNextToken()
+                continue;
+            }
+            if (nextToken.type === TokenType.Indent) {
+                const indentToken = nextToken as IndentToken;
+                if (indentToken.isIndentAmbiguous) {
+                    this._addError(Localizer.Diagnostic.inconsistentTabs(), indentToken);
+                } else {
+                    this._addError(Localizer.Diagnostic.unexpectedIndent(), nextToken);
+                }
+            }
+            let newStatements = this._parseTypeAliasStatementCython();
+            if (newStatements) {
+                newStatements.statements.forEach(statement => {
+                    statements.statements.push(statement);
+                    statement.parent = statements;
+                });
+            }
+        }
+        return statements;
+        // const statements = StatementListNode.create(this._peekToken());
+        // while (!this._atEof()) {
+        //     if (!this._consumeTokenIfType(TokenType.NewLine)) {
+        //         // Handle a common error case and try to recover.
+        //         const nextToken = this._peekToken();
+        //         if (nextToken.type === TokenType.Indent) {
+        //             this._getNextToken();
+        //             const indentToken = nextToken as IndentToken;
+        //             if (indentToken.isIndentAmbiguous) {
+        //                 this._addError(Localizer.Diagnostic.inconsistentTabs(), indentToken);
+        //             } else {
+        //                 this._addError(Localizer.Diagnostic.unexpectedIndent(), nextToken);
+        //             }
+        //         }
+
+        //         const statement = this._parseStatement();
+        //         if (!statement) {
+        //             // Perform basic error recovery to get to the next line.
+        //             this._consumeTokensUntilType([TokenType.NewLine]);
+        //         } else {
+        //             statement.parent = moduleNode;
+        //             moduleNode.statements.push(statement);
+        //         }
+        //     }
+        // }
+    }
+
     private _parseCdefCython(): StatementNode | ErrorNode | undefined {
         const nextToken = this._peekToken(1);
         if (nextToken.type === TokenType.Keyword) {
@@ -5288,7 +5404,8 @@ export class Parser {
         }
         if (nextToken.type === TokenType.Colon) {
             // Multi line cdef
-            return undefined;
+            // this._getNextToken();
+            // return this._parseSuiteCython();
         }
 
         // Test if var declaration
@@ -5311,10 +5428,14 @@ export class Parser {
             if (iterToken.type == TokenType.OpenParenthesis) {
                 return this._parseFunctionDefCython(KeywordType.Cdef);
             }
+            if (iterToken.type == TokenType.NewLine) {
+                break;
+            }
             count++;
         }
-        // TODO: handle var declaration
-        return undefined;
+        // Single line cdef
+        this._getNextToken();
+        return this._parseTypeAliasStatementCython();
     }
 
     private _parseFunctionDefCython(keywordType: KeywordType): FunctionNode | ErrorNode {
