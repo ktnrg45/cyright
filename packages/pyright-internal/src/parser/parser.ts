@@ -5168,7 +5168,7 @@ export class Parser {
             return undefined;
         }
         if (!typedVarNode.name) {
-            this._addError(Localizer.Diagnostic.expectedTypeParameterName(), this._peekToken())
+            this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken())
             return undefined;
         }
 
@@ -5208,7 +5208,7 @@ export class Parser {
             }
             nextToken = this._getNextToken();
             if (nextToken.type !== TokenType.Identifier) {
-                this._addError(Localizer.Diagnostic.expectedTypeParameterName(), nextToken);
+                this._addError(Localizer.Diagnostic.expectedIdentifier(), nextToken);
                 break;
             }
             let name = NameNode.create(nextToken as IdentifierToken);
