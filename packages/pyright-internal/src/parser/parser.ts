@@ -5155,7 +5155,7 @@ export class Parser {
         return tokenIndex;
     }
 
-    private _parseTypeAliasStatementCython(): StatementListNode | undefined{
+    private _parseTypedStatement(): StatementListNode | undefined{
         const statements = StatementListNode.create(this._peekToken());
         const typedVarNode = this._parseTypedVar();
 
@@ -5174,9 +5174,15 @@ export class Parser {
         const varName = typedVarNode.name;
         const varType = typedVarNode.typeAnnotation;
 
+        // Example expression: double name
+        // To the parser, this should be equivalent to "name: double = double"
+        // This tricks the parser into thinking that the variable is initialized
         const firstExpression = AssignmentExpressionNode.create(varName, varType);
+        const typeAnnotation = TypeAnnotationNode.create(varName, varType);
         statements.statements.push(firstExpression);
         firstExpression.parent = statements;
+        statements.statements.push(typeAnnotation);
+        typeAnnotation.parent = statements;
 
         while (this._peekTokenType() !== TokenType.NewLine) {
             // double name, name2
@@ -5192,8 +5198,11 @@ export class Parser {
             }
             let name = NameNode.create(nextToken as IdentifierToken);
             const expression = AssignmentExpressionNode.create(name, varType);
+            const annotation = TypeAnnotationNode.create(name, varType);
             statements.statements.push(expression);
             expression.parent = statements;
+            statements.statements.push(annotation);
+            annotation.parent = statements;
         }
         return statements;
     }
@@ -5345,7 +5354,7 @@ export class Parser {
                     this._addError(Localizer.Diagnostic.unexpectedIndent(), nextToken);
                 }
             }
-            let newStatements = this._parseTypeAliasStatementCython();
+            let newStatements = this._parseTypedStatement();
             if (newStatements) {
                 newStatements.statements.forEach(statement => {
                     statements.statements.push(statement);
@@ -5422,7 +5431,7 @@ export class Parser {
         }
         // Single line cdef
         this._getNextToken();
-        return this._parseTypeAliasStatementCython();
+        return this._parseTypedStatement();
     }
 
     private _parseFunctionDefCython(keywordType: KeywordType): FunctionNode | ErrorNode {
