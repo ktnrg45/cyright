@@ -5342,65 +5342,42 @@ export class Parser {
         return typedVarNode;
     }
 
-    private _parseSuiteCython(): StatementListNode {
+    // Multi Line cdef
+    private _parseSuiteCython(): StatementListNode | undefined {
         this._consumeTokenIfType(TokenType.Colon);
         if (!this._consumeTokenIfType(TokenType.NewLine)) {
-            // error
+            this._addError(Localizer.Diagnostic.expectedNewline(), this._getNextToken());
+            return undefined;
         }
+        
+        // One indent is expected
+        const indentToken = this._getNextToken();
+        if (indentToken.type !== TokenType.Indent) {
+            this._addError(Localizer.Diagnostic.expectedIndentedBlock(), indentToken);
+            return undefined;
+        } else if ((indentToken as IndentToken).isIndentAmbiguous) {
+            this._addError(Localizer.Diagnostic.inconsistentTabs(), indentToken);
+        }
+
         const statements = StatementListNode.create(this._peekToken());
         while (true) {
-            const nextToken = this._peekToken();
+            this._consumeTokenIfType(TokenType.NewLine);
 
-            if (nextToken.type === TokenType.Dedent) {
-                this._getNextToken();
+            if (this._consumeTokenIfType(TokenType.Dedent)) {
                 break;
             }
-            if (nextToken.type === TokenType.NewLine) {
-                this._getNextToken()
-                continue;
-            }
-            if (nextToken.type === TokenType.Indent) {
-                const indentToken = nextToken as IndentToken;
-                if (indentToken.isIndentAmbiguous) {
-                    this._addError(Localizer.Diagnostic.inconsistentTabs(), indentToken);
-                } else {
-                    this._addError(Localizer.Diagnostic.unexpectedIndent(), nextToken);
-                }
-            }
-            let newStatements = this._parseTypedStatement();
-            if (newStatements) {
-                newStatements.statements.forEach(statement => {
-                    statements.statements.push(statement);
-                    statement.parent = statements;
-                });
-            }
-        }
-        return statements;
-        // const statements = StatementListNode.create(this._peekToken());
-        // while (!this._atEof()) {
-        //     if (!this._consumeTokenIfType(TokenType.NewLine)) {
-        //         // Handle a common error case and try to recover.
-        //         const nextToken = this._peekToken();
-        //         if (nextToken.type === TokenType.Indent) {
-        //             this._getNextToken();
-        //             const indentToken = nextToken as IndentToken;
-        //             if (indentToken.isIndentAmbiguous) {
-        //                 this._addError(Localizer.Diagnostic.inconsistentTabs(), indentToken);
-        //             } else {
-        //                 this._addError(Localizer.Diagnostic.unexpectedIndent(), nextToken);
-        //             }
-        //         }
 
-        //         const statement = this._parseStatement();
-        //         if (!statement) {
-        //             // Perform basic error recovery to get to the next line.
-        //             this._consumeTokensUntilType([TokenType.NewLine]);
-        //         } else {
-        //             statement.parent = moduleNode;
-        //             moduleNode.statements.push(statement);
-        //         }
-        //     }
-        // }
+            let newStatements = this._parseTypedStatement();
+            if (!newStatements) {
+                this._consumeTokensUntilType([TokenType.Dedent]);
+                break;
+            }
+            newStatements.statements.forEach(statement => {
+                statements.statements.push(statement);
+                statement.parent = statements;
+            });
+        }
+        return (statements.length > 0) ? statements : undefined;
     }
 
     private _parseCdefCython(): StatementNode | ErrorNode | undefined {
@@ -5413,8 +5390,8 @@ export class Parser {
         }
         if (nextToken.type === TokenType.Colon) {
             // Multi line cdef
-            // this._getNextToken();
-            // return this._parseSuiteCython();
+            this._getNextToken();
+            return this._parseSuiteCython();
         }
 
         // Test if var declaration
