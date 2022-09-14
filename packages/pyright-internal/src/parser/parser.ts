@@ -5179,16 +5179,6 @@ export class Parser {
         firstExpression.parent = statements;
 
         while (this._peekTokenType() !== TokenType.NewLine) {
-            // if (nextToken.type === TokenType.Operator) {
-            //     if (next)
-                // // Make a shallow copy of the dest expression but give it a new ID.
-                // const destExpr = Object.assign({}, firstExpression);
-                // destExpr.id = getNextNodeId();
-                // const rightExpr = AssignmentExpressionNode.create(name, varName);
-                // const expression = AugmentedAssignmentNode.create(firstExpression, rightExpr, OperatorType.Equals, destExpr);
-            //     break;
-            // }
-
             // double name, name2
             let nextToken = this._getNextToken();
             if (nextToken.type !== TokenType.Comma) {
@@ -5205,9 +5195,6 @@ export class Parser {
             statements.statements.push(expression);
             expression.parent = statements;
         }
-        // const typeToken = KeywordToken.create(varType.start, varType.length, KeywordType.Type, undefined);
-        // const paramNode = TypeParameterNode.create(varType as NameNode, TypeParameterCategory.TypeVar)
-        // const typeParameters = TypeParameterListNode.create(typeToken, typeToken, [paramNode]);
         return statements;
     }
 

@@ -2,48 +2,51 @@
 
 from typing import TypeVar
 
-T = TypeVar("T")
+_T = TypeVar("_T")
+_N = TypeVar("_N", bound=None)
+_B = TypeVar("_B", bound=bool|int)
+_I = TypeVar("_I", bound=bool|int|float)
 
 
-class NULL(T):
+class NULL(_N):
     """Cython Type. Represents null."""
 
 
-class void(T):
+class void(_N):
     """Cython Type. Represents void."""
 
 
-class bint(T):
+class bint(_B):
     """Cython Type. Represents a boolean integer."""
 
 
-class char(T):
+class char(_I):
     """Cython Type. Represents a char integer."""
 
 
-class short(T):
+class short(_I):
     """Cython Type. Represents a short integer."""
 
 
-class complex(T):
+class complex(_I):
     """Cython Type. Represents a complex integer."""
 
 
-class double(T):
+class double(_I):
     """Cython Type. Represents a double."""
 
 
-class size_t(T):
+class size_t(_I):
     """Cython Type. Represents size_t."""
 
 
-class ssize_t(T):
+class ssize_t(_I):
     """Cython Type. Represents ssize_t."""
 
 
-class struct(T):
+class struct(_T):
     """Cython Type. Represents a struct."""
 
 
-class enum(T):
+class enum(_T):
     """Cython Type. Represents a enum."""
