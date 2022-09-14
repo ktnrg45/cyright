@@ -5155,7 +5155,8 @@ export class Parser {
         return tokenIndex;
     }
 
-    private _parseTypedStatement(): StatementListNode | undefined{
+    private _parseTypedStatement(): StatementListNode | undefined {
+        // TODO: goto type definition not working
         const statements = StatementListNode.create(this._peekToken());
         const typedVarNode = this._parseTypedVar();
 
@@ -5184,7 +5185,21 @@ export class Parser {
         statements.statements.push(typeAnnotation);
         typeAnnotation.parent = statements;
 
+        var lastName = varName;
+
         while (this._peekTokenType() !== TokenType.NewLine) {
+            const possibleAssign = this._peekToken();
+            if (possibleAssign.type === TokenType.Operator) {
+                if ((possibleAssign as OperatorToken).operatorType === OperatorType.Assign) {
+                    this._getNextToken();
+                    const rightExpr = this._parseTestExpression(/* allowAssignmentExpression */ false);
+                    const assignExpr = AssignmentExpressionNode.create(lastName, rightExpr);
+                    statements.statements.push(assignExpr);
+                    assignExpr.parent = statements;
+                }
+                break;
+            }
+
             // double name, name2
             let nextToken = this._getNextToken();
             if (nextToken.type !== TokenType.Comma) {
@@ -5203,6 +5218,7 @@ export class Parser {
             expression.parent = statements;
             statements.statements.push(annotation);
             annotation.parent = statements;
+            lastName = name;
         }
         return statements;
     }
