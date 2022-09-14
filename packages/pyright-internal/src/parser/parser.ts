@@ -5190,6 +5190,13 @@ export class Parser {
                     this._getNextToken();
                     const rightExpr = this._parseTestExpression(/* allowAssignmentExpression */ false);
                     const assignExpr = AssignmentExpressionNode.create(lastName, rightExpr);
+                    // const rightExpr = this._parseTestOrStarListAsExpression(
+                    //     /* allowAssignmentExpression */ false,
+                    //     /* allowMultipleUnpack */ true,
+                    //     ErrorExpressionCategory.MissingExpression,
+                    //     Localizer.Diagnostic.expectedAssignRightHandExpr()
+                    // );
+                    // const assignExpr = AssignmentNode.create(lastName, rightExpr);
                     statements.statements.push(assignExpr);
                     assignExpr.parent = statements;
                 }
@@ -5394,7 +5401,7 @@ export class Parser {
             return this._parseSuiteCython();
         }
 
-        // Test if var declaration
+        // Test if var or function declaration
         // Maximum token example: const unsigned long long int* var
         var count = 0;
         var ptrCount = 0;
@@ -5414,7 +5421,7 @@ export class Parser {
             if (iterToken.type == TokenType.OpenParenthesis) {
                 return this._parseFunctionDefCython(KeywordType.Cdef);
             }
-            if (iterToken.type == TokenType.NewLine) {
+            if (iterToken.type !== TokenType.Keyword && iterToken.type !== TokenType.Identifier) {
                 break;
             }
             count++;
