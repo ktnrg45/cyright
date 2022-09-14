@@ -20,12 +20,20 @@ class bint(_B):
     """Cython Type. Represents a boolean integer."""
 
 
-class char(_I):
+class char(_B):
     """Cython Type. Represents a char integer."""
 
 
-class short(_I):
+class short(_B):
     """Cython Type. Represents a short integer."""
+
+
+class size_t(_B):
+    """Cython Type. Represents size_t."""
+
+
+class ssize_t(_B):
+    """Cython Type. Represents ssize_t."""
 
 
 class complex(_I):
@@ -34,14 +42,6 @@ class complex(_I):
 
 class double(_I):
     """Cython Type. Represents a double."""
-
-
-class size_t(_I):
-    """Cython Type. Represents size_t."""
-
-
-class ssize_t(_I):
-    """Cython Type. Represents ssize_t."""
 
 
 class struct(_T):
