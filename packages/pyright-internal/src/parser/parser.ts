@@ -2807,10 +2807,6 @@ export class Parser {
 
             case KeywordType.Cimport:
                 return this._parseImportStatement(KeywordType.Cimport);
-            
-            case KeywordType.Cdef:
-                // TODO: Add parsing
-                return this._parseExpressionStatement();
 
             case KeywordType.Global:
                 return this._parseGlobalStatement();
@@ -5220,6 +5216,7 @@ export class Parser {
             annotation.parent = statements;
             lastName = name;
         }
+        this._consumeTokenIfType(TokenType.NewLine);
         return statements;
     }
 
