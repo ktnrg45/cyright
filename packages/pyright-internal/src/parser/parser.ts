@@ -5173,13 +5173,11 @@ export class Parser {
 
         // Example expression: double name
         // To the parser, this should be equivalent to "name: double = double"
-        // This tricks the parser into thinking that the variable is initialized
-        const firstExpression = AssignmentExpressionNode.create(varName, varType);
-        const typeAnnotation = TypeAnnotationNode.create(varName, varType);
+        // This tricks the parser into thinking that the variable is defined
+        const typeAnnotation = TypeAnnotationNode.create(varName, varType);        
+        const firstExpression = AssignmentNode.create(typeAnnotation, varType);
         statements.statements.push(firstExpression);
         firstExpression.parent = statements;
-        statements.statements.push(typeAnnotation);
-        typeAnnotation.parent = statements;
 
         var lastName = varName;
 
@@ -5190,13 +5188,6 @@ export class Parser {
                     this._getNextToken();
                     const rightExpr = this._parseTestExpression(/* allowAssignmentExpression */ false);
                     const assignExpr = AssignmentExpressionNode.create(lastName, rightExpr);
-                    // const rightExpr = this._parseTestOrStarListAsExpression(
-                    //     /* allowAssignmentExpression */ false,
-                    //     /* allowMultipleUnpack */ true,
-                    //     ErrorExpressionCategory.MissingExpression,
-                    //     Localizer.Diagnostic.expectedAssignRightHandExpr()
-                    // );
-                    // const assignExpr = AssignmentNode.create(lastName, rightExpr);
                     statements.statements.push(assignExpr);
                     assignExpr.parent = statements;
                 }
@@ -5215,12 +5206,10 @@ export class Parser {
                 break;
             }
             let name = NameNode.create(nextToken as IdentifierToken);
-            const expression = AssignmentExpressionNode.create(name, varType);
             const annotation = TypeAnnotationNode.create(name, varType);
+            const expression = AssignmentNode.create(annotation, varType);
             statements.statements.push(expression);
             expression.parent = statements;
-            statements.statements.push(annotation);
-            annotation.parent = statements;
             lastName = name;
         }
         this._consumeTokenIfType(TokenType.NewLine);
