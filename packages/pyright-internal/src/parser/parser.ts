@@ -5290,18 +5290,35 @@ export class Parser {
             }
         }
 
-        var varType: NameNode | undefined;
+        var varType: ExpressionNode | undefined;
         var varName: NameNode | undefined;
         var viewTokens: Token[] = [];
         var ptrTokens: Token[] = [];
         if (this._peekTokenType() === TokenType.Identifier) {
+            varType = NameNode.create(this._peekToken() as IdentifierToken);
+            let skip = 1;
+            while (this._peekToken(skip).type === TokenType.Dot) {
+                skip++;
+                const maybeMember = this._peekToken(skip);
+                if (maybeMember.type !== TokenType.Identifier) {
+                    this._addError(Localizer.Diagnostic.expectedMemberName(), maybeMember);
+                    break;
+                }
+                varType = MemberAccessNode.create(varType, NameNode.create(maybeMember as IdentifierToken));
+                skip++;
+            }
+
             // If the next token after any pointer and view annotations is an identifier, this token is a type.
             let ptrCount = this._peekTokenPointers(1);
             let viewTokensCount = this._peekView(1, (typedVarCategory === TypedVarCategory.Function));
 
-            let possibleName = this._peekToken(ptrCount + viewTokensCount + 1)
+            let possibleName = this._peekToken(ptrCount + viewTokensCount + skip)
             if (possibleName.type === TokenType.Identifier) {
-                varType = NameNode.create(this._getNextToken() as IdentifierToken);
+                // Consume type tokens
+                for (let index = 0; index < skip; index++) {
+                    this._getNextToken();
+                }
+                //varType = NameNode.create(this._getNextToken() as IdentifierToken);
                 ptrTokens = this._consumeTokenPointers();
                 for (let index = 0; index < viewTokensCount; index++) {
                     viewTokens.push(this._getNextToken());
@@ -5422,26 +5439,33 @@ export class Parser {
 
     private _parseFunctionDefCython(keywordType: KeywordType): FunctionNode | ErrorNode {
         const defToken = this._getKeywordToken(keywordType);
-        let typedVarNode = this._parseTypedVar(TypedVarCategory.Function);
-        if (!typedVarNode || !typedVarNode.name) {
-            this._addError(Localizer.Diagnostic.expectedFunctionName(), defToken);
-            return ErrorNode.create(
-                defToken,
-                ErrorExpressionCategory.MissingFunctionParameterList,
-                undefined,
-            );
+        let returnType: ExpressionNode | undefined = undefined;
+        let nameToken: NameNode | undefined = undefined;
+        if (this._peekTokenType() === TokenType.Identifier && this._peekToken(1).type === TokenType.OpenParenthesis) {
+            // Function has no declared return type
+            nameToken = NameNode.create(this._getNextToken() as IdentifierToken);
+        } else {
+            let typedVarNode = this._parseTypedVar(TypedVarCategory.Function);
+            if (!typedVarNode || !typedVarNode.name) {
+                this._addError(Localizer.Diagnostic.expectedFunctionName(), defToken);
+                return ErrorNode.create(
+                    defToken,
+                    ErrorExpressionCategory.MissingFunctionParameterList,
+                    undefined,
+                );
+            }
+            returnType = typedVarNode.typeAnnotation;
+            nameToken = typedVarNode.name;
         }
-        let returnType = typedVarNode.typeAnnotation;
-        let nameToken = typedVarNode.name;
         let typeParameters: TypeParameterListNode | undefined;
 
         const openParenToken = this._peekToken();
         if (!this._consumeTokenIfType(TokenType.OpenParenthesis)) {
             this._addError(Localizer.Diagnostic.expectedOpenParen(), this._peekToken());
             return ErrorNode.create(
-                nameToken,
+                this._peekToken(),
                 ErrorExpressionCategory.MissingFunctionParameterList,
-                nameToken,
+                undefined,
             );
         }
 
