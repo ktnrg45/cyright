@@ -385,7 +385,7 @@ export class Parser {
                 return this._parseCdefCython();
 
             case KeywordType.Cpdef:
-                return this._parseFunctionDefCython(KeywordType.Cpdef);
+                return this._parseFunctionDefCython();
 
             case KeywordType.Class:
                 return this._parseClassDef();
@@ -5466,7 +5466,7 @@ export class Parser {
             }
             // If open Parenthesis assume function declaration
             if (iterToken.type == TokenType.OpenParenthesis) {
-                return this._parseFunctionDefCython(KeywordType.Cdef);
+                return this._parseFunctionDefCython();
             }
             if (iterToken.type !== TokenType.Keyword && iterToken.type !== TokenType.Identifier) {
                 break;
@@ -5478,8 +5478,15 @@ export class Parser {
         return this._parseTypedStatement(undefined, true);
     }
 
-    private _parseFunctionDefCython(keywordType: KeywordType): FunctionNode | ErrorNode {
-        const defToken = this._getKeywordToken(keywordType);
+    private _parseFunctionDefCython(): FunctionNode | ErrorNode {
+        const firstToken = this._peekToken();
+        if (firstToken.type === TokenType.Keyword) {
+            const keywordType = (firstToken as KeywordToken).keywordType;
+            if (keywordType === KeywordType.Cdef || keywordType === KeywordType.Cpdef || keywordType === KeywordType.Ctypedef) {
+                this._getNextToken();
+            }
+        }
+
         let returnType: ExpressionNode | undefined = undefined;
         let nameToken: NameNode | undefined = undefined;
         if (this._peekTokenType() === TokenType.Identifier && this._peekToken(1).type === TokenType.OpenParenthesis) {
@@ -5488,9 +5495,9 @@ export class Parser {
         } else {
             let typedVarNode = this._parseTypedVar(TypedVarCategory.Function);
             if (!typedVarNode || !typedVarNode.name) {
-                this._addError(Localizer.Diagnostic.expectedFunctionName(), defToken);
+                this._addError(Localizer.Diagnostic.expectedFunctionName(), firstToken);
                 return ErrorNode.create(
-                    defToken,
+                    firstToken,
                     ErrorExpressionCategory.MissingFunctionParameterList,
                     undefined,
                 );
@@ -5514,17 +5521,22 @@ export class Parser {
 
         if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
             this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
-            this._consumeTokensUntilType([TokenType.Colon]);
+            this._consumeTokensUntilType([TokenType.Colon, TokenType.NewLine]);
         }
 
         let functionTypeAnnotationToken: StringToken | undefined;
-        const suite = this._parseSuite(/* isFunction */ true, this._parseOptions.skipFunctionAndClassBody, () => {
-            if (!functionTypeAnnotationToken) {
-                functionTypeAnnotationToken = this._getTypeAnnotationCommentText();
-            }
-        });
+        let suite: SuiteNode;
+        if (this._peekTokenType() === TokenType.NewLine) {
+            suite = SuiteNode.create(this._getNextToken());
+        } else {
+            suite = this._parseSuite(/* isFunction */ true, this._parseOptions.skipFunctionAndClassBody, () => {
+                if (!functionTypeAnnotationToken) {
+                    functionTypeAnnotationToken = this._getTypeAnnotationCommentText();
+                }
+            });
+        }
 
-        const functionNode = FunctionNode.create(defToken, nameToken, suite, typeParameters);
+        const functionNode = FunctionNode.create(firstToken, nameToken, suite, typeParameters);
 
         functionNode.parameters = paramList;
         paramList.forEach((param) => {
