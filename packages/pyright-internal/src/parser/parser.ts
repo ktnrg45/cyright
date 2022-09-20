@@ -5223,7 +5223,8 @@ export class Parser {
     private _parseParameterCython(): ParameterNode {
         let typedVarNode = this._parseTypedVar(TypedVarCategory.Parameter);
         if (!typedVarNode) {
-            return ParameterNode.create(this._peekToken(), ParameterCategory.Simple);
+            // return ParameterNode.create(this._peekToken(), ParameterCategory.Simple);
+            return this._parseParameter(true);
         }
         let paramNode = ParameterNode.create(typedVarNode.startToken, ParameterCategory.Simple);
 
