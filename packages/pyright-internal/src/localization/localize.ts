@@ -991,6 +991,8 @@ export namespace Localizer {
         export const invalidModifier = () => getRawString('Diagnostic.invalidModifier');
         export const unexpectedModifier = () => getRawString('Diagnostic.unexpectedModifier');
         export const viewInvalidAxis = () => getRawString('Diagnostic.viewInvalidAxis');
+        export const expectedExternFrom = () => getRawString('Diagnostic.expectedExternFrom');
+        export const expectedCIncludes = () => getRawString('Diagnostic.expectedCIncludes');
     }
 
     export namespace DiagnosticAddendum {

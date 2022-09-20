@@ -5151,20 +5151,25 @@ export class Parser {
         return tokenIndex;
     }
 
-    private _parseTypedStatement(): StatementListNode | undefined {
-        const statements = StatementListNode.create(this._peekToken());
+    private _parseTypedStatement(statements?: StatementListNode | undefined): StatementListNode {
+        if (!statements) {
+            statements = StatementListNode.create(this._peekToken());
+        }
         const typedVarNode = this._parseTypedVar();
 
         if (!typedVarNode) {
-            return undefined;
+            this._consumeTokensUntilType([TokenType.NewLine]);
+            return statements;
         }
         if (!typedVarNode.typeAnnotation) {
             this._addError(Localizer.Diagnostic.expectedVarType(), this._peekToken())
-            return undefined;
+            this._consumeTokensUntilType([TokenType.NewLine]);
+            return statements;
         }
         if (!typedVarNode.name) {
             this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken())
-            return undefined;
+            this._consumeTokensUntilType([TokenType.NewLine]);
+            return statements;
         }
 
         const varName = typedVarNode.name;
@@ -5375,7 +5380,7 @@ export class Parser {
             this._addError(Localizer.Diagnostic.inconsistentTabs(), indentToken);
         }
 
-        const statements = StatementListNode.create(this._peekToken());
+        var statements = StatementListNode.create(this._peekToken());
         while (true) {
             this._consumeTokenIfType(TokenType.NewLine);
 
@@ -5383,26 +5388,50 @@ export class Parser {
                 break;
             }
 
-            let newStatements = this._parseTypedStatement();
-            if (!newStatements) {
-                this._consumeTokensUntilType([TokenType.Dedent]);
-                break;
-            }
-            newStatements.statements.forEach(statement => {
-                statements.statements.push(statement);
-                statement.parent = statements;
-            });
+            statements = this._parseTypedStatement(statements);
         }
         return (statements.length > 0) ? statements : undefined;
+    }
+
+    private _parseExtern(): StatementListNode | undefined{
+        this._getKeywordToken(KeywordType.Extern);
+        const fromToken = this._getTokenIfType(TokenType.Keyword);
+        if (!fromToken) {
+            this._addError(Localizer.Diagnostic.expectedExternFrom(), this._getNextToken());
+            return undefined;
+        }
+        if (!this._getTokenIfType(TokenType.String)) {
+            this._addError(Localizer.Diagnostic.expectedCIncludes(), this._getNextToken());
+            return undefined;
+        }
+        const possibleGilToken = this._getTokenIfType(TokenType.Keyword);
+        if (possibleGilToken) {
+            const gilToken = (possibleGilToken as KeywordToken);
+            if (gilToken.keywordType !== KeywordType.Gil && gilToken.keywordType !== KeywordType.Nogil) {
+                this._addError(Localizer.Diagnostic.expectedColon(), this._getNextToken());
+                return undefined;
+            }
+        }
+        if (!this._getTokenIfType(TokenType.Colon)) {
+            this._addError(Localizer.Diagnostic.expectedColon(), this._getNextToken());
+            return undefined;
+        }
+        return this._parseSuiteCython();
     }
 
     private _parseCdefCython(): StatementNode | ErrorNode | undefined {
         const nextToken = this._peekToken(1);
         if (nextToken.type === TokenType.Keyword) {
-            if ((nextToken as KeywordToken).keywordType === KeywordType.Class) {
+            const keywordType = (nextToken as KeywordToken).keywordType;
+            if (keywordType === KeywordType.Class) {
                 this._getNextToken();
                 return this._parseClassDef();
             }
+            if (keywordType === KeywordType.Extern) {
+                this._getNextToken();
+                return this._parseExtern();
+            }
+
         }
         if (nextToken.type === TokenType.Colon) {
             // Multi line cdef
