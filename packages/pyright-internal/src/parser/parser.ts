@@ -5152,7 +5152,6 @@ export class Parser {
     }
 
     private _parseTypedStatement(): StatementListNode | undefined {
-        // TODO: goto type definition not working
         const statements = StatementListNode.create(this._peekToken());
         const typedVarNode = this._parseTypedVar();
 
@@ -5174,10 +5173,13 @@ export class Parser {
         // Example expression: double name
         // To the parser, this should be equivalent to "name: double = double"
         // This tricks the parser into thinking that the variable is defined
+        // TODO: Use AugmentedAssignment?
         const typeAnnotation = TypeAnnotationNode.create(varName, varType);        
         const firstExpression = AssignmentNode.create(typeAnnotation, varType);
         statements.statements.push(firstExpression);
+        typeAnnotation.parent = firstExpression;
         firstExpression.parent = statements;
+        extendRange(statements, firstExpression);
 
         var lastName = varName;
 
@@ -5209,7 +5211,9 @@ export class Parser {
             const annotation = TypeAnnotationNode.create(name, varType);
             const expression = AssignmentNode.create(annotation, varType);
             statements.statements.push(expression);
+            annotation.parent = expression;
             expression.parent = statements;
+            extendRange(statements, expression);
             lastName = name;
         }
         this._consumeTokenIfType(TokenType.NewLine);
@@ -5274,12 +5278,14 @@ export class Parser {
                 if (lastNumModifier === KeywordType.Unsigned || lastNumModifier === KeywordType.Signed) {
                     if (foundSigned) {
                         this._addError(Localizer.Diagnostic.unexpectedSignedness(), this._peekToken());
+                        return undefined;
                     }
                     foundSigned = true;
                 } else if (lastNumModifier === KeywordType.Long) {
                     longCount++;
                     if (longCount > 2) {
                         this._addError(Localizer.Diagnostic.expectedVarType(), this._peekToken());
+                        return undefined;
                     }
                 }
                 numModifiers.push(this._getNextToken());
@@ -5290,10 +5296,9 @@ export class Parser {
             }
         }
 
-        var varType: ExpressionNode | undefined;
-        var varName: NameNode | undefined;
         var viewTokens: Token[] = [];
         var ptrTokens: Token[] = [];
+        let varType: ExpressionNode;
         if (this._peekTokenType() === TokenType.Identifier) {
             varType = NameNode.create(this._peekToken() as IdentifierToken);
             let skip = 1;
@@ -5318,35 +5323,31 @@ export class Parser {
                 for (let index = 0; index < skip; index++) {
                     this._getNextToken();
                 }
-                //varType = NameNode.create(this._getNextToken() as IdentifierToken);
+
                 ptrTokens = this._consumeTokenPointers();
                 for (let index = 0; index < viewTokensCount; index++) {
                     viewTokens.push(this._getNextToken());
                 }
+                var varName = NameNode.create(this._getNextToken() as IdentifierToken);
+            } else {
+                return undefined;
             }
-            varName = NameNode.create(this._getNextToken() as IdentifierToken);
+        } else {
+            return undefined
         }
 
-        // Types are optional
-        if (!varName) {
-            this._addError(Localizer.Diagnostic.expectedParamName(), this._peekToken());
-            return undefined;
-        }
+        // if (numModifiers.length > 0) {
+        //     const possibleLong = numModifiers[numModifiers.length - 1];
+        //     // TODO: Allow 'long' to be a type
+        //     if ((possibleLong as KeywordToken).keywordType === KeywordType.Long) {
+        //         varType = NameNode.create(possibleLong as IdentifierToken);
+        //     } else {
+        //         this._addError(Localizer.Diagnostic.expectedVarType(), possibleLong);
+        //     }
+        //     this._addError(Localizer.Diagnostic.expectedVarType(), possibleLong);
+        // }
 
-        if (!varType && numModifiers.length > 0) {
-            const possibleLong = numModifiers[numModifiers.length - 1];
-            // TODO: Allow 'long' to be a type
-            // if ((possibleLong as KeywordToken).keywordType === KeywordType.Long) {
-            //     varType = NameNode.create(possibleLong as IdentifierToken);
-            // } else {
-            //     this._addError(Localizer.Diagnostic.expectedVarType(), possibleLong);
-            // }
-            this._addError(Localizer.Diagnostic.expectedVarType(), possibleLong);
-        }
-
-        let typedVarNode = TypedVarNode.create(firstToken, typedVarCategory)
-        typedVarNode.name = varName;
-        typedVarNode.typeAnnotation = varType;
+        const typedVarNode = TypedVarNode.create(firstToken, varName, varType, typedVarCategory)
         typedVarNode.modifier = (varModifier) ? firstToken : undefined;
         typedVarNode.pointers = ptrTokens;
         typedVarNode.viewTokens = viewTokens;

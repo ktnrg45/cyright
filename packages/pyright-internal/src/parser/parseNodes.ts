@@ -2381,8 +2381,8 @@ export interface TypedVarNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType;
     readonly typedVarCategory: TypedVarCategory;
     startToken: Token;
-    name?: NameNode | undefined;
-    typeAnnotation?: ExpressionNode | undefined;
+    name: NameNode;
+    typeAnnotation: ExpressionNode;
     typeAnnotationComment?: ExpressionNode | undefined;
     modifier?: Token | undefined;
     numericModifiers?: ExpressionNode[] | undefined;
@@ -2393,7 +2393,7 @@ export interface TypedVarNode extends ParseNodeBase {
 }
 
 export namespace TypedVarNode {
-    export function create(startToken: Token, typedVarCategory: TypedVarCategory) {
+    export function create(startToken: Token, name: NameNode, typeAnnotation: ExpressionNode, typedVarCategory: TypedVarCategory) {
         let nodeType: ParseNodeType;
         switch (typedVarCategory) {
             case TypedVarCategory.Function:
@@ -2403,7 +2403,7 @@ export namespace TypedVarNode {
                 nodeType = ParseNodeType.Parameter;
                 break;
             default:
-                nodeType = ParseNodeType.TypeAlias;
+                nodeType = ParseNodeType.TypeAnnotation;
         }
         const node: TypedVarNode = {
             startToken: startToken,
@@ -2411,6 +2411,8 @@ export namespace TypedVarNode {
             length: startToken.length,
             nodeType: nodeType,
             id: _nextNodeId++,
+            name: name,
+            typeAnnotation: typeAnnotation,
             typedVarCategory: typedVarCategory,
         };
 
