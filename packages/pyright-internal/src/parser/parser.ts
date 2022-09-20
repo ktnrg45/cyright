@@ -5192,6 +5192,7 @@ export class Parser {
                     const assignExpr = AssignmentExpressionNode.create(lastName, rightExpr);
                     statements.statements.push(assignExpr);
                     assignExpr.parent = statements;
+                    extendRange(statements, assignExpr);
                 }
                 break;
             }
