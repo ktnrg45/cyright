@@ -5151,26 +5151,35 @@ export class Parser {
         return tokenIndex;
     }
 
-    private _parseTypedStatement(statements?: StatementListNode | undefined): StatementListNode {
+    private _parseTypedStatement(statements?: StatementListNode | undefined, fallback = false): StatementListNode {
         if (!statements) {
             statements = StatementListNode.create(this._peekToken());
         }
         const typedVarNode = this._parseTypedVar();
 
         if (!typedVarNode) {
-            this._consumeTokensUntilType([TokenType.NewLine]);
+            if (fallback) {
+                const fallbackStatement = this._parseSimpleStatement();
+                if (fallbackStatement) {
+                    statements.statements.push(fallbackStatement);
+                    fallbackStatement.parent = statements;
+                    extendRange(statements, fallbackStatement);
+                    // let nextToken = this._peekToken();
+                }
+            }
+            else {
+                this._consumeTokensUntilType([TokenType.NewLine]); 
+            }
             return statements;
         }
-        if (!typedVarNode.typeAnnotation) {
-            this._addError(Localizer.Diagnostic.expectedVarType(), this._peekToken())
-            this._consumeTokensUntilType([TokenType.NewLine]);
-            return statements;
-        }
-        if (!typedVarNode.name) {
-            this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken())
-            this._consumeTokensUntilType([TokenType.NewLine]);
-            return statements;
-        }
+        // if (!typedVarNode.typeAnnotation) {
+        //     this._addError(Localizer.Diagnostic.expectedVarType(), this._peekToken())
+        //     return statements;
+        // }
+        // if (!typedVarNode.name) {
+        //     this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken())
+        //     return statements;
+        // }
 
         const varName = typedVarNode.name;
         const varType = typedVarNode.typeAnnotation;
@@ -5466,7 +5475,7 @@ export class Parser {
         }
         // Single line cdef
         this._getNextToken();
-        return this._parseTypedStatement();
+        return this._parseTypedStatement(undefined, true);
     }
 
     private _parseFunctionDefCython(keywordType: KeywordType): FunctionNode | ErrorNode {
