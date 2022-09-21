@@ -2105,6 +2105,30 @@ export class Parser {
             }
         }
 
+        // Handle gil keyword: "with nogil:"
+        const tokenType = this._peekKeywordType();
+        if (tokenType === KeywordType.Gil || tokenType === KeywordType.Nogil) {
+            this._getNextToken();
+            let typeComment: StringToken | undefined;
+            const withSuite = this._parseSuite(this._isInFunction, /* skipBody */ false, () => {
+                const comment = this._getTypeAnnotationCommentText();
+                if (comment) {
+                    typeComment = comment;
+                }
+            });
+            const withNode = WithNode.create(withToken, withSuite);
+            if (asyncToken) {
+                withNode.isAsync = true;
+                withNode.asyncToken = asyncToken;
+                extendRange(withNode, asyncToken);
+            }
+    
+            if (typeComment) {
+                withNode.typeComment = typeComment;
+            }
+            return withNode;
+        }
+
         while (true) {
             withItemList.push(this._parseWithItem());
 
