@@ -387,6 +387,9 @@ export class Parser {
             case KeywordType.Cpdef:
                 return this._parseFunctionDefCython();
 
+            case KeywordType.Ctypedef:
+                return this._parseCTypeDef();
+
             case KeywordType.Class:
                 return this._parseClassDef();
 
@@ -5324,6 +5327,20 @@ export class Parser {
         extendRange(typedVarNode, closeParen);
         return typedVarNode;
 
+    }
+
+    private _parseCTypeDef(): TypeAliasNode | undefined {
+        const typeToken = this._getKeywordToken(KeywordType.Ctypedef);
+        const typedVarNode = this._parseTypedVar();
+        if (!typedVarNode) {
+            return undefined
+        }
+        // const typeParam = TypeParameterNode.create(typedVarNode.name, TypeParameterCategory.TypeVar, typedVarNode.name);
+        // const endToken = Token.create(TokenType.Identifier, typedVarNode.start, typedVarNode.length, undefined);
+        // const typeParameters = TypeParameterListNode.create(typedVarNode.startToken, endToken, [typeParam]);
+        const typeAlias = TypeAliasNode.create(typeToken, typedVarNode.name, typedVarNode.typeAnnotation);
+        extendRange(typeAlias, typedVarNode);
+        return typeAlias;
     }
 
     // const unsigned long long int* var
