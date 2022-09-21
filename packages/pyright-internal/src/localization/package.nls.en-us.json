@@ -513,6 +513,7 @@
         "returnTypeCannotBeArray": "Return type cannot be an array",
         "unexpectedSignedness": "Unexpected \"signed\" or \"unsigned\"",
         "expectedVarType": "Expected variable type",
+        "expectedVarName": "Expected variable name",
         "invalidModifier": "Invalid modifier",
         "unexpectedModifier": "Unexpected modifier",
         "viewInvalidAxis": "Axis specification only allowed in the \"step\" slot for a view",

@@ -5261,6 +5261,47 @@ export class Parser {
         return paramNode;
     }
 
+    // C Callback Function: "void (*function_name)(void *args)"
+    private _parseCallback(typedVarCategory: TypedVarCategory): TypedVarNode | undefined {
+        const varType = this._getTokenIfIdentifier();
+        assert(varType);
+
+        if (!this._getTokenIfType(TokenType.OpenParenthesis)) {
+            return undefined;
+        }
+        // This pointer is required
+        const pointer = this._getTokenIfType(TokenType.Operator);
+        if (!pointer || (pointer as OperatorToken).operatorType !== OperatorType.Multiply) {
+            return undefined;
+        }
+
+        const varName = this._getTokenIfIdentifier();
+        if (!varName) {
+            return undefined;
+        }
+
+        if (!this._getTokenIfType(TokenType.CloseParenthesis)) {
+            return undefined;
+        }
+        if (!this._getTokenIfType(TokenType.OpenParenthesis)) {
+            return undefined;
+        }
+        
+        // Args are optional
+        // TODO: Do something with callback args
+        this._getTokenIfIdentifier() // Arg Type
+        this._consumeTokenPointers();
+
+        const closeParen = this._peekToken();
+        if (!this._getTokenIfType(TokenType.CloseParenthesis)) {
+            return undefined;
+        }
+        const typedVarNode = TypedVarNode.create(varType, NameNode.create(varName), NameNode.create(varType), typedVarCategory);
+        extendRange(typedVarNode, closeParen);
+        return typedVarNode;
+
+    }
+
     // const unsigned long long int* var
     private _parseTypedVar(typedVarCategory = TypedVarCategory.Variable) : TypedVarNode | undefined{
         var numModifiers: Token[] = [];
@@ -5286,7 +5327,11 @@ export class Parser {
                 
             }
             this._getNextToken();
-        }
+        } else if (this._peekTokenType() === TokenType.Identifier) {
+            if (this._peekToken(1).type === TokenType.OpenParenthesis) {
+                return this._parseCallback(typedVarCategory);
+            }
+        } 
 
         while (numModifiers.length < 4) {
             lastNumModifier = this._isNumericModifier(this._peekToken());
@@ -5330,8 +5375,8 @@ export class Parser {
             }
 
             // If the next token after any pointer and view annotations is an identifier, this token is a type.
-            let ptrCount = this._peekTokenPointers(1);
-            let viewTokensCount = this._peekView(1, (typedVarCategory === TypedVarCategory.Function));
+            let ptrCount = this._peekTokenPointers(skip);
+            let viewTokensCount = this._peekView(skip, (typedVarCategory === TypedVarCategory.Function));
 
             let possibleName = this._peekToken(ptrCount + viewTokensCount + skip)
             if (possibleName.type === TokenType.Identifier) {
