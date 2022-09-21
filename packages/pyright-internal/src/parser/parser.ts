@@ -5155,8 +5155,16 @@ export class Parser {
         if (!statements) {
             statements = StatementListNode.create(this._peekToken());
         }
-        const typedVarNode = this._parseTypedVar();
 
+        if (this._peekFunctionDeclaration()) {
+            const functionNode = this._parseFunctionDefCython();
+            statements.statements.push(functionNode);
+            functionNode.parent = statements;
+            extendRange(statements, functionNode);
+            return statements;
+        }
+
+        const typedVarNode = this._parseTypedVar();
         if (!typedVarNode) {
             if (fallback) {
                 const fallbackStatement = this._parseSimpleStatement();
