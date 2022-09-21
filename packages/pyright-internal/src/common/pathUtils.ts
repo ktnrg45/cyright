@@ -716,7 +716,7 @@ export function getWildcardRoot(rootPath: string, fileSpec: string): string {
 }
 
 export function hasPythonExtension(path: string) {
-    return path.endsWith('.py') || path.endsWith('.pyi');
+    return path.endsWith('.py') || path.endsWith('.pyi') || path.endsWith('.pyx') || path.endsWith('.pxd') || path.endsWith('.pxi');
 }
 
 export function getFileSpec(fs: FileSystem, rootPath: string, fileSpec: string): FileSpec {

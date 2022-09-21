@@ -412,7 +412,7 @@ export class PackageTypeVerifier {
             if (isFile) {
                 const fileExtension = getFileExtension(entry.name);
 
-                if (fileExtension === '.py' || fileExtension === '.pyi') {
+                if (fileExtension === '.py' || fileExtension === '.pyi' || fileExtension === '.pxd' || fileExtension === '.pxi') {
                     const nameWithoutExtension = stripFileExtension(entry.name);
 
                     if (nameWithoutExtension === '__init__') {

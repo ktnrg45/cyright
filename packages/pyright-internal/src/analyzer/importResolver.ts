@@ -97,7 +97,8 @@ interface SupportedVersionRange {
 }
 
 const supportedNativeLibExtensions = ['.pyd', '.so', '.dylib'];
-export const supportedFileExtensions = ['.py', '.pyi', ...supportedNativeLibExtensions];
+const supportedCythonExtensions = ['.pyx', '.pxd', '.pxi'];
+export const supportedFileExtensions = ['.py', '.pyi', ...supportedNativeLibExtensions, ...supportedCythonExtensions];
 
 // Should we allow partial resolution for third-party packages? Some use tricks
 // to populate their package namespaces, so we might be able to partially resolve
@@ -976,6 +977,8 @@ export class ImportResolver {
             const fileNameWithoutExtension = '__init__';
             const pyFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.py');
             const pyiFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.pyi');
+            const pxdFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.pxd');
+            const pxiFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.pxi');
 
             if (allowPyi && this.fileExistsCached(pyiFilePath)) {
                 importFailureInfo.push(`Resolved import with file '${pyiFilePath}'`);
@@ -984,13 +987,19 @@ export class ImportResolver {
             } else if (this.fileExistsCached(pyFilePath)) {
                 importFailureInfo.push(`Resolved import with file '${pyFilePath}'`);
                 resolvedPaths.push(pyFilePath);
+            } else if (this.fileExistsCached(pxdFilePath)) {
+                importFailureInfo.push(`Resolved import with file '${pxdFilePath}'`);
+                resolvedPaths.push(pxdFilePath);
+            } else if (this.fileExistsCached(pxiFilePath)) {
+                importFailureInfo.push(`Resolved import with file '${pxiFilePath}'`);
+                resolvedPaths.push(pxiFilePath);
             } else {
                 importFailureInfo.push(`Partially resolved import with directory '${dirPath}'`);
                 resolvedPaths.push('');
                 isNamespacePackage = true;
             }
 
-            implicitImports = this._findImplicitImports(importName, dirPath, [pyFilePath, pyiFilePath]);
+            implicitImports = this._findImplicitImports(importName, dirPath, [pyFilePath, pyiFilePath, pxdFilePath, pxiFilePath]);
         } else {
             for (let i = 0; i < moduleDescriptor.nameParts.length; i++) {
                 const isFirstPart = i === 0;
@@ -1013,6 +1022,9 @@ export class ImportResolver {
                     const fileNameWithoutExtension = '__init__';
                     const pyFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.py');
                     const pyiFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.pyi');
+                    const pyxFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.pyx');
+                    const pxdFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.pxd');
+                    const pxiFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.pxi');
                     let foundInit = false;
 
                     if (allowPyi && this.fileExistsCached(pyiFilePath)) {
@@ -1025,6 +1037,18 @@ export class ImportResolver {
                     } else if (this.fileExistsCached(pyFilePath)) {
                         importFailureInfo.push(`Resolved import with file '${pyFilePath}'`);
                         resolvedPaths.push(pyFilePath);
+                        foundInit = true;
+                    } else if (this.fileExistsCached(pyxFilePath)) {
+                        importFailureInfo.push(`Resolved import with file '${pyxFilePath}'`);
+                        resolvedPaths.push(pyxFilePath);
+                        foundInit = true;
+                    } else if (this.fileExistsCached(pxdFilePath)) {
+                        importFailureInfo.push(`Resolved import with file '${pxdFilePath}'`);
+                        resolvedPaths.push(pxdFilePath);
+                        foundInit = true;
+                    } else if (this.fileExistsCached(pxiFilePath)) {
+                        importFailureInfo.push(`Resolved import with file '${pxiFilePath}'`);
+                        resolvedPaths.push(pxiFilePath);
                         foundInit = true;
                     }
 
@@ -1049,6 +1073,9 @@ export class ImportResolver {
                         implicitImports = this._findImplicitImports(moduleDescriptor.nameParts.join('.'), dirPath, [
                             pyFilePath,
                             pyiFilePath,
+                            pyxFilePath,
+                            pxdFilePath,
+                            pxiFilePath,
                         ]);
                         break;
                     }
@@ -1062,6 +1089,8 @@ export class ImportResolver {
                 fileDirectory = getDirectoryPath(fileDirectory);
                 const pyFilePath = combinePaths(fileDirectory, fileNameWithoutExtension + '.py');
                 const pyiFilePath = combinePaths(fileDirectory, fileNameWithoutExtension + '.pyi');
+                const pxdFilePath = combinePaths(fileDirectory, fileNameWithoutExtension + '.pxd');
+                const pxiFilePath = combinePaths(fileDirectory, fileNameWithoutExtension + '.pxi');
 
                 if (allowPyi && this.fileExistsCached(pyiFilePath)) {
                     importFailureInfo.push(`Resolved import with file '${pyiFilePath}'`);
@@ -1072,6 +1101,12 @@ export class ImportResolver {
                 } else if (this.fileExistsCached(pyFilePath)) {
                     importFailureInfo.push(`Resolved import with file '${pyFilePath}'`);
                     resolvedPaths.push(pyFilePath);
+                } else if (this.fileExistsCached(pxdFilePath)) {
+                    importFailureInfo.push(`Resolved import with file '${pxdFilePath}'`);
+                    resolvedPaths.push(pxdFilePath);
+                } else if (this.fileExistsCached(pxiFilePath)) {
+                    importFailureInfo.push(`Resolved import with file '${pxiFilePath}'`);
+                    resolvedPaths.push(pxiFilePath);
                 } else {
                     if (allowNativeLib && this.dirExistsCached(fileDirectory)) {
                         const filesInDir = this._getFilesInDirectory(fileDirectory);
@@ -1096,7 +1131,7 @@ export class ImportResolver {
                         importFailureInfo.push(`Partially resolved import with directory '${dirPath}'`);
                         resolvedPaths.push('');
                         if (isLastPart) {
-                            implicitImports = this._findImplicitImports(importName, dirPath, [pyFilePath, pyiFilePath]);
+                            implicitImports = this._findImplicitImports(importName, dirPath, [pyFilePath, pyiFilePath, pxdFilePath, pxiFilePath]);
                             isNamespacePackage = true;
                         }
                     } else if (isNativeLib) {
@@ -2221,12 +2256,14 @@ export class ImportResolver {
             let strippedFileName: string;
             let isNativeLib = false;
 
-            if (fileExt === '.py' || fileExt === '.pyi') {
+            if (fileExt === '.py' || fileExt === '.pyi' || fileExt === '.pxd' || fileExt === '.pxi') {
                 strippedFileName = stripFileExtension(fileName);
             } else if (
                 this._isNativeModuleFileExtension(fileExt) &&
                 !this.fileExistsCached(`${fileName}.py`) &&
-                !this.fileExistsCached(`${fileName}.pyi`)
+                !this.fileExistsCached(`${fileName}.pyi`) &&
+                !this.fileExistsCached(`${fileName}.pxd`) &&
+                !this.fileExistsCached(`${fileName}.pxi`)
             ) {
                 // Native module.
                 strippedFileName = fileName.substr(0, fileName.indexOf('.'));
