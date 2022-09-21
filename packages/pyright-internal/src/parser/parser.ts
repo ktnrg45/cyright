@@ -5172,14 +5172,6 @@ export class Parser {
             }
             return statements;
         }
-        // if (!typedVarNode.typeAnnotation) {
-        //     this._addError(Localizer.Diagnostic.expectedVarType(), this._peekToken())
-        //     return statements;
-        // }
-        // if (!typedVarNode.name) {
-        //     this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken())
-        //     return statements;
-        // }
 
         const varName = typedVarNode.name;
         const varType = typedVarNode.typeAnnotation;
@@ -5428,6 +5420,35 @@ export class Parser {
         return this._parseSuiteCython();
     }
 
+    // Test if function declaration
+    // Maximum token example: const unsigned long long int* var(...)
+    private _peekFunctionDeclaration() : boolean {
+        var count = 0;
+        var ptrCount = 0;
+        var viewTokens = 0;
+        while (count < 7) {
+            if (this._isTokenPointer(count + 1 + ptrCount)) {
+                ptrCount = this._peekTokenPointers(count + 1 + ptrCount);
+                continue;
+            }
+            
+            const iterToken = this._peekToken(count + 1 + ptrCount + viewTokens);
+            if (iterToken.type === TokenType.OpenBracket) {
+                viewTokens = this._peekView(count + 1 + ptrCount + viewTokens);
+                continue;
+            }
+            // If open Parenthesis assume function declaration
+            if (iterToken.type == TokenType.OpenParenthesis) {
+                return true;
+            }
+            if (iterToken.type !== TokenType.Keyword && iterToken.type !== TokenType.Identifier) {
+                break;
+            }
+            count++;
+        }
+        return false;
+    }
+
     private _parseCdefCython(): StatementNode | ErrorNode | undefined {
         const nextToken = this._peekToken(1);
         if (nextToken.type === TokenType.Keyword) {
@@ -5447,31 +5468,8 @@ export class Parser {
             this._getNextToken();
             return this._parseSuiteCython();
         }
-
-        // Test if var or function declaration
-        // Maximum token example: const unsigned long long int* var
-        var count = 0;
-        var ptrCount = 0;
-        var viewTokens = 0;
-        while (count < 7) {
-            if (this._isTokenPointer(count + 1 + ptrCount)) {
-                ptrCount = this._peekTokenPointers(count + 1 + ptrCount);
-                continue;
-            }
-            
-            const iterToken = this._peekToken(count + 1 + ptrCount + viewTokens);
-            if (iterToken.type === TokenType.OpenBracket) {
-                viewTokens = this._peekView(count + 1 + ptrCount + viewTokens);
-                continue;
-            }
-            // If open Parenthesis assume function declaration
-            if (iterToken.type == TokenType.OpenParenthesis) {
-                return this._parseFunctionDefCython();
-            }
-            if (iterToken.type !== TokenType.Keyword && iterToken.type !== TokenType.Identifier) {
-                break;
-            }
-            count++;
+        if (this._peekFunctionDeclaration()) {
+            return this._parseFunctionDefCython();
         }
         // Single line cdef
         this._getNextToken();
