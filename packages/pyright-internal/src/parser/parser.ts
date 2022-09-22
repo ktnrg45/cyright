@@ -5338,7 +5338,8 @@ export class Parser {
         // const typeParam = TypeParameterNode.create(typedVarNode.name, TypeParameterCategory.TypeVar, typedVarNode.name);
         // const endToken = Token.create(TokenType.Identifier, typedVarNode.start, typedVarNode.length, undefined);
         // const typeParameters = TypeParameterListNode.create(typedVarNode.startToken, endToken, [typeParam]);
-        const typeAlias = TypeAliasNode.create(typeToken, typedVarNode.name, typedVarNode.typeAnnotation);
+        const expr = AssignmentNode.create(typedVarNode.name, typedVarNode.typeAnnotation);
+        const typeAlias = TypeAliasNode.create(typeToken, typedVarNode.name, expr);
         extendRange(typeAlias, typedVarNode);
         return typeAlias;
     }
