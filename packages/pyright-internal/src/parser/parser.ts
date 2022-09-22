@@ -1800,7 +1800,7 @@ export class Parser {
             );
         }
 
-        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true);
+        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* isCython */ true);
 
         if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
             this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
@@ -5284,6 +5284,10 @@ export class Parser {
             paramNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
             paramNode.defaultValue.parent = paramNode;
             extendRange(paramNode, paramNode.defaultValue);
+        } else if (this._peekKeywordType()){
+            // Handle extra expression after param name: "name not None"
+            const extraExpr = this._parseTestExpression(/* allowAssignmentExpression */ false);
+            extendRange(paramNode, extraExpr);
         }
         return paramNode;
     }
