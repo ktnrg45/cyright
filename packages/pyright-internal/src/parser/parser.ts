@@ -3016,6 +3016,20 @@ export class Parser {
 
     // test: or_test ['if' or_test 'else' test] | lambdef
     private _parseTestExpression(allowAssignmentExpression: boolean): ExpressionNode {
+        if (this._peekOperatorType() === OperatorType.BitwiseAnd) {
+            // Handle Address of: "&name"
+            if (this._peekToken(1).type === TokenType.Identifier) {
+                this._getNextToken();
+                return NameNode.create(this._getNextToken() as IdentifierToken);
+            }
+        }
+        if (this._peekOperatorType() === OperatorType.LessThan) {
+            const castExpr = this._parseCast();
+            if (castExpr) {
+                return castExpr;
+            }
+        }
+
         if (this._peekKeywordType() === KeywordType.Lambda) {
             return this._parseLambdaExpression();
         }
@@ -5331,6 +5345,48 @@ export class Parser {
         extendRange(typedVarNode, closeParen);
         return typedVarNode;
 
+    }
+
+    // Parse cast: "<double*>name"
+    private _parseCast(): ExpressionNode | undefined {
+        let tokenCount = 1;
+        if (this._peekToken(tokenCount).type === TokenType.Identifier) {
+            let varType: NameNode | MemberAccessNode;
+            varType = NameNode.create(this._peekToken(tokenCount) as IdentifierToken);
+            tokenCount++;
+            while (true) {
+                const nextToken = this._peekToken(tokenCount);
+                if (nextToken.type === TokenType.Dot) {
+                    tokenCount++;
+                    const memberToken = this._peekToken(tokenCount);
+                    if (memberToken.type !== TokenType.Identifier) {
+                        return undefined;
+                    }
+                    varType = MemberAccessNode.create(varType, NameNode.create(memberToken as IdentifierToken));
+                    tokenCount++;
+                    continue;
+                }
+                if (nextToken.type === TokenType.Operator) {
+                    const operator = (nextToken as OperatorToken);
+                    if (operator.operatorType === OperatorType.Multiply || operator.operatorType === OperatorType.Power) {
+                        tokenCount++;
+                        continue;
+                    }
+                }
+                break;
+            }
+            const castClose = this._peekToken(tokenCount);
+            if (castClose.type === TokenType.Operator && (castClose as OperatorToken).operatorType === OperatorType.GreaterThan) {
+                if (this._peekToken(tokenCount + 1).type === TokenType.Identifier) {
+                    for (let index = 0; index < tokenCount; index++) {
+                        this._getNextToken();
+                    }
+                    const name = NameNode.create(this._getNextToken() as IdentifierToken);
+                    return AssignmentNode.create(name, varType);
+                }
+            }
+        }
+        return undefined;
     }
 
     private _parseCTypeDef(): TypeAliasNode | undefined {

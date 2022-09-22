@@ -523,7 +523,7 @@ export class Tokenizer {
                     this._tokens.push(Token.create(TokenType.Dot, this._cs.position, 1, this._getComments()));
                     break;
                 }
-
+                
                 if (!this._tryIdentifier()) {
                     if (!this._tryOperator()) {
                         return this._handleInvalid();
