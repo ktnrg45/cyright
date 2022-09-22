@@ -5204,6 +5204,30 @@ export class Parser {
             extendRange(statements, functionNode);
             return statements;
         }
+        this._consumeTokenIfKeyword(KeywordType.Cdef);
+        if (this._peekTokenType() === TokenType.Identifier) {
+            if (
+                this._peekToken(1).type === TokenType.Identifier &&
+                this._peekToken(2).type === TokenType.Colon &&
+                this._peekToken(3).type === TokenType.NewLine
+            ) {
+                // Handle struct and enum declaration. "struct name:"
+                const classInherit = this._getNextToken();
+                const className = NameNode.create(this._getNextToken() as IdentifierToken);
+                const suite = SuiteNode.create(this._peekToken());
+                const classStatements = this._parseSuiteCython()
+                if (classStatements) {
+                    suite.statements = [classStatements];
+                    classStatements.parent = suite;
+                    extendRange(suite, classStatements.statements[classStatements.statements.length - 1]);
+                }
+                const classNode = ClassNode.create(classInherit, className, suite);
+                statements.statements.push(classNode);
+                classNode.parent = statements;
+                extendRange(statements, classNode);
+                return statements;
+            }
+        }
 
         const typedVarNode = this._parseTypedVar();
         if (!typedVarNode) {
