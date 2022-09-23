@@ -5561,16 +5561,11 @@ export class Parser {
         }
 
         var statements = StatementListNode.create(this._peekToken());
-        while (true) {
+        while (!this._consumeTokenIfType(TokenType.Dedent)) {
             this._consumeTokenIfType(TokenType.NewLine);
-
-            if (this._consumeTokenIfType(TokenType.Dedent)) {
-                break;
-            }
-
             statements = this._parseTypedStatement(statements);
         }
-        return (statements.length > 0) ? statements : undefined;
+        return (statements.statements.length > 0) ? statements : undefined;
     }
 
     private _parseExtern(): StatementListNode | undefined{
