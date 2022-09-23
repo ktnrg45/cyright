@@ -3023,12 +3023,12 @@ export class Parser {
                 return NameNode.create(this._getNextToken() as IdentifierToken);
             }
         }
-        if (this._peekOperatorType() === OperatorType.LessThan) {
-            const castExpr = this._parseCast();
-            if (castExpr) {
-                return castExpr;
-            }
-        }
+        // if (this._peekOperatorType() === OperatorType.LessThan) {
+        //     const castExpr = this._parseCast();
+        //     if (castExpr) {
+        //         return castExpr;
+        //     }
+        // }
 
         if (this._peekKeywordType() === KeywordType.Lambda) {
             return this._parseLambdaExpression();
