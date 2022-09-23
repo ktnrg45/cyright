@@ -3023,12 +3023,12 @@ export class Parser {
                 return NameNode.create(this._getNextToken() as IdentifierToken);
             }
         }
-        // if (this._peekOperatorType() === OperatorType.LessThan) {
-        //     const castExpr = this._parseCast();
-        //     if (castExpr) {
-        //         return castExpr;
-        //     }
-        // }
+        if (this._peekOperatorType() === OperatorType.LessThan) {
+            const castExpr = this._parseCast();
+            if (castExpr) {
+                return castExpr;
+            }
+        }
 
         if (this._peekKeywordType() === KeywordType.Lambda) {
             return this._parseLambdaExpression();
@@ -5373,6 +5373,9 @@ export class Parser {
 
     // Parse cast: "<double*>name"
     private _parseCast(): ExpressionNode | undefined {
+        if (this._peekOperatorType() !== OperatorType.LessThan) {
+            return undefined;
+        }
         let tokenCount = 1;
         if (this._peekToken(tokenCount).type === TokenType.Identifier) {
             let varType: NameNode | MemberAccessNode;
@@ -5390,22 +5393,17 @@ export class Parser {
                     tokenCount++;
                     continue;
                 }
-                if (nextToken.type === TokenType.Operator) {
-                    const operator = (nextToken as OperatorToken);
-                    if (operator.operatorType === OperatorType.Multiply || operator.operatorType === OperatorType.Power) {
-                        tokenCount++;
-                        continue;
-                    }
-                }
                 break;
             }
-            const castClose = this._peekToken(tokenCount);
+            const ptrCount = this._peekTokenPointers(tokenCount);
+            const castClose = this._peekToken(tokenCount + ptrCount);
             if (castClose.type === TokenType.Operator && (castClose as OperatorToken).operatorType === OperatorType.GreaterThan) {
-                if (this._peekToken(tokenCount + 1).type === TokenType.Identifier) {
-                    for (let index = 0; index < tokenCount; index++) {
+                const nameToken = this._peekToken(tokenCount + ptrCount + 1);
+                if (nameToken.type === TokenType.Identifier) {
+                    for (let index = 0; index < tokenCount + ptrCount + 1; index++) {
                         this._getNextToken();
                     }
-                    const name = NameNode.create(this._getNextToken() as IdentifierToken);
+                    const name = NameNode.create(nameToken as IdentifierToken);
                     return AssignmentNode.create(name, varType);
                 }
             }
