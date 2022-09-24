@@ -5238,7 +5238,7 @@ export class Parser {
     }
 
     // Handle struct, union, enum declaration. "struct name:", "enum name:", "union name:"
-    private _parseCStructure(): StatementNode | undefined {
+    private _parseStructure(): StatementNode | undefined {
         const validTypes = ['struct', 'enum', 'union'];
         let skip = 0;
         if (this._peekKeywordType() === KeywordType.Cdef || this._peekKeywordType() === KeywordType.Ctypedef) {
@@ -5308,7 +5308,7 @@ export class Parser {
             return statements;
         }
 
-        const structOrEnum = this._parseCStructure();
+        const structOrEnum = this._parseStructure();
         if (structOrEnum) {
             statements.statements.push(structOrEnum);
             structOrEnum.parent = statements;
