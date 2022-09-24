@@ -5192,6 +5192,109 @@ export class Parser {
         return tokenIndex;
     }
 
+    private _parseEnum(nextToken: Token, structToken: Token) : StatementListNode | undefined {
+        this._consumeTokensUntilType([TokenType.NewLine]);
+        this._getNextToken();
+        if (!this._consumeTokenIfType(TokenType.Indent)) {
+            this._addError(Localizer.Diagnostic.expectedIndentedBlock(), this._peekToken());
+            return undefined;
+        }
+        const statements = StatementListNode.create(nextToken);
+        while (this._peekToken().type !== TokenType.Dedent) {
+            if (this._consumeTokenIfType(TokenType.NewLine)) {
+                continue;
+            }
+            let foundComma = false;
+            const name = this._getTokenIfIdentifier();
+            if (!name) {
+                this._addError(Localizer.Diagnostic.expectedVarName(), this._peekToken());
+                break;
+            }
+
+            let rightExpr: ExpressionNode | undefined = undefined;
+            if (this._peekOperatorType() === OperatorType.Assign) {
+                this._getNextToken();
+                rightExpr = this._parseTestExpression(/* allowAssignmentExpression */ false);
+            }
+
+            if (!rightExpr) {
+                rightExpr = NameNode.create(structToken as IdentifierToken);
+            }
+
+            const expr = AssignmentNode.create(NameNode.create(name), rightExpr);
+            statements.statements.push(expr);
+            expr.parent = statements;
+            extendRange(statements, expr);
+
+            foundComma = this._consumeTokenIfType(TokenType.Comma);
+            this._consumeTokenIfType(TokenType.NewLine);
+            // If there are multiple enum values they must be separated by commas
+            if (this._peekTokenType() === TokenType.Identifier && !foundComma) {
+                this._addError(Localizer.Diagnostic.expectedNewlineOrSemicolon(), this._peekToken());
+            }
+        }
+        this._consumeTokenIfType(TokenType.Dedent);
+        return (statements.statements.length > 0) ? statements : undefined;
+    }
+
+    // Handle struct, union, enum declaration. "struct name:", "enum name:", "union name:"
+    private _parseCStructure(): StatementNode | undefined {
+        const validTypes = ['struct', 'enum', 'union'];
+        let skip = 0;
+        if (this._peekKeywordType() === KeywordType.Cdef || this._peekKeywordType() === KeywordType.Ctypedef) {
+            skip++
+        }
+        const structToken = this._peekToken(skip);
+        if (structToken.type != TokenType.Identifier) {
+            return undefined;
+        }
+
+        const dataType = (structToken as IdentifierToken).value;
+        if (!validTypes.includes(dataType)) {
+            return undefined;
+        }
+        skip++;
+        
+        // Allow anonymous enum
+        const possibleName = this._peekToken(skip);
+        let className: NameNode | undefined = undefined;
+        if (possibleName.type === TokenType.Identifier) {
+            className = NameNode.create(possibleName as IdentifierToken);
+            skip++;
+        }
+        if (!className && (dataType === 'struct' || dataType === 'union')) {
+            this._addError(Localizer.Diagnostic.expectedVarName(), possibleName);
+            return undefined;
+        }
+
+        if (
+            this._peekToken(skip).type === TokenType.Colon &&
+            this._peekToken(skip + 1).type === TokenType.NewLine
+        ) {
+            const colon = this._peekToken(skip);
+            this._consumeTokensUntilType([TokenType.Colon]);
+            const nextToken = this._peekToken(2);
+            const suite = SuiteNode.create(colon);
+            var statements: StatementListNode | undefined = undefined;
+
+            if (dataType === "enum") {
+                statements = this._parseEnum(nextToken, structToken);
+            } else {
+                statements = this._parseSuiteCython();
+            }
+
+            if (className && statements) {
+                suite.statements = [statements];
+                statements.parent = suite;
+                extendRange(suite, statements);
+                return ClassNode.create(structToken, className, suite);
+            } else if (statements) {
+                return statements;
+            }
+        }
+        return undefined;
+    }
+
     private _parseTypedStatement(statements?: StatementListNode | undefined, fallback = false): StatementListNode {
         if (!statements) {
             statements = StatementListNode.create(this._peekToken());
@@ -5202,6 +5305,14 @@ export class Parser {
             statements.statements.push(functionNode);
             functionNode.parent = statements;
             extendRange(statements, functionNode);
+            return statements;
+        }
+
+        const structOrEnum = this._parseCStructure();
+        if (structOrEnum) {
+            statements.statements.push(structOrEnum);
+            structOrEnum.parent = statements;
+            extendRange(statements, structOrEnum);
             return statements;
         }
 

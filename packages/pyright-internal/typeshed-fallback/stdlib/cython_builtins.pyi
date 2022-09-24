@@ -50,3 +50,7 @@ class struct(_T):
 
 class enum(_T):
     """Cython Type. Represents a enum."""
+
+
+class union(_T):
+    """Cython Type. Represents a union."""
