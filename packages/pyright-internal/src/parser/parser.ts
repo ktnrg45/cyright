@@ -5308,11 +5308,11 @@ export class Parser {
             return statements;
         }
 
-        const structOrEnum = this._parseStructure();
-        if (structOrEnum) {
-            statements.statements.push(structOrEnum);
-            structOrEnum.parent = statements;
-            extendRange(statements, structOrEnum);
+        const struct = this._parseStructure();
+        if (struct) {
+            statements.statements.push(struct);
+            struct.parent = statements;
+            extendRange(statements, struct);
             return statements;
         }
 
