@@ -5197,36 +5197,12 @@ export class Parser {
             statements = StatementListNode.create(this._peekToken());
         }
 
-        if (this._peekFunctionDeclaration()) {
+        if (!this._consumeTokenIfKeyword(KeywordType.Ctypedef) && this._peekFunctionDeclaration()) {
             const functionNode = this._parseFunctionDefCython();
             statements.statements.push(functionNode);
             functionNode.parent = statements;
             extendRange(statements, functionNode);
             return statements;
-        }
-        this._consumeTokenIfKeyword(KeywordType.Cdef);
-        if (this._peekTokenType() === TokenType.Identifier) {
-            if (
-                this._peekToken(1).type === TokenType.Identifier &&
-                this._peekToken(2).type === TokenType.Colon &&
-                this._peekToken(3).type === TokenType.NewLine
-            ) {
-                // Handle struct and enum declaration. "struct name:"
-                const classInherit = this._getNextToken();
-                const className = NameNode.create(this._getNextToken() as IdentifierToken);
-                const suite = SuiteNode.create(this._peekToken());
-                const classStatements = this._parseSuiteCython()
-                if (classStatements) {
-                    suite.statements = [classStatements];
-                    classStatements.parent = suite;
-                    extendRange(suite, classStatements.statements[classStatements.statements.length - 1]);
-                }
-                const classNode = ClassNode.create(classInherit, className, suite);
-                statements.statements.push(classNode);
-                classNode.parent = statements;
-                extendRange(statements, classNode);
-                return statements;
-            }
         }
 
         const typedVarNode = this._parseTypedVar();
@@ -5332,10 +5308,11 @@ export class Parser {
 
     // C Callback Function: "void (*function_name)(void *args)"
     private _parseCallback(typedVarCategory: TypedVarCategory): TypedVarNode | undefined {
-        const varType = this._getTokenIfIdentifier();
+        const varType = this._getTokenIfType(TokenType.Identifier);
         assert(varType);
 
-        if (!this._getTokenIfType(TokenType.OpenParenthesis)) {
+        const openParen = this._getTokenIfType(TokenType.OpenParenthesis);
+        if (!openParen) {
             return undefined;
         }
         // This pointer is required
@@ -5355,18 +5332,30 @@ export class Parser {
         if (!this._getTokenIfType(TokenType.OpenParenthesis)) {
             return undefined;
         }
-        
-        // Args are optional
-        // TODO: Do something with callback args
-        this._getTokenIfIdentifier() // Arg Type
-        this._consumeTokenPointers();
 
-        const closeParen = this._peekToken();
-        if (!this._getTokenIfType(TokenType.CloseParenthesis)) {
+        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* isCython */ true);
+        const closeParen = this._getTokenIfType(TokenType.CloseParenthesis);
+        if (!closeParen) {
             return undefined;
         }
-        const typedVarNode = TypedVarNode.create(varType, NameNode.create(varName), NameNode.create(varType), typedVarCategory);
+        let typeParameters: TypeParameterListNode | undefined;
+        const suite = SuiteNode.create(closeParen)
+        const functionNode = FunctionNode.create(openParen, NameNode.create(varName), suite, typeParameters)
+        functionNode.returnTypeAnnotation = NameNode.create(varType as IdentifierToken);
+        functionNode.parameters = paramList;
+        
+        // TODO: Do something with Function Node
+        const typedVarNode = TypedVarNode.create(varType, NameNode.create(varName), NameNode.create(varType as IdentifierToken), typedVarCategory);
+        typedVarNode.callbackFunc = functionNode;
         extendRange(typedVarNode, closeParen);
+        // Optional trailing: "with gil"
+        if (this._peekKeywordType() === KeywordType.With && this._peekToken(1).type === TokenType.Keyword) {
+            const gilToken = this._peekToken(1) as KeywordToken;
+            if (gilToken.keywordType === KeywordType.Gil || gilToken.keywordType === KeywordType.Nogil) {
+                this._getNextToken();
+                extendRange(typedVarNode, this._getNextToken())
+            }
+        }
         return typedVarNode;
 
     }
@@ -5451,7 +5440,8 @@ export class Parser {
                 
             }
             this._getNextToken();
-        } else if (this._peekTokenType() === TokenType.Identifier) {
+        } 
+        else if (this._peekTokenType() === TokenType.Identifier) {
             if (this._peekToken(1).type === TokenType.OpenParenthesis) {
                 return this._parseCallback(typedVarCategory);
             }
