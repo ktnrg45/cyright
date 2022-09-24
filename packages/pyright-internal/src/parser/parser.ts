@@ -5360,7 +5360,7 @@ export class Parser {
 
     }
 
-    // Parse cast: "<double*>name"
+    // Parse cast: "<double*>expr" This should be considered a call like "double(expr)"
     private _parseCast(): ExpressionNode | undefined {
         if (this._peekOperatorType() !== OperatorType.LessThan) {
             return undefined;
@@ -5387,13 +5387,14 @@ export class Parser {
             const ptrCount = this._peekTokenPointers(tokenCount);
             const castClose = this._peekToken(tokenCount + ptrCount);
             if (castClose.type === TokenType.Operator && (castClose as OperatorToken).operatorType === OperatorType.GreaterThan) {
-                const nameToken = this._peekToken(tokenCount + ptrCount + 1);
-                if (nameToken.type === TokenType.Identifier) {
+                const nextToken = this._peekToken(tokenCount + ptrCount + 1);
+                if (nextToken.type === TokenType.Identifier || nextToken.type === TokenType.OpenParenthesis) {
                     for (let index = 0; index < tokenCount + ptrCount + 1; index++) {
                         this._getNextToken();
                     }
-                    const name = NameNode.create(nameToken as IdentifierToken);
-                    return AssignmentNode.create(name, varType);
+                    const argExpr = this._parseTestExpression(false);
+                    const arg = ArgumentNode.create(nextToken, argExpr, ArgumentCategory.Simple);
+                    return CallNode.create(varType, [arg], false);
                 }
             }
         }
