@@ -5379,6 +5379,7 @@ export class Parser {
                 return statements;
             }
         }
+        this._consumeTokensUntilType([TokenType.NewLine]);
         return undefined;
     }
 
@@ -5403,6 +5404,7 @@ export class Parser {
             return statements;
         }
 
+        this._consumeTokenIfKeyword(KeywordType.Cdef);
         const typedVarNode = this._parseTypedVar();
         if (!typedVarNode) {
             if (fallback) {
@@ -5599,10 +5601,16 @@ export class Parser {
         return undefined;
     }
 
-    private _parseCTypeDef(): TypeAliasNode | undefined {
+    private _parseCTypeDef(): StatementNode | undefined {
         const typeToken = this._getKeywordToken(KeywordType.Ctypedef);
+        const struct = this._parseStructure();
+        if (struct) {
+            return struct
+        }
+
         const typedVarNode = this._parseTypedVar();
         if (!typedVarNode) {
+            this._consumeTokensUntilType([TokenType.NewLine]);
             return undefined
         }
         // const typeParam = TypeParameterNode.create(typedVarNode.name, TypeParameterCategory.TypeVar, typedVarNode.name);
@@ -5620,6 +5628,7 @@ export class Parser {
         var lastNumModifier: KeywordType | undefined;
         let foundSigned = false;
         let longCount = 0;
+        let lastLong: IdentifierToken | undefined = undefined;
         const firstToken = this._peekToken();
         const varModifier = this._isVarModifier(firstToken);
 
@@ -5651,6 +5660,7 @@ export class Parser {
                     foundSigned = true;
                 } else if (lastNumModifier === KeywordType.Long) {
                     longCount++;
+                    lastLong = this._peekTokenIfIdentifier();
                     if (longCount > 2) {
                         this._addError(Localizer.Diagnostic.expectedVarType(), this._peekToken());
                         return undefined;
@@ -5669,17 +5679,18 @@ export class Parser {
         var dimTokens: Token[] = [];
         let varType: ExpressionNode | undefined = undefined;
         let varName: NameNode | undefined = undefined;
-        if (this._peekTokenType() === TokenType.Identifier) {
-            varType = NameNode.create(this._peekToken() as IdentifierToken);
+        let firstVarToken = this._peekTokenIfIdentifier();
+        if (firstVarToken) {
+            varType = NameNode.create(firstVarToken);
             let skip = 1;
             while (this._peekToken(skip).type === TokenType.Dot) {
                 skip++;
-                const maybeMember = this._peekToken(skip);
-                if (maybeMember.type !== TokenType.Identifier) {
-                    this._addError(Localizer.Diagnostic.expectedMemberName(), maybeMember);
+                const maybeMember = this._peekTokenIfIdentifier(skip);
+                if (!maybeMember) {
+                    this._addError(Localizer.Diagnostic.expectedMemberName(), this._peekToken(skip));
                     break;
                 }
-                varType = MemberAccessNode.create(varType, NameNode.create(maybeMember as IdentifierToken));
+                varType = MemberAccessNode.create(varType, NameNode.create(maybeMember));
                 skip++;
             }
 
@@ -5690,6 +5701,11 @@ export class Parser {
             let possibleName = this._peekTokenIfIdentifier(ptrCount + viewTokensCount + skip)
             if (possibleName) {
                 varName = NameNode.create(possibleName);
+            } else if (lastLong && varType.nodeType === ParseNodeType.Name) {
+                // Consider 'long' as the type
+                varName = varType;
+                varType = NameNode.create(lastLong);
+                skip--;
             } else if (allowPrototype) {
                 // Create Dummy NameNode
                 varName = ({
@@ -5729,17 +5745,6 @@ export class Parser {
         if (!varName || !varType) {
             return undefined
         }
-
-        // if (numModifiers.length > 0) {
-        //     const possibleLong = numModifiers[numModifiers.length - 1];
-        //     // TODO: Allow 'long' to be a type
-        //     if ((possibleLong as KeywordToken).keywordType === KeywordType.Long) {
-        //         varType = NameNode.create(possibleLong as IdentifierToken);
-        //     } else {
-        //         this._addError(Localizer.Diagnostic.expectedVarType(), possibleLong);
-        //     }
-        //     this._addError(Localizer.Diagnostic.expectedVarType(), possibleLong);
-        // }
 
         const typedVarNode = TypedVarNode.create(firstToken, varName, varType, typedVarCategory)
         typedVarNode.modifier = (varModifier) ? firstToken : undefined;

@@ -174,7 +174,7 @@ export const numericModifiers = [
     KeywordType.Long,
 ];
 
-export const softKeywords = [KeywordType.Debug, KeywordType.Match, KeywordType.Case, KeywordType.Type];
+export const softKeywords = [KeywordType.Debug, KeywordType.Match, KeywordType.Case, KeywordType.Type, KeywordType.Long];
 
 export const enum StringTokenFlags {
     None = 0,
