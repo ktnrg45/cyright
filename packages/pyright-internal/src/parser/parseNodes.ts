@@ -1427,6 +1427,7 @@ export interface NameNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.Name;
     token: IdentifierToken;
     value: string;
+    isPrototype?: boolean;
 }
 
 export namespace NameNode {

@@ -5546,6 +5546,7 @@ export class Parser {
         
         // TODO: Do something with Function Node
         const typedVarNode = TypedVarNode.create(varType, NameNode.create(varName), NameNode.create(varType as IdentifierToken), typedVarCategory);
+        typedVarNode.name.isPrototype = true;
         typedVarNode.callbackFunc = functionNode;
         extendRange(typedVarNode, closeParen);
         // Optional trailing: "with gil"
@@ -5744,6 +5745,9 @@ export class Parser {
         }
         if (!varName || !varType) {
             return undefined
+        }
+        if (allowPrototype) {
+            varName.isPrototype = true;
         }
 
         const typedVarNode = TypedVarNode.create(firstToken, varName, varType, typedVarCategory)

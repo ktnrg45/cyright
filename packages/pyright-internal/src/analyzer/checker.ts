@@ -3030,7 +3030,7 @@ export class Checker extends ParseTreeWalker {
 
         const action = rule === DiagnosticRule.reportUnusedImport ? { action: Commands.unusedImport } : undefined;
         if (nameNode) {
-            if (nameNode.value === '') {
+            if (nameNode.value === '' || nameNode.isPrototype) {
                 // This was a dummy Name so don't report warning
                 return;
             }
