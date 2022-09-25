@@ -1868,7 +1868,7 @@ export class Parser {
     //   | '**' tfpdef [','])
     // tfpdef: NAME [':' test]
     // vfpdef: NAME;
-    private _parseVarArgsList(terminator: TokenType, allowAnnotations: boolean, isCython = false): ParameterNode[] {
+    private _parseVarArgsList(terminator: TokenType, allowAnnotations: boolean, allowPrototype = false): ParameterNode[] {
         const paramMap = new Map<string, string>();
         const paramList: ParameterNode[] = [];
         let sawDefaultParam = false;
@@ -1884,7 +1884,7 @@ export class Parser {
                 break;
             }
 
-            const param = (isCython) ? this._parseParameterCython() : this._parseParameter(allowAnnotations);
+            const param = this._parseParameterCython(allowAnnotations, allowPrototype);
             if (!param) {
                 this._consumeTokensUntilType([terminator]);
                 break;
@@ -1893,7 +1893,9 @@ export class Parser {
             if (param.name) {
                 const name = param.name.value;
                 if (paramMap.has(name)) {
-                    this._addError(Localizer.Diagnostic.duplicateParam().format({ name }), param.name);
+                    if (name !== '') {
+                        this._addError(Localizer.Diagnostic.duplicateParam().format({ name }), param.name);
+                    }
                 } else {
                     paramMap.set(name, name);
                 }
@@ -5152,27 +5154,71 @@ export class Parser {
         return undefined;
     }
 
+    // Return the number of tokens away from the first endType reached
+    // Using return value in `_peekToken()` should return the token stopped at
+    private _peekUntilType(endTypes: TokenType[]): number {
+        var count = 0;
+        if (endTypes.length <= 0) {
+            return count;
+        }
+        while (!endTypes.includes(this._peekToken(count).type)) {
+            count++;
+        }
+        return count;
+    }
+
+    private _peekTokenIfIdentifier(count = 0): IdentifierToken | undefined {
+        const nextToken = this._peekToken(count);
+        if (nextToken.type === TokenType.Identifier) {
+            return nextToken as IdentifierToken;
+        }
+
+        // If the next token is invalid, treat it as an identifier.
+        if (nextToken.type === TokenType.Invalid) {
+            this._addError(Localizer.Diagnostic.invalidIdentifierChar(), nextToken);
+            return IdentifierToken.create(nextToken.start, nextToken.length, '', nextToken.comments);
+        }
+
+        // If this is a "soft keyword", it can be converted into an identifier.
+        if (nextToken.type === TokenType.Keyword) {
+            const keywordType = (nextToken as KeywordToken).keywordType;
+            if (softKeywords.find((type) => type === keywordType)) {
+                const keywordText = this._fileContents!.substr(nextToken.start, nextToken.length);
+                return IdentifierToken.create(nextToken.start, nextToken.length, keywordText, nextToken.comments);
+            }
+        }
+
+        return undefined;
+    }
+
     // [::1] or [] or [:] or [::] after type
-    private _peekView(count = 0, isFunction = false): number {
+    private _peekView(count = 0, isFunction = false): Token[] {
         const possibleOpenBracket = this._peekToken(count);
+        let foundCloseBracket = false;
         let tokenIndex = 0;
         var colonCount = 0;
         var tokens: Token[] = [];
         var lastType: TokenType | undefined;
 
         if (possibleOpenBracket.type !== TokenType.OpenBracket) {
-            return tokenIndex;
+            return tokens;
         }
 
         count++;
         tokenIndex++;
+        tokens.push(possibleOpenBracket);
+        lastType = possibleOpenBracket.type;
         while (tokenIndex < 5) {
             const nextToken = this._peekToken(count);
             count++
             tokenIndex++;
             tokens.push(nextToken);
 
-            if (nextToken.type === TokenType.CloseBracket || nextToken.type === TokenType.Comma) {
+            if (nextToken.type === TokenType.CloseBracket) {
+                foundCloseBracket = true;
+                break;
+            }
+            if (nextToken.type === TokenType.Comma) {
                 break;
             }
             if (nextToken.type === TokenType.Colon) {
@@ -5189,7 +5235,48 @@ export class Parser {
         if (isFunction && colonCount === 0) {
             this._addError(Localizer.Diagnostic.returnTypeCannotBeArray(), this._peekToken());
         }
-        return tokenIndex;
+        if (!foundCloseBracket) {
+            this._addError(Localizer.Diagnostic.expectedCloseBracket(), this._peekToken(count));
+        }
+        return tokens;
+    }
+
+    // [1] or []  after name
+    private _peekDimTokens(count = 0): Token[] {
+        const possibleOpenBracket = this._peekToken(count);
+        let foundCloseBracket = false;
+        let tokenIndex = 0;
+        var tokens: Token[] = [];
+        var lastType: TokenType | undefined;
+
+        if (possibleOpenBracket.type !== TokenType.OpenBracket) {
+            return tokens;
+        }
+
+        count++;
+        tokenIndex++;
+        tokens.push(possibleOpenBracket);
+        lastType = possibleOpenBracket.type;
+        while (tokenIndex < 3) {
+            const nextToken = this._peekToken(count);
+            count++
+            tokenIndex++;
+            tokens.push(nextToken);
+
+            if (nextToken.type === TokenType.CloseBracket) {
+                foundCloseBracket = true;
+                break;
+            }
+
+            if (lastType === TokenType.OpenBracket && nextToken.type !== TokenType.Number) {
+                this._addError(Localizer.Diagnostic.expectedCloseBracket(), this._peekToken(count - 1))
+            }
+            lastType = nextToken.type;
+        }
+        if (!foundCloseBracket) {
+            this._addError(Localizer.Diagnostic.expectedCloseBracket(), this._peekToken(count));
+        }
+        return tokens;
     }
 
     private _parseEnum(nextToken: Token, structToken: Token) : StatementListNode | undefined {
@@ -5387,11 +5474,11 @@ export class Parser {
         return statements;
     }
 
-    private _parseParameterCython(): ParameterNode {
-        let typedVarNode = this._parseTypedVar(TypedVarCategory.Parameter);
+    private _parseParameterCython(allowAnnotations: boolean, allowPrototype: boolean): ParameterNode {
+        let typedVarNode = this._parseTypedVar(TypedVarCategory.Parameter, allowPrototype);
         if (!typedVarNode) {
             // return ParameterNode.create(this._peekToken(), ParameterCategory.Simple);
-            return this._parseParameter(true);
+            return this._parseParameter(allowAnnotations);
         }
         let paramNode = ParameterNode.create(typedVarNode.startToken, ParameterCategory.Simple);
 
@@ -5444,7 +5531,7 @@ export class Parser {
             return undefined;
         }
 
-        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* isCython */ true);
+        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* allowPrototype */ true);
         const closeParen = this._getTokenIfType(TokenType.CloseParenthesis);
         if (!closeParen) {
             return undefined;
@@ -5528,7 +5615,7 @@ export class Parser {
     }
 
     // const unsigned long long int* var
-    private _parseTypedVar(typedVarCategory = TypedVarCategory.Variable) : TypedVarNode | undefined{
+    private _parseTypedVar(typedVarCategory = TypedVarCategory.Variable, allowPrototype = false) : TypedVarNode | undefined{
         var numModifiers: Token[] = [];
         var lastNumModifier: KeywordType | undefined;
         let foundSigned = false;
@@ -5544,12 +5631,6 @@ export class Parser {
                         this._addError(Localizer.Diagnostic.invalidModifier(), this._peekToken());
                     }
                     break;
-                case TypedVarCategory.Function:
-                    if (varModifier === KeywordType.Const) {
-                        this._addError(Localizer.Diagnostic.invalidModifier(), this._peekToken());
-                    }
-                    break;
-                
             }
             this._getNextToken();
         } 
@@ -5585,7 +5666,9 @@ export class Parser {
 
         var viewTokens: Token[] = [];
         var ptrTokens: Token[] = [];
-        let varType: ExpressionNode;
+        var dimTokens: Token[] = [];
+        let varType: ExpressionNode | undefined = undefined;
+        let varName: NameNode | undefined = undefined;
         if (this._peekTokenType() === TokenType.Identifier) {
             varType = NameNode.create(this._peekToken() as IdentifierToken);
             let skip = 1;
@@ -5602,24 +5685,48 @@ export class Parser {
 
             // If the next token after any pointer and view annotations is an identifier, this token is a type.
             let ptrCount = this._peekTokenPointers(skip);
-            let viewTokensCount = this._peekView(skip, (typedVarCategory === TypedVarCategory.Function));
+            let viewTokensCount = this._peekView(skip, (typedVarCategory === TypedVarCategory.Function)).length;
 
-            let possibleName = this._peekToken(ptrCount + viewTokensCount + skip)
-            if (possibleName.type === TokenType.Identifier) {
-                // Consume type tokens
-                for (let index = 0; index < skip; index++) {
+            let possibleName = this._peekTokenIfIdentifier(ptrCount + viewTokensCount + skip)
+            if (possibleName) {
+                varName = NameNode.create(possibleName);
+            } else if (allowPrototype) {
+                // Create Dummy NameNode
+                varName = ({
+                    start: varType.start,
+                    length: 0,
+                    id: 0,
+                    nodeType: ParseNodeType.Name,
+                    token: {
+                        type: TokenType.Identifier,
+                        start: 0,
+                        length: 0,
+                        comments: [],
+                        value: '',
+                    },
+                    value: '',
+                } as NameNode);
+            }
+
+            // Consume type tokens
+            for (let index = 0; index < skip; index++) {
+                this._getNextToken();
+            }
+
+            ptrTokens = this._consumeTokenPointers();
+            for (let index = 0; index < viewTokensCount; index++) {
+                viewTokens.push(this._getNextToken());
+            }
+
+            if (varName?.value !== '') {
+                this._getNextToken();
+                let dimTokens = this._peekDimTokens();
+                for (let index = 0; index < dimTokens.length; index++) {
                     this._getNextToken();
                 }
-
-                ptrTokens = this._consumeTokenPointers();
-                for (let index = 0; index < viewTokensCount; index++) {
-                    viewTokens.push(this._getNextToken());
-                }
-                var varName = NameNode.create(this._getNextToken() as IdentifierToken);
-            } else {
-                return undefined;
             }
-        } else {
+        }
+        if (!varName || !varType) {
             return undefined
         }
 
@@ -5708,7 +5815,7 @@ export class Parser {
             
             const iterToken = this._peekToken(count + 1 + ptrCount + viewTokens);
             if (iterToken.type === TokenType.OpenBracket) {
-                viewTokens = this._peekView(count + 1 + ptrCount + viewTokens);
+                viewTokens = this._peekView(count + 1 + ptrCount + viewTokens).length;
                 continue;
             }
             // If open Parenthesis assume function declaration
@@ -5752,9 +5859,10 @@ export class Parser {
 
     private _parseFunctionDefCython(): FunctionNode | ErrorNode {
         const firstToken = this._peekToken();
+        let cDefType: KeywordType | undefined = undefined;
         if (firstToken.type === TokenType.Keyword) {
-            const keywordType = (firstToken as KeywordToken).keywordType;
-            if (keywordType === KeywordType.Cdef || keywordType === KeywordType.Cpdef || keywordType === KeywordType.Ctypedef) {
+            cDefType = (firstToken as KeywordToken).keywordType;
+            if (cDefType === KeywordType.Cdef || cDefType === KeywordType.Cpdef || cDefType === KeywordType.Ctypedef) {
                 this._getNextToken();
             }
         }
@@ -5789,16 +5897,33 @@ export class Parser {
             );
         }
 
-        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* isCython */ true);
+        let skipCount = this._peekUntilType([TokenType.NewLine]);
+        let possibleCloseParen = this._peekToken(skipCount - 1);
+        let isPrototype = possibleCloseParen.type === TokenType.CloseParenthesis;
+        if (!isPrototype && possibleCloseParen.type === TokenType.Keyword) {
+            // Could be 'nogil' or 'gil' so check the previous token
+            isPrototype = this._peekToken(skipCount - 2).type === TokenType.CloseParenthesis;
+        }
+
+        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* allowPrototype */ isPrototype);
 
         if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
             this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
             this._consumeTokensUntilType([TokenType.Colon, TokenType.NewLine]);
         }
 
+        const gilType = this._peekKeywordType();
+        if (gilType === KeywordType.Nogil || gilType === KeywordType.Gil) {
+            const gilToken = this._getNextToken();
+            if (cDefType && cDefType !== KeywordType.Cdef) {
+                this._addError(Localizer.Diagnostic.invalidTrailingGilFunction(), gilToken);
+            }
+        }
+
         let functionTypeAnnotationToken: StringToken | undefined;
         let suite: SuiteNode;
         if (this._peekTokenType() === TokenType.NewLine) {
+            // Allow function prototypes; No ending colon or body: "cdef double name()"
             suite = SuiteNode.create(this._getNextToken());
         } else {
             suite = this._parseSuite(/* isFunction */ true, this._parseOptions.skipFunctionAndClassBody, () => {

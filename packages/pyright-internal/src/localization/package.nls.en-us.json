@@ -518,7 +518,8 @@
         "unexpectedModifier": "Unexpected modifier",
         "viewInvalidAxis": "Axis specification only allowed in the \"step\" slot for a view",
         "expectedExternFrom": "Expected \"from\" after \"extern\"",
-        "expectedCIncludes": "Expected C Header file"
+        "expectedCIncludes": "Expected C Header file",
+        "invalidTrailingGilFunction": "Use of \"gil\" or \"nogil\" in a function declaration not declared with \"cdef\""
     },
     "DiagnosticAddendum": {
         "argParam": "Argument corresponds to parameter \"{paramName}\"",

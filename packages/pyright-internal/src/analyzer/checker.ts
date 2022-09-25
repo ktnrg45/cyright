@@ -3030,6 +3030,10 @@ export class Checker extends ParseTreeWalker {
 
         const action = rule === DiagnosticRule.reportUnusedImport ? { action: Commands.unusedImport } : undefined;
         if (nameNode) {
+            if (nameNode.value === '') {
+                // This was a dummy Name so don't report warning
+                return;
+            }
             this._fileInfo.diagnosticSink.addUnusedCodeWithTextRange(
                 Localizer.Diagnostic.unaccessedSymbol().format({ name: nameNode.value }),
                 nameNode,

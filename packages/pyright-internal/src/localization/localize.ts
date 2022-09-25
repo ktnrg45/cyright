@@ -994,6 +994,7 @@ export namespace Localizer {
         export const viewInvalidAxis = () => getRawString('Diagnostic.viewInvalidAxis');
         export const expectedExternFrom = () => getRawString('Diagnostic.expectedExternFrom');
         export const expectedCIncludes = () => getRawString('Diagnostic.expectedCIncludes');
+        export const invalidTrailingGilFunction = () => getRawString('Diagnostic.invalidTrailingGilFunction');
     }
 
     export namespace DiagnosticAddendum {
