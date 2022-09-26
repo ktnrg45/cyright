@@ -2219,6 +2219,15 @@ export class Parser {
                 return this._parseFunctionDef(undefined, decoratorList);
             } else if (nextToken.keywordType === KeywordType.Class) {
                 return this._parseClassDef(decoratorList);
+            } else if (nextToken.keywordType === KeywordType.Cdef || nextToken.keywordType === KeywordType.Cpdef) {
+                let nextKeyToken = this._peekToken(1)
+                if (nextKeyToken.type === TokenType.Keyword && (nextKeyToken as KeywordToken).keywordType === KeywordType.Class) {
+                    this._getNextToken();
+                    return this._parseClassDef(decoratorList);
+                }
+                if (this._peekFunctionDeclaration()) {
+                    return this._parseFunctionDefCython(decoratorList);
+                }
             }
         }
 
@@ -5880,7 +5889,7 @@ export class Parser {
         return this._parseTypedStatement(undefined, true);
     }
 
-    private _parseFunctionDefCython(): FunctionNode | ErrorNode {
+    private _parseFunctionDefCython(decorators?: DecoratorNode[]): FunctionNode | ErrorNode {
         const firstToken = this._peekToken();
         let cDefType: KeywordType | undefined = undefined;
         if (firstToken.type === TokenType.Keyword) {
@@ -5903,6 +5912,7 @@ export class Parser {
                     firstToken,
                     ErrorExpressionCategory.MissingFunctionParameterList,
                     undefined,
+                    decorators,
                 );
             }
             returnType = typedVarNode.typeAnnotation;
@@ -5917,6 +5927,7 @@ export class Parser {
                 this._peekToken(),
                 ErrorExpressionCategory.MissingFunctionParameterList,
                 undefined,
+                decorators,
             );
         }
 
@@ -5963,6 +5974,17 @@ export class Parser {
             param.parent = functionNode;
         });
 
+        if (decorators) {
+            functionNode.decorators = decorators;
+            decorators.forEach((decorator) => {
+                decorator.parent = functionNode;
+            });
+
+            if (decorators.length > 0) {
+                extendRange(functionNode, decorators[0]);
+            }
+        }
+    
         if (returnType) {
             functionNode.returnTypeAnnotation = returnType;
             functionNode.returnTypeAnnotation.parent = functionNode;
