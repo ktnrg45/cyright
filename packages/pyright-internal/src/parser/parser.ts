@@ -5346,15 +5346,18 @@ export class Parser {
         return tokens;
     }
 
-    private _parseEnum(nextToken: Token, structToken: Token) : StatementListNode | undefined {
-        this._consumeTokensUntilType([TokenType.NewLine]);
-        this._getNextToken();
-        if (!this._consumeTokenIfType(TokenType.Indent)) {
-            this._addError(Localizer.Diagnostic.expectedIndentedBlock(), this._peekToken());
-            return undefined;
+    private _parseEnum(nextToken: Token, structToken: Token, asSuite = true) : StatementListNode | undefined {
+        if (asSuite) {
+            this._consumeTokensUntilType([TokenType.NewLine]);
+            this._getNextToken();
+            if (!this._consumeTokenIfType(TokenType.Indent)) {
+                this._addError(Localizer.Diagnostic.expectedIndentedBlock(), this._peekToken());
+                return undefined;
+            }
         }
+        const stopType = (asSuite) ? TokenType.Dedent : TokenType.NewLine
         const statements = StatementListNode.create(nextToken);
-        while (this._peekToken().type !== TokenType.Dedent) {
+        while (this._peekToken().type !== stopType) {
             if (this._consumeTokenIfType(TokenType.NewLine)) {
                 continue;
             }
@@ -5381,13 +5384,17 @@ export class Parser {
             extendRange(statements, expr);
 
             foundComma = this._consumeTokenIfType(TokenType.Comma);
-            this._consumeTokenIfType(TokenType.NewLine);
+            if (asSuite) {
+                this._consumeTokenIfType(TokenType.NewLine);
+            }
             // If there are multiple enum values they must be separated by commas
             if (this._peekTokenType() === TokenType.Identifier && !foundComma) {
                 this._addError(Localizer.Diagnostic.expectedNewlineOrSemicolon(), this._peekToken());
             }
         }
-        this._consumeTokenIfType(TokenType.Dedent);
+        if (asSuite) {
+            this._consumeTokenIfType(TokenType.Dedent);
+        }
         return (statements.statements.length > 0) ? statements : undefined;
     }
 
@@ -5450,6 +5457,12 @@ export class Parser {
                 extendRange(suite, statements);
                 return ClassNode.create(structToken, className, suite);
             } else if (statements) {
+                return statements;
+            }
+        } else if (dataType === "enum" && this._peekToken(skip).type === TokenType.Colon) {
+            this._consumeTokensUntilType([TokenType.Colon]);
+            statements = this._parseEnum(this._getNextToken(), structToken, false);
+            if (statements) {
                 return statements;
             }
         }
@@ -5889,6 +5902,9 @@ export class Parser {
         while (!this._consumeTokenIfType(TokenType.Dedent)) {
             this._consumeTokenIfType(TokenType.NewLine);
             statements = this._parseTypedStatement(statements);
+            if (this._peekTokenType() === TokenType.EndOfStream) {
+                break;
+            }
         }
         return (statements.statements.length > 0) ? statements : undefined;
     }
