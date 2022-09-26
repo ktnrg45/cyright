@@ -5589,6 +5589,7 @@ export class Parser {
         if (this._peekOperatorType() !== OperatorType.LessThan) {
             return undefined;
         }
+        const castOpen = this._peekToken();
         let tokenCount = 1;
         if (this._peekToken(tokenCount).type === TokenType.Identifier) {
             let varType: NameNode | MemberAccessNode;
@@ -5609,17 +5610,22 @@ export class Parser {
                 break;
             }
             const ptrCount = this._peekTokenPointers(tokenCount);
+            if (this._peekToken(tokenCount + ptrCount).type === TokenType.QuestionMark) {
+                // Handle Type Check: "<double?>name"
+                tokenCount++;
+            }
             const castClose = this._peekToken(tokenCount + ptrCount);
             if (castClose.type === TokenType.Operator && (castClose as OperatorToken).operatorType === OperatorType.GreaterThan) {
-                const nextToken = this._peekToken(tokenCount + ptrCount + 1);
-                if (nextToken.type === TokenType.Identifier || nextToken.type === TokenType.OpenParenthesis) {
-                    for (let index = 0; index < tokenCount + ptrCount + 1; index++) {
-                        this._getNextToken();
-                    }
-                    const argExpr = this._parseTestExpression(false);
-                    const arg = ArgumentNode.create(nextToken, argExpr, ArgumentCategory.Simple);
-                    return CallNode.create(varType, [arg], false);
+                const startToken = this._peekToken(tokenCount + ptrCount + 1);
+                for (let index = 0; index < tokenCount + ptrCount + 1; index++) {
+                    var t = this._getNextToken();
                 }
+                const argExpr = this._parseTestExpression(false);
+                const arg = ArgumentNode.create(startToken, argExpr, ArgumentCategory.Simple);
+                const callNode = CallNode.create(varType, [arg], false);
+                extendRange(callNode, castOpen);
+                extendRange(callNode, castClose);
+                return callNode;
             }
         }
         return undefined;
@@ -5861,6 +5867,7 @@ export class Parser {
             }
             
             const iterToken = this._peekToken(count + 1 + ptrCount + viewTokens);
+
             if (iterToken.type === TokenType.Keyword && (iterToken as KeywordToken).keywordType === KeywordType.Class) {
                 break;
             }

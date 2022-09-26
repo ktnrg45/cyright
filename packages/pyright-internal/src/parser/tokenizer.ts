@@ -480,6 +480,11 @@ export class Tokenizer {
                 break;
             }
 
+            case Char.QuestionMark: {
+                this._tokens.push(Token.create(TokenType.QuestionMark, this._cs.position, 1, this._getComments()));
+                break;
+            }
+
             case Char.Comma: {
                 this._tokens.push(Token.create(TokenType.Comma, this._cs.position, 1, this._getComments()));
                 break;

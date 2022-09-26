@@ -37,6 +37,7 @@ export const enum TokenType {
     Dot,
     Arrow,
     Backtick,
+    QuestionMark,
 }
 
 export const enum NewLineType {
