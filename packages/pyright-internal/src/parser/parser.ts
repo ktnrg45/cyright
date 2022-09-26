@@ -5361,7 +5361,6 @@ export class Parser {
             if (this._consumeTokenIfType(TokenType.NewLine)) {
                 continue;
             }
-            let foundComma = false;
             const name = this._getTokenIfIdentifier();
             if (!name) {
                 this._addError(Localizer.Diagnostic.expectedVarName(), this._peekToken());
@@ -5383,13 +5382,10 @@ export class Parser {
             expr.parent = statements;
             extendRange(statements, expr);
 
-            foundComma = this._consumeTokenIfType(TokenType.Comma);
+            // commas are optional
+            this._consumeTokenIfType(TokenType.Comma);
             if (asSuite) {
                 this._consumeTokenIfType(TokenType.NewLine);
-            }
-            // If there are multiple enum values they must be separated by commas
-            if (this._peekTokenType() === TokenType.Identifier && !foundComma) {
-                this._addError(Localizer.Diagnostic.expectedNewlineOrSemicolon(), this._peekToken());
             }
         }
         if (asSuite) {
