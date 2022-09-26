@@ -1800,7 +1800,7 @@ export class Parser {
             );
         }
 
-        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* isCython */ true);
+        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true);
 
         if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
             this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
@@ -5646,8 +5646,30 @@ export class Parser {
         return typeAlias;
     }
 
+    // Create Dummy NameNode
+    private _createDummyName(node: ParseNode): NameNode {
+        return ({
+            start: node.start,
+            length: 0,
+            id: 0,
+            nodeType: ParseNodeType.Name,
+            token: {
+                type: TokenType.Identifier,
+                start: 0,
+                length: 0,
+                comments: [],
+                value: '',
+            },
+            value: '',
+        } as NameNode);
+    }
+
     // const unsigned long long int* var
-    private _parseTypedVar(typedVarCategory = TypedVarCategory.Variable, allowPrototype = false) : TypedVarNode | undefined{
+    private _parseTypedVar(
+        typedVarCategory = TypedVarCategory.Variable,
+        allowPrototype = false,
+        allowNoType = false,
+    ) : TypedVarNode | undefined {
         var numModifiers: Token[] = [];
         var lastNumModifier: KeywordType | undefined;
         let foundSigned = false;
@@ -5731,23 +5753,14 @@ export class Parser {
                 varType = NameNode.create(lastLong);
                 skip--;
             } else if (allowPrototype) {
-                // Create Dummy NameNode
-                varName = ({
-                    start: varType.start,
-                    length: 0,
-                    id: 0,
-                    nodeType: ParseNodeType.Name,
-                    token: {
-                        type: TokenType.Identifier,
-                        start: 0,
-                        length: 0,
-                        comments: [],
-                        value: '',
-                    },
-                    value: '',
-                } as NameNode);
+                varName = this._createDummyName(varType);
+            } else if (varType?.nodeType === ParseNodeType.Name && allowNoType) {
+                // Handle no return type with modifiers: "cdef inline name()"
+                varName = varType;
+                varType = this._createDummyName(varType);
+                skip--;
             }
-
+    
             // Consume type tokens
             for (let index = 0; index < skip; index++) {
                 this._getNextToken();
@@ -5766,9 +5779,11 @@ export class Parser {
                 }
             }
         }
+
         if (!varName || !varType) {
             return undefined
         }
+
         if (allowPrototype) {
             varName.isPrototype = true;
         }
@@ -5846,6 +5861,10 @@ export class Parser {
             }
             
             const iterToken = this._peekToken(count + 1 + ptrCount + viewTokens);
+            if (iterToken.type === TokenType.Keyword && (iterToken as KeywordToken).keywordType === KeywordType.Class) {
+                break;
+            }
+
             if (iterToken.type === TokenType.OpenBracket) {
                 viewTokens = this._peekView(count + 1 + ptrCount + viewTokens).length;
                 continue;
@@ -5905,8 +5924,8 @@ export class Parser {
             // Function has no declared return type
             nameToken = NameNode.create(this._getNextToken() as IdentifierToken);
         } else {
-            let typedVarNode = this._parseTypedVar(TypedVarCategory.Function);
-            if (!typedVarNode || !typedVarNode.name) {
+            let typedVarNode = this._parseTypedVar(TypedVarCategory.Function, /* allowPrototype */ false, /* allowNoType */ true);
+            if (!typedVarNode) {
                 this._addError(Localizer.Diagnostic.expectedFunctionName(), firstToken);
                 return ErrorNode.create(
                     firstToken,
@@ -5915,7 +5934,7 @@ export class Parser {
                     decorators,
                 );
             }
-            returnType = typedVarNode.typeAnnotation;
+            returnType = (typedVarNode.typeAnnotation.length > 0) ? typedVarNode.typeAnnotation : undefined;
             nameToken = typedVarNode.name;
         }
         let typeParameters: TypeParameterListNode | undefined;
