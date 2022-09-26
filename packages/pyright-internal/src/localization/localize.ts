@@ -995,6 +995,8 @@ export namespace Localizer {
         export const expectedExternFrom = () => getRawString('Diagnostic.expectedExternFrom');
         export const expectedCIncludes = () => getRawString('Diagnostic.expectedCIncludes');
         export const invalidTrailingGilFunction = () => getRawString('Diagnostic.invalidTrailingGilFunction');
+        export const noneCheckNotAllowed = () => getRawString('Diagnostic.noneCheckNotAllowed');
+
     }
 
     export namespace DiagnosticAddendum {

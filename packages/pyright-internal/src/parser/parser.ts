@@ -1800,7 +1800,7 @@ export class Parser {
             );
         }
 
-        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true);
+        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* allowPrototype */ false, /* allowExtraExpr */ true);
 
         if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
             this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
@@ -1868,7 +1868,7 @@ export class Parser {
     //   | '**' tfpdef [','])
     // tfpdef: NAME [':' test]
     // vfpdef: NAME;
-    private _parseVarArgsList(terminator: TokenType, allowAnnotations: boolean, allowPrototype = false): ParameterNode[] {
+    private _parseVarArgsList(terminator: TokenType, allowAnnotations: boolean, allowPrototype = false, allowExtraExpr = false): ParameterNode[] {
         const paramMap = new Map<string, string>();
         const paramList: ParameterNode[] = [];
         let sawDefaultParam = false;
@@ -1884,7 +1884,7 @@ export class Parser {
                 break;
             }
 
-            const param = this._parseParameterCython(allowAnnotations, allowPrototype);
+            const param = this._parseParameterCython(allowAnnotations, allowPrototype, allowExtraExpr);
             if (!param) {
                 this._consumeTokensUntilType([terminator]);
                 break;
@@ -5492,7 +5492,7 @@ export class Parser {
         return statements;
     }
 
-    private _parseParameterCython(allowAnnotations: boolean, allowPrototype: boolean): ParameterNode {
+    private _parseParameterCython(allowAnnotations: boolean, allowPrototype: boolean, allowExtraExpr: boolean): ParameterNode {
         let isPythonParam = (
             this._peekToken().type === TokenType.Identifier &&
             (this._peekToken(1).type === TokenType.Comma || this._peekToken(1).type === TokenType.CloseParenthesis)
@@ -5521,10 +5521,17 @@ export class Parser {
             paramNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
             paramNode.defaultValue.parent = paramNode;
             extendRange(paramNode, paramNode.defaultValue);
-        } else if (this._peekKeywordType()){
-            // Handle extra expression after param name: "name not None"
-            const extraExpr = this._parseTestExpression(/* allowAssignmentExpression */ false);
-            extendRange(paramNode, extraExpr);
+        } else if (this._peekKeywordType() === KeywordType.Not){
+            // Handle extra expression after param name: "name not None". Only valid in functions defined with "def"
+            const noneToken = this._peekToken(1);
+            if (noneToken.type === TokenType.Keyword && (noneToken as KeywordToken).keywordType === KeywordType.None) {
+                this._getNextToken();
+                this._getNextToken();
+                extendRange(paramNode, noneToken);
+                if (!allowExtraExpr) {
+                    this._addError(Localizer.Diagnostic.noneCheckNotAllowed(), noneToken);
+                }
+            }
         }
         return paramNode;
     }
