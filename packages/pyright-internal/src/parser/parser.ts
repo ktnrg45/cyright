@@ -5349,8 +5349,15 @@ export class Parser {
             className = NameNode.create(possibleName as IdentifierToken);
             skip++;
         }
+
+        if (this._peekToken(skip).type !== TokenType.Colon) {
+            // This is a typed var declaration with no suite
+            return undefined;
+        }
+
         if (!className && (dataType === 'struct' || dataType === 'union')) {
             this._addError(Localizer.Diagnostic.expectedVarName(), possibleName);
+            this._consumeTokensUntilType([TokenType.NewLine]);
             return undefined;
         }
 
@@ -5477,6 +5484,13 @@ export class Parser {
     }
 
     private _parseParameterCython(allowAnnotations: boolean, allowPrototype: boolean): ParameterNode {
+        let isPythonParam = (
+            this._peekToken().type === TokenType.Identifier &&
+            (this._peekToken(1).type === TokenType.Comma || this._peekToken(1).type === TokenType.CloseParenthesis)
+        );
+        if (!allowPrototype && isPythonParam) {
+            return this._parseParameter(allowAnnotations);
+        }
         let typedVarNode = this._parseTypedVar(TypedVarCategory.Parameter, allowPrototype);
         if (!typedVarNode) {
             // return ParameterNode.create(this._peekToken(), ParameterCategory.Simple);

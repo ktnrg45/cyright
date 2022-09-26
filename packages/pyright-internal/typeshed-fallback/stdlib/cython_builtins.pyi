@@ -36,6 +36,10 @@ class ssize_t(_B):
     """Cython Type. Represents ssize_t."""
 
 
+class long(_I):
+    """Cython Type. Represents a long integer."""
+
+
 class complex(_I):
     """Cython Type. Represents a complex integer."""
 
