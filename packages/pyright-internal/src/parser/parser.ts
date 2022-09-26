@@ -5200,8 +5200,66 @@ export class Parser {
         return undefined;
     }
 
-    // [::1] or [] or [:] or [::] after type
+    // [:, :] after type
+    private _peekViewDims(count = 0, isFunction = false): Token[] {
+        const possibleOpenBracket = this._peekToken(count);
+        let foundCloseBracket = false;
+        let tokenIndex = 0;
+        var tokens: Token[] = [];
+        var lastType: TokenType | undefined;
+
+        if (possibleOpenBracket.type !== TokenType.OpenBracket) {
+            return tokens;
+        }
+
+        count++;
+        tokenIndex++;
+        tokens.push(possibleOpenBracket);
+        lastType = possibleOpenBracket.type;
+
+        while (true) {
+            const nextToken = this._peekToken(count);
+
+            if (nextToken.type === TokenType.NewLine) {
+                this._addError(Localizer.Diagnostic.expectedCloseBracket(), nextToken);
+                break;
+            }
+
+            count++
+            tokenIndex++;
+            tokens.push(nextToken);
+
+            if (nextToken.type === TokenType.CloseBracket) {
+                foundCloseBracket = true;
+                break;
+            }
+
+            if (nextToken.type === TokenType.Comma) {
+                if (lastType !== TokenType.Colon) {
+                    this._addError(Localizer.Diagnostic.expectedColon(), nextToken);
+                }
+            } else if (nextToken.type === TokenType.Colon) {
+                if (lastType === TokenType.Colon) {
+                    this._addError(Localizer.Diagnostic.expectedComma(), nextToken);
+                }
+            } else {
+                if (lastType === TokenType.Colon) {
+                    this._addError(Localizer.Diagnostic.expectedComma(), nextToken);
+                } else {
+                    this._addError(Localizer.Diagnostic.expectedColon(), nextToken);
+                }
+                this._addError(Localizer.Diagnostic.expectedCloseBracket(), nextToken);
+                break;
+            }
+
+            lastType = nextToken.type;
+        }
+        return tokens;
+    }
+
+    // [::1] or [] or [:] or [::] or [:, :] after type
     private _peekView(count = 0, isFunction = false): Token[] {
+        const originalCount = count;
         const possibleOpenBracket = this._peekToken(count);
         let foundCloseBracket = false;
         let tokenIndex = 0;
@@ -5228,7 +5286,7 @@ export class Parser {
                 break;
             }
             if (nextToken.type === TokenType.Comma) {
-                break;
+                return this._peekViewDims(originalCount, isFunction);
             }
             if (nextToken.type === TokenType.Colon) {
                 colonCount++;
@@ -5250,7 +5308,7 @@ export class Parser {
         return tokens;
     }
 
-    // [1] or []  after name
+    // "[1]" or "[]"  after name
     private _peekDimTokens(count = 0): Token[] {
         const possibleOpenBracket = this._peekToken(count);
         let foundCloseBracket = false;

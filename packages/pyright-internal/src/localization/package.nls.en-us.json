@@ -520,7 +520,8 @@
         "expectedExternFrom": "Expected \"from\" after \"extern\"",
         "expectedCIncludes": "Expected C Header file",
         "invalidTrailingGilFunction": "Use of \"gil\" or \"nogil\" in a function declaration not declared with \"cdef\"",
-        "noneCheckNotAllowed": "None check only allowed in functions defined with \"def\""
+        "noneCheckNotAllowed": "None check only allowed in functions defined with \"def\"",
+        "expectedComma": "Expected \",\""
     },
     "DiagnosticAddendum": {
         "argParam": "Argument corresponds to parameter \"{paramName}\"",
