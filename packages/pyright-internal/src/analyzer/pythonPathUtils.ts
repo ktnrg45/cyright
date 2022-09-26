@@ -89,6 +89,10 @@ export function findPythonSearchPaths(
             pthPaths.forEach((path) => {
                 addPathIfUnique(foundPaths, path);
             });
+    
+            // Add Cython Includes Path
+            const cythonPath = combinePaths(sitePackagesPath, pathConsts.cython, pathConsts.includes);
+            addPathIfUnique(foundPaths, cythonPath);
         });
 
         if (foundPaths.length > 0) {
@@ -106,6 +110,11 @@ export function findPythonSearchPaths(
 
     // Fall back on the python interpreter.
     const pathResult = host.getPythonSearchPaths(configOptions.pythonPath, importFailureInfo);
+    pathResult.paths.forEach(sitePackagesPath => {
+        // Add Cython Includes Path
+        const cythonPath = combinePaths(sitePackagesPath, pathConsts.cython, pathConsts.includes);
+        addPathIfUnique(pathResult.paths, cythonPath);
+    });
     if (includeWatchPathsOnly && workspaceRoot) {
         const paths = pathResult.paths.filter(
             (p) =>

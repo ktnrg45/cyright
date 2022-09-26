@@ -14,3 +14,6 @@ export const sitePackages = 'site-packages';
 export const distPackages = 'dist-packages';
 export const src = 'src';
 export const stubsSuffix = '-stubs';
+
+export const cython = 'Cython';
+export const includes = 'Includes';
