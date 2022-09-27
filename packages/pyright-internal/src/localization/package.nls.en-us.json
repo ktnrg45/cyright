@@ -521,7 +521,8 @@
         "expectedCIncludes": "Expected C Header file",
         "invalidTrailingGilFunction": "Use of \"gil\" or \"nogil\" in a function declaration not declared with \"cdef\"",
         "noneCheckNotAllowed": "None check only allowed in functions defined with \"def\"",
-        "expectedComma": "Expected \",\""
+        "expectedComma": "Expected \",\"",
+        "expectedNamespace": "Expected namespace string"
     },
     "DiagnosticAddendum": {
         "argParam": "Argument corresponds to parameter \"{paramName}\"",

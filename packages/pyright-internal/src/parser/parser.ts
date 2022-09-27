@@ -5912,6 +5912,7 @@ export class Parser {
     private _parseExtern(): StatementListNode | undefined{
         this._getKeywordToken(KeywordType.Extern);
         const fromToken = this._getTokenIfType(TokenType.Keyword);
+        let isCpp = false;
         if (!fromToken) {
             this._addError(Localizer.Diagnostic.expectedExternFrom(), this._getNextToken());
             return undefined;
@@ -5920,6 +5921,14 @@ export class Parser {
             if (!this._getTokenIfType(TokenType.String)) {
                 this._addError(Localizer.Diagnostic.expectedCIncludes(), this._getNextToken());
                 return undefined;
+            }
+            if (this._consumeTokenIfKeyword(KeywordType.Namespace)) {
+                if (!this._getTokenIfType(TokenType.String)) {
+                    this._addError(Localizer.Diagnostic.expectedNamespace(), this._getNextToken());
+                    return undefined;
+                }
+                isCpp = true;
+                return undefined; // TODO: Implement cpp
             }
         }
         const possibleGilToken = this._getTokenIfType(TokenType.Keyword);
@@ -5934,7 +5943,10 @@ export class Parser {
             this._addError(Localizer.Diagnostic.expectedColon(), this._getNextToken());
             return undefined;
         }
-        return this._parseSuiteCython();
+        this._isCpp = isCpp;
+        const statements = this._parseSuiteCython();
+        this._isCpp = false;
+        return statements;
     }
 
     // Test if function declaration

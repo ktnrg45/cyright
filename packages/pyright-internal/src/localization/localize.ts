@@ -997,6 +997,7 @@ export namespace Localizer {
         export const invalidTrailingGilFunction = () => getRawString('Diagnostic.invalidTrailingGilFunction');
         export const noneCheckNotAllowed = () => getRawString('Diagnostic.noneCheckNotAllowed');
         export const expectedComma = () => getRawString('Diagnostic.expectedComma');
+        export const expectedNamespace = () => getRawString('Diagnostic.expectedNamespace');
 
     }
 
