@@ -2391,6 +2391,7 @@ export interface TypedVarNode extends ParseNodeBase {
     viewTokens?: Token[] | undefined;
     defaultValue?: ExpressionNode | undefined;
     callbackFunc?: FunctionNode | undefined;
+    aliasToken?: StringToken | undefined;
     
 }
 

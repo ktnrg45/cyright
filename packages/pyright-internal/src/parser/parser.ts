@@ -5868,12 +5868,14 @@ export class Parser {
             varName.isPrototype = true;
         }
 
+        const alias = this._getTokenIfType(TokenType.String);
+
         const typedVarNode = TypedVarNode.create(firstToken, varName, varType, typedVarCategory)
         typedVarNode.modifier = (varModifier) ? firstToken : undefined;
         typedVarNode.pointers = ptrTokens;
         typedVarNode.viewTokens = viewTokens;
         typedVarNode.numericModifiers = numModifiers.map((modToken) => NameNode.create(modToken as IdentifierToken));
-
+        typedVarNode.aliasToken = (alias) ? alias as StringToken : undefined;
         return typedVarNode;
     }
 
