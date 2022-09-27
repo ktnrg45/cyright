@@ -5822,7 +5822,7 @@ export class Parser {
 
             // If the next token after any pointer and view annotations is an identifier, this token is a type.
             let ptrCount = this._peekTokenPointers(skip);
-            let viewTokensCount = this._peekView(skip, (typedVarCategory === TypedVarCategory.Function)).length;
+            let viewTokensCount = this._peekView(skip + ptrCount, (typedVarCategory === TypedVarCategory.Function)).length;
 
             let possibleName = this._peekTokenIfIdentifier(ptrCount + viewTokensCount + skip)
             if (possibleName) {
@@ -5952,7 +5952,9 @@ export class Parser {
             }
 
             if (iterToken.type === TokenType.OpenBracket) {
-                viewTokens = this._peekView(count + 1 + ptrCount + viewTokens).length;
+                this._suppressErrors(() => {
+                    viewTokens = this._peekView(count + 1 + ptrCount + viewTokens).length;
+                });
                 continue;
             }
             // If open Parenthesis assume function declaration
