@@ -162,6 +162,10 @@ export const enum KeywordType {
     Signed,
     Unsigned,
     Long,
+    // CPP
+    Namespace,
+    Cppclass,
+    Operator,
 }
 
 export const varModifiers = [

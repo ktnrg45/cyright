@@ -103,6 +103,10 @@ const _keywords: Map<string, KeywordType> = new Map([
     ['signed', KeywordType.Signed],
     ['unsigned', KeywordType.Unsigned],
     ['long', KeywordType.Long],
+    // CPP
+    ['namespace', KeywordType.Namespace],
+    ['cppclass', KeywordType.Cppclass],
+    ['operator', KeywordType.Operator],
 ]);
 
 const _operatorInfo: { [key: number]: OperatorFlags } = {
