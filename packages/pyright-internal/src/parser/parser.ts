@@ -5914,9 +5914,11 @@ export class Parser {
             this._addError(Localizer.Diagnostic.expectedExternFrom(), this._getNextToken());
             return undefined;
         }
-        if (!this._getTokenIfType(TokenType.String)) {
-            this._addError(Localizer.Diagnostic.expectedCIncludes(), this._getNextToken());
-            return undefined;
+        if (!this._consumeTokenIfOperator(OperatorType.Multiply)) {
+            if (!this._getTokenIfType(TokenType.String)) {
+                this._addError(Localizer.Diagnostic.expectedCIncludes(), this._getNextToken());
+                return undefined;
+            }
         }
         const possibleGilToken = this._getTokenIfType(TokenType.Keyword);
         if (possibleGilToken) {
