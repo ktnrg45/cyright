@@ -5480,12 +5480,24 @@ export class Parser {
             statements = StatementListNode.create(this._peekToken());
         }
 
-        if (!this._consumeTokenIfKeyword(KeywordType.Ctypedef) && this._peekFunctionDeclaration()) {
+        if (this._peekKeywordType() === KeywordType.Ctypedef) {
+            const defNode = this._parseCTypeDef();
+            if (defNode) {
+                statements.statements.push(defNode);
+                defNode.parent = statements;
+                extendRange(statements, defNode);
+                return statements;
+            }
+        }
+
+        if (this._peekFunctionDeclaration()) {
             const functionNode = this._parseFunctionDefCython();
-            statements.statements.push(functionNode);
-            functionNode.parent = statements;
-            extendRange(statements, functionNode);
-            return statements;
+            if (functionNode) {
+                statements.statements.push(functionNode);
+                functionNode.parent = statements;
+                extendRange(statements, functionNode);
+                return statements;
+            }
         }
 
         const struct = this._parseStructure();
@@ -5719,6 +5731,9 @@ export class Parser {
         const struct = this._parseStructure();
         if (struct) {
             return struct
+        }
+        if (this._peekFunctionDeclaration()) {
+            return this._parseFunctionDefCython();
         }
 
         const typedVarNode = this._parseTypedVar();
