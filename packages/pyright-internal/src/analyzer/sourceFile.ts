@@ -1427,6 +1427,7 @@ export class SourceFile {
                 leadingDots: moduleImport.leadingDots,
                 nameParts: moduleImport.nameParts,
                 importedSymbols: moduleImport.importedSymbols,
+                isCython: moduleImport.isCython,
             });
 
             imports.push(importResult);

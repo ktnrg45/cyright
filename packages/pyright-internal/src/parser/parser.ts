@@ -193,6 +193,7 @@ export interface ModuleImport {
     // Used for "from X import Y" pattern. An empty
     // array implies "from X import *".
     importedSymbols: string[] | undefined;
+    isCython?: boolean | undefined;
 }
 
 export interface ArgListResult {
@@ -2485,6 +2486,7 @@ export class Parser {
             leadingDots: importFromNode.module.leadingDots,
             nameParts: importFromNode.module.nameParts.map((p) => p.value),
             importedSymbols: importFromNode.imports.map((imp) => imp.name.value),
+            isCython: (possibleInputToken as KeywordToken).keywordType === KeywordType.Cimport,
         });
 
         let isTypingImport = false;
@@ -2550,6 +2552,7 @@ export class Parser {
                 leadingDots: importAsNode.module.leadingDots,
                 nameParts: importAsNode.module.nameParts.map((p) => p.value),
                 importedSymbols: undefined,
+                isCython: importToken.keywordType === KeywordType.Cimport,
             });
 
             if (modName.nameParts.length === 1) {
