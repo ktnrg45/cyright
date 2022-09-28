@@ -393,6 +393,10 @@ export class Parser {
             case KeywordType.Ctypedef:
                 return this._parseCTypeDef();
 
+            case KeywordType.Define:
+                this._getNextToken();
+                return this._parseStatement();
+
             case KeywordType.Class:
                 return this._parseClassDef();
 
