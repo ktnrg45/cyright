@@ -1108,8 +1108,9 @@ export class ImportResolver {
                     } else if (this.fileExistsCached(pyFilePath)) {
                         importFailureInfo.push(`Resolved import with file '${pyFilePath}'`);
                         resolvedPaths.push(pyFilePath);
+                    }
                 } else {
-                    } if (this.fileExistsCached(pxdFilePath)) {
+                    if (this.fileExistsCached(pxdFilePath)) {
                         importFailureInfo.push(`Resolved import with file '${pxdFilePath}'`);
                         resolvedPaths.push(pxdFilePath);
                     } else if (this.fileExistsCached(pxiFilePath)) {
@@ -2346,7 +2347,7 @@ export class ImportResolver {
 
     protected formatImportName(moduleDescriptor: ImportedModuleDescriptor) {
         let name =  '.'.repeat(moduleDescriptor.leadingDots) + moduleDescriptor.nameParts.join('.');
-        return (moduleDescriptor.isCython) ? '#CYTHON#' + name : name; 
+        return (moduleDescriptor.isCython) ? '(cython) ' + name : name; 
     }
 
     private _resolveNativeModuleStub(
