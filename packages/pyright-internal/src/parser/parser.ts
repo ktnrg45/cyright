@@ -501,7 +501,7 @@ export class Parser {
     }
 
     // type_param_seq: '[' (type_param ',')+ ']'
-    private _parseTypeParameterList(): TypeParameterListNode {
+    private _parseTypeParameterList(isCython = false): TypeParameterListNode {
         const typeVariableNodes: TypeParameterNode[] = [];
 
         const openBracketToken = this._getNextToken();
@@ -517,7 +517,7 @@ export class Parser {
                 break;
             }
 
-            const typeVarNode = this._parseTypeParameter();
+            const typeVarNode = (isCython) ? this._parseTypeParameterCython() : this._parseTypeParameter();
             if (!typeVarNode) {
                 break;
             }
@@ -5403,23 +5403,69 @@ export class Parser {
         return (statements.statements.length > 0) ? statements : undefined;
     }
 
+    // type_param: [type name, ...]
+    private _parseTypeParameterCython(): TypeParameterNode | undefined {
+        let typeParamCategory = TypeParameterCategory.TypeVar;
+
+        let boundExpression = this._getTokenIfIdentifier();
+
+        if (!boundExpression) {
+            this._addError(Localizer.Diagnostic.expectedVarType(), this._peekToken());
+            return undefined;
+        }
+
+        const nameToken = this._getTokenIfIdentifier();
+        if (!nameToken) {
+            this._addError(Localizer.Diagnostic.expectedTypeParameterName(), this._peekToken());
+            return undefined;
+        }
+
+        const name = NameNode.create(nameToken);
+
+        return TypeParameterNode.create(name, typeParamCategory, NameNode.create(boundExpression));
+    }
+
     // Handle struct, union, enum declaration. "struct name:", "enum name:", "union name:"
+    // class module.classname [type structname, ...]:
     private _parseStructure(): StatementNode | undefined {
-        const validTypes = ['struct', 'enum', 'union'];
+        const validKeywords = [KeywordType.Class, KeywordType.Cppclass];
+        const validTypes = ['struct', 'enum', 'union', 'class'];
         let skip = 0;
         if (this._peekKeywordType() === KeywordType.Cdef || this._peekKeywordType() === KeywordType.Ctypedef) {
             skip++
         }
+        let dataType: string | undefined = undefined;
         const structToken = this._peekToken(skip);
         if (structToken.type != TokenType.Identifier) {
-            return undefined;
+            if (structToken.type === TokenType.Keyword && validKeywords.includes((structToken as KeywordToken).keywordType)) {
+                dataType = 'class';
+            } else {
+                return undefined;
+            }
         }
 
-        const dataType = (structToken as IdentifierToken).value;
-        if (!validTypes.includes(dataType)) {
-            return undefined;
+        if (!dataType) {
+            dataType = (structToken as IdentifierToken).value;
+            if (!validTypes.includes(dataType)) {
+                return undefined;
+            }
         }
         skip++;
+
+        if (dataType === 'class') {
+            let moduleToken = this._peekToken(skip) as IdentifierToken;
+            if (!moduleToken) {
+                this._addError(Localizer.Diagnostic.expectedClassName(), this._peekToken(skip));
+                moduleToken = IdentifierToken.create(0, 0, '', /* comments */ undefined);
+            } else {
+                skip++;
+            }
+            if (this._peekToken(skip).type !== TokenType.Dot) {
+                this._addError(Localizer.Diagnostic.expectedClassName(), this._peekToken(skip));
+            } else {
+                skip++;
+            }
+        }
         
         // Allow anonymous enum
         const possibleName = this._peekToken(skip);
@@ -5429,20 +5475,33 @@ export class Parser {
             skip++;
         }
 
-        if (this._peekToken(skip).type !== TokenType.Colon) {
+        let typeParameters: TypeParameterListNode | undefined;
+        if (this._peekToken(skip).type !== TokenType.Colon && dataType !== 'class') {
             // This is a typed var declaration with no suite
             return undefined;
+        } else if (dataType === 'class') {
+            const possibleOpenBracket = this._peekToken(skip);
+            if (possibleOpenBracket.type === TokenType.OpenBracket) {
+                this._consumeTokensUntilType([TokenType.OpenBracket]);
+                typeParameters = this._parseTypeParameterList(/* isCython */ true);
+                if (this._peekTokenType() !== TokenType.Colon) {
+                    this._addError(Localizer.Diagnostic.expectedColon(), this._peekToken());
+                    this._consumeTokensUntilType([TokenType.NewLine]);
+                }
+            }
+        } else {
+            this._consumeTokensUntilType([TokenType.Colon]);
         }
 
-        if (!className && (dataType === 'struct' || dataType === 'union')) {
+        if (!className && (dataType === 'struct' || dataType === 'union' || dataType === 'class')) {
             this._addError(Localizer.Diagnostic.expectedVarName(), possibleName);
             this._consumeTokensUntilType([TokenType.NewLine]);
             return undefined;
         }
 
         if (
-            this._peekToken(skip).type === TokenType.Colon &&
-            this._peekToken(skip + 1).type === TokenType.NewLine
+            this._peekToken().type === TokenType.Colon &&
+            this._peekToken(1).type === TokenType.NewLine
         ) {
             const colon = this._peekToken(skip);
             this._consumeTokensUntilType([TokenType.Colon]);
@@ -5460,7 +5519,8 @@ export class Parser {
                 suite.statements = [statements];
                 statements.parent = suite;
                 extendRange(suite, statements);
-                return ClassNode.create(structToken, className, suite);
+                const classNode = ClassNode.create(structToken, className, suite, typeParameters);
+                return classNode;
             } else if (statements) {
                 return statements;
             }
@@ -5918,6 +5978,14 @@ export class Parser {
         var statements = StatementListNode.create(this._peekToken());
         while (!this._consumeTokenIfType(TokenType.Dedent)) {
             this._consumeTokenIfType(TokenType.NewLine);
+            if (this._peekKeywordType() === KeywordType.Pass) {
+                let passNode = this._parsePassStatement();
+                statements.statements.push(passNode);
+                passNode.parent = statements;
+                extendRange(statements, passNode);
+                this._consumeTokenIfType(TokenType.NewLine);
+                continue;
+            }
             statements = this._parseTypedStatement(statements);
             if (this._peekTokenType() === TokenType.EndOfStream) {
                 break;
