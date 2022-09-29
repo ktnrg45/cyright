@@ -5480,17 +5480,7 @@ export class Parser {
             statements = StatementListNode.create(this._peekToken());
         }
 
-        if (this._peekKeywordType() === KeywordType.Ctypedef) {
-            const defNode = this._parseCTypeDef();
-            if (defNode) {
-                statements.statements.push(defNode);
-                defNode.parent = statements;
-                extendRange(statements, defNode);
-                return statements;
-            }
-        }
-
-        if (this._peekFunctionDeclaration()) {
+        if (!this._consumeTokenIfKeyword(KeywordType.Ctypedef) && this._peekFunctionDeclaration()) {
             const functionNode = this._parseFunctionDefCython();
             if (functionNode) {
                 statements.statements.push(functionNode);
