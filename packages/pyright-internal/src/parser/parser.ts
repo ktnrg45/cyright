@@ -5717,13 +5717,18 @@ export class Parser {
     }
 
     private _parseCTypeDef(): StatementNode | undefined {
-        const typeToken = this._getKeywordToken(KeywordType.Ctypedef);
+        const typeToken = (this._peekKeywordType() === KeywordType.Ctypedef) ? this._peekToken() as KeywordToken : undefined;
+        if (!typeToken) {
+            return undefined;
+        }
+
+        const statement = this._parseTypedStatement();
+        if (statement) {
+            return statement;
+        }
         const struct = this._parseStructure();
         if (struct) {
             return struct
-        }
-        if (this._peekFunctionDeclaration()) {
-            return this._parseFunctionDefCython();
         }
 
         const typedVarNode = this._parseTypedVar();
