@@ -5986,7 +5986,12 @@ export class Parser {
                 this._consumeTokenIfType(TokenType.NewLine);
                 continue;
             }
+            let count = statements.statements.length;
             statements = this._parseTypedStatement(statements);
+            if (count === statements.statements.length) {
+                this._consumeTokensUntilType([TokenType.NewLine]);
+            }
+            this._consumeTokenIfType(TokenType.NewLine);
             if (this._peekTokenType() === TokenType.EndOfStream) {
                 break;
             }
@@ -6140,11 +6145,12 @@ export class Parser {
         }
 
         let skipCount = this._peekUntilType([TokenType.NewLine]);
-        let possibleCloseParen = this._peekToken(skipCount - 1);
-        let isPrototype = possibleCloseParen.type === TokenType.CloseParenthesis;
-        if (!isPrototype && possibleCloseParen.type === TokenType.Keyword) {
-            // Could be 'nogil' or 'gil' so check the previous token
-            isPrototype = this._peekToken(skipCount - 2).type === TokenType.CloseParenthesis;
+        let isPrototype = true;
+        for (let index = skipCount; index > 0; index--) {
+            isPrototype = this._peekToken(index).type !== TokenType.Colon;
+            if (!isPrototype) {
+                break;
+            }
         }
 
         const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* allowPrototype */ isPrototype);
@@ -6154,12 +6160,16 @@ export class Parser {
             this._consumeTokensUntilType([TokenType.Colon, TokenType.NewLine]);
         }
 
-        const gilType = this._peekKeywordType();
-        if (gilType === KeywordType.Nogil || gilType === KeywordType.Gil) {
+        const gilOrExcept = this._peekKeywordType();
+        if (gilOrExcept === KeywordType.Nogil || gilOrExcept === KeywordType.Gil) {
             const gilToken = this._getNextToken();
             if (cDefType && cDefType !== KeywordType.Cdef) {
                 this._addError(Localizer.Diagnostic.invalidTrailingGilFunction(), gilToken);
             }
+        } else if (gilOrExcept === KeywordType.Except) {
+            this._getNextToken();
+            this._consumeTokenIfType(TokenType.QuestionMark);
+            this._parseTestExpression(/* allowAssignment */ false);
         }
 
         let functionTypeAnnotationToken: StringToken | undefined;
