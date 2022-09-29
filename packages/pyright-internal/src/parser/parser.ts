@@ -5524,8 +5524,7 @@ export class Parser {
             } else if (statements) {
                 return statements;
             }
-        } else if (dataType === "enum" && this._peekToken(skip).type === TokenType.Colon) {
-            this._consumeTokensUntilType([TokenType.Colon]);
+        } else if (dataType === "enum" && this._peekToken().type === TokenType.Colon) {
             statements = this._parseEnum(this._getNextToken(), structToken, false);
             if (statements) {
                 return statements;
