@@ -5563,6 +5563,17 @@ export class Parser {
         }
 
         this._consumeTokenIfKeyword(KeywordType.Cdef);
+        if (this._peekTokenIfIdentifier()) {
+            // Handle simple assignment: "cdef name = 1"
+            let equals = this._peekToken(1);
+            if (equals.type === TokenType.Operator && (equals as OperatorToken).operatorType === OperatorType.Assign) {
+                let leftExpr = NameNode.create(this._getNextToken() as IdentifierToken);
+                this._getNextToken();
+                let expr = AssignmentNode.create(leftExpr, this._parseTestExpression(false));
+                StatementListNode.addNode(statements, expr);
+                return statements;
+            }
+        }
         const typedVarNode = this._parseTypedVar();
         if (!typedVarNode) {
             if (fallback) {
