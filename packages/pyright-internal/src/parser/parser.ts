@@ -5545,6 +5545,7 @@ export class Parser {
             let suite = this._parseSuiteCython();
             if (suite) {
                 StatementListNode.addNode(statements, suite);
+                return statements;
             }
         } 
 
