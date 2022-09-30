@@ -1902,7 +1902,7 @@ export class Parser {
             if (param.name) {
                 const name = param.name.value;
                 if (paramMap.has(name)) {
-                    if (name !== '') {
+                    if (!param.name.isPrototype) {
                         this._addError(Localizer.Diagnostic.duplicateParam().format({ name }), param.name);
                     }
                 } else {
@@ -5662,7 +5662,6 @@ export class Parser {
         }
         let typedVarNode = this._parseTypedVar(TypedVarCategory.Parameter, allowPrototype);
         if (!typedVarNode) {
-            // return ParameterNode.create(this._peekToken(), ParameterCategory.Simple);
             return this._parseParameter(allowAnnotations);
         }
         let name = typedVarNode.name;
