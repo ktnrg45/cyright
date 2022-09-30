@@ -5490,6 +5490,17 @@ export class Parser {
             if (possibleOpenBracket.type === TokenType.OpenBracket) {
                 this._consumeTokensUntilType([TokenType.OpenBracket]);
                 typeParameters = this._parseTypeParameterList(/* isCython */ true);
+                typeParameters.parameters.forEach(param => {
+                    // Don't Warn if not accessed
+                    param.name.isPrototype = true; 
+                    if (param.boundExpression?.nodeType === ParseNodeType.Name) {
+                        (param.boundExpression as NameNode).isPrototype = true;
+                        // Handle special case 'check_size'
+                        if ((param.boundExpression as NameNode).value === 'check_size') {
+                            (param.boundExpression as NameNode).ignoreUndefined = true;
+                        }
+                    }
+                });
                 if (this._peekTokenType() !== TokenType.Colon) {
                     this._addError(Localizer.Diagnostic.expectedColon(), this._peekToken());
                     this._consumeTokensUntilType([TokenType.NewLine]);

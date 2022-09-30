@@ -4073,7 +4073,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 }
             } else {
                 // Handle the special case of "reveal_type" and "reveal_locals".
-                if (name === 'reveal_type' || name === 'reveal_locals') {
+                if (name === 'reveal_type' || name === 'reveal_locals' || node.ignoreUndefined) {
                     type = AnyType.create();
                 } else {
                     addDiagnostic(

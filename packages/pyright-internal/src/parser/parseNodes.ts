@@ -1433,6 +1433,7 @@ export interface NameNode extends ParseNodeBase {
     token: IdentifierToken;
     value: string;
     isPrototype?: boolean;
+    ignoreUndefined?: boolean;
 }
 
 export namespace NameNode {
