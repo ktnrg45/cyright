@@ -6071,7 +6071,7 @@ export class Parser {
             if (iterToken.type == TokenType.OpenParenthesis) {
                 return true;
             }
-            if (iterToken.type !== TokenType.Keyword && iterToken.type !== TokenType.Identifier) {
+            if (iterToken.type !== TokenType.Keyword && iterToken.type !== TokenType.Identifier && iterToken.type !== TokenType.String) {
                 break;
             }
             count++;
