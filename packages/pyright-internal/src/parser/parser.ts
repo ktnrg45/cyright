@@ -5665,15 +5665,24 @@ export class Parser {
             // return ParameterNode.create(this._peekToken(), ParameterCategory.Simple);
             return this._parseParameter(allowAnnotations);
         }
+        let name = typedVarNode.name;
+        let typeAnnotation: ExpressionNode | undefined = typedVarNode.typeAnnotation;
+
+        if (name.value === '' && typeAnnotation.nodeType === ParseNodeType.Name) {
+            // This is either just the param name or just the param type. Handle as if it was the param name
+            name = typeAnnotation;
+            typeAnnotation = undefined;
+            name.isPrototype = allowPrototype;
+        }
         let paramNode = ParameterNode.create(typedVarNode.startToken, ParameterCategory.Simple);
 
-        if (typedVarNode.name) {
-            paramNode.name = typedVarNode.name;
+        if (name) {
+            paramNode.name = name;
             paramNode.name.parent = paramNode;
             extendRange(paramNode, paramNode.name);
         }
-        if (typedVarNode.typeAnnotation) {
-            paramNode.typeAnnotation = typedVarNode.typeAnnotation;
+        if (typeAnnotation) {
+            paramNode.typeAnnotation = typeAnnotation;
             paramNode.typeAnnotation.parent = paramNode;
             extendRange(paramNode, paramNode.typeAnnotation);
         }
