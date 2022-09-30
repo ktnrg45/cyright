@@ -138,6 +138,8 @@ import {
     TokenType,
     varModifiers,
     numericModifiers,
+    Comment,
+    CommentType,
 } from './tokenizerTypes';
 
 interface ListResult<T> {
@@ -5973,11 +5975,20 @@ export class Parser {
             this._consumeTokenIfType(TokenType.NewLine);
             if (this._peekKeywordType() === KeywordType.Pass) {
                 let passNode = this._parsePassStatement();
-                statements.statements.push(passNode);
-                passNode.parent = statements;
-                extendRange(statements, passNode);
+                StatementListNode.addNode(statements, passNode);
                 this._consumeTokenIfType(TokenType.NewLine);
                 continue;
+            }
+            if (this._peekTokenType() === TokenType.String) {
+                let strToken = this._peekToken() as StringToken;
+                if (strToken.quoteMarkLength === 3) {
+                    // multiline comment: """ """
+                    this._getNextToken();
+                    this._consumeTokenIfType(TokenType.NewLine);
+                    let strNode = StringNode.create(strToken, strToken.escapedValue, false);
+                    StatementListNode.addNode(statements, strNode);
+                    continue;
+                }
             }
             let count = statements.statements.length;
             statements = this._parseTypedStatement(statements);
