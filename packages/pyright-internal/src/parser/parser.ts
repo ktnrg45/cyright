@@ -5503,8 +5503,7 @@ export class Parser {
             this._peekToken().type === TokenType.Colon &&
             this._peekToken(1).type === TokenType.NewLine
         ) {
-            const colon = this._peekToken(skip);
-            this._consumeTokensUntilType([TokenType.Colon]);
+            const colon = this._peekToken();
             const nextToken = this._peekToken(2);
             const suite = SuiteNode.create(colon);
             var statements: StatementListNode | undefined = undefined;
@@ -5539,21 +5538,25 @@ export class Parser {
             statements = StatementListNode.create(this._peekToken());
         }
 
-        if (!this._consumeTokenIfKeyword(KeywordType.Ctypedef) && this._peekFunctionDeclaration()) {
+        if (this._peekKeywordType() === KeywordType.Cdef && this._peekToken(1).type === TokenType.Colon) {
+            this._getNextToken();
+            let suite = this._parseSuiteCython();
+            if (suite) {
+                StatementListNode.addNode(statements, suite);
+            }
+        } 
+
+        if (this._peekKeywordType() === KeywordType.Def || (!this._consumeTokenIfKeyword(KeywordType.Ctypedef) && this._peekFunctionDeclaration())) {
             const functionNode = this._parseFunctionDefCython();
             if (functionNode) {
-                statements.statements.push(functionNode);
-                functionNode.parent = statements;
-                extendRange(statements, functionNode);
+                StatementListNode.addNode(statements, functionNode);
                 return statements;
             }
         }
 
         const struct = this._parseStructure();
         if (struct) {
-            statements.statements.push(struct);
-            struct.parent = statements;
-            extendRange(statements, struct);
+            StatementListNode.addNode(statements, struct);
             return statements;
         }
 
@@ -5563,10 +5566,7 @@ export class Parser {
             if (fallback) {
                 const fallbackStatement = this._parseSimpleStatement();
                 if (fallbackStatement) {
-                    statements.statements.push(fallbackStatement);
-                    fallbackStatement.parent = statements;
-                    extendRange(statements, fallbackStatement);
-                    // let nextToken = this._peekToken();
+                    StatementListNode.addNode(statements, fallbackStatement);
                 }
             }
             else {
@@ -5584,10 +5584,8 @@ export class Parser {
         // TODO: Use AugmentedAssignment?
         const typeAnnotation = TypeAnnotationNode.create(varName, varType);        
         const firstExpression = AssignmentNode.create(typeAnnotation, varType);
-        statements.statements.push(firstExpression);
         typeAnnotation.parent = firstExpression;
-        firstExpression.parent = statements;
-        extendRange(statements, firstExpression);
+        StatementListNode.addNode(statements, firstExpression);
 
         var lastName = varName;
 
@@ -5598,9 +5596,7 @@ export class Parser {
                     this._getNextToken();
                     const rightExpr = this._parseTestExpression(/* allowAssignmentExpression */ false);
                     const assignExpr = AssignmentExpressionNode.create(lastName, rightExpr);
-                    statements.statements.push(assignExpr);
-                    assignExpr.parent = statements;
-                    extendRange(statements, assignExpr);
+                    StatementListNode.addNode(statements, assignExpr);
                 }
                 break;
             }
@@ -5619,10 +5615,8 @@ export class Parser {
             let name = NameNode.create(nextToken as IdentifierToken);
             const annotation = TypeAnnotationNode.create(name, varType);
             const expression = AssignmentNode.create(annotation, varType);
-            statements.statements.push(expression);
             annotation.parent = expression;
-            expression.parent = statements;
-            extendRange(statements, expression);
+            StatementListNode.addNode(statements, expression);
             lastName = name;
         }
         this._consumeTokenIfType(TokenType.NewLine);
@@ -6106,7 +6100,7 @@ export class Parser {
         let cDefType: KeywordType | undefined = undefined;
         if (firstToken.type === TokenType.Keyword) {
             cDefType = (firstToken as KeywordToken).keywordType;
-            if (cDefType === KeywordType.Cdef || cDefType === KeywordType.Cpdef || cDefType === KeywordType.Ctypedef) {
+            if (cDefType === KeywordType.Cdef || cDefType === KeywordType.Cpdef || cDefType === KeywordType.Ctypedef || cDefType === KeywordType.Def) {
                 this._getNextToken();
             }
         }
@@ -6169,6 +6163,8 @@ export class Parser {
             this._getNextToken();
             this._consumeTokenIfType(TokenType.QuestionMark);
             this._parseTestExpression(/* allowAssignment */ false);
+        } else if (gilOrExcept === KeywordType.Noexcept) {
+            this._getNextToken();
         }
 
         let functionTypeAnnotationToken: StringToken | undefined;

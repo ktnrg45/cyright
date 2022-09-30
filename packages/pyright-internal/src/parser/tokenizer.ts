@@ -103,6 +103,7 @@ const _keywords: Map<string, KeywordType> = new Map([
     ['signed', KeywordType.Signed],
     ['unsigned', KeywordType.Unsigned],
     ['long', KeywordType.Long],
+    ['noexcept', KeywordType.Noexcept],
     // CPP
     ['namespace', KeywordType.Namespace],
     ['cppclass', KeywordType.Cppclass],

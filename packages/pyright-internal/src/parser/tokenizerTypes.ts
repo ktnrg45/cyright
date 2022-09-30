@@ -162,6 +162,7 @@ export const enum KeywordType {
     Signed,
     Unsigned,
     Long,
+    Noexcept,
     // CPP
     Namespace,
     Cppclass,

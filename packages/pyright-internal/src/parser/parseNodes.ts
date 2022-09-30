@@ -654,6 +654,11 @@ export namespace StatementListNode {
 
         return node;
     }
+    export function addNode(statements: StatementListNode, node: ParseNode) {
+        statements.statements.push(node);
+        node.parent = statements;
+        extendRange(statements, node);
+    }
 }
 
 export type StatementNode =
