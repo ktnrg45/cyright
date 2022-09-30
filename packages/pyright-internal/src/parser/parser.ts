@@ -2005,6 +2005,10 @@ export class Parser {
         let slashCount = 0;
         const firstToken = this._peekToken();
 
+        if (firstToken.type === TokenType.Ellipsis) {
+            return ParameterNode.create(this._getNextToken(), ParameterCategory.Simple);
+        }
+
         if (this._consumeTokenIfOperator(OperatorType.Multiply)) {
             starCount = 1;
         } else if (this._consumeTokenIfOperator(OperatorType.Power)) {
