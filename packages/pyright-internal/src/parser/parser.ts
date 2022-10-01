@@ -5941,6 +5941,13 @@ export class Parser {
             let ptrCount = this._peekTokenPointers(skip);
             let viewTokensCount = this._peekView(skip + ptrCount, (typedVarCategory === TypedVarCategory.Function)).length;
 
+            // Allow '&' after type
+            let possibleAddressOf = this._peekToken(ptrCount + viewTokensCount + skip);
+            if (possibleAddressOf.type === TokenType.Operator &&
+                    (possibleAddressOf as OperatorToken).operatorType === OperatorType.BitwiseAnd) {
+                skip++;
+            }
+
             let possibleName = this._peekTokenIfIdentifier(ptrCount + viewTokensCount + skip)
             if (possibleName) {
                 varName = NameNode.create(possibleName);
