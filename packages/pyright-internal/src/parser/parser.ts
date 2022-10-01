@@ -5744,6 +5744,11 @@ export class Parser {
         if (!closeParen) {
             return undefined;
         }
+
+        if (!this._consumeTokenIfKeyword(KeywordType.Nogil)) {
+            this._consumeTokenIfKeyword(KeywordType.Gil);
+        }
+
         let typeParameters: TypeParameterListNode | undefined;
         const suite = SuiteNode.create(closeParen)
         const functionNode = FunctionNode.create(openParen, NameNode.create(varName), suite, typeParameters)
