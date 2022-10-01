@@ -5277,6 +5277,7 @@ export class Parser {
         const originalCount = count;
         const possibleOpenBracket = this._peekToken(count);
         let foundCloseBracket = false;
+        let foundIdentifier = false;
         let tokenIndex = 0;
         var colonCount = 0;
         var tokens: Token[] = [];
@@ -5290,17 +5291,24 @@ export class Parser {
         tokenIndex++;
         tokens.push(possibleOpenBracket);
         lastType = possibleOpenBracket.type;
-        while (tokenIndex < 5) {
+        while (this._peekToken(count).type !== TokenType.NewLine) {
             const nextToken = this._peekToken(count);
             count++
             tokenIndex++;
             tokens.push(nextToken);
 
+
             if (nextToken.type === TokenType.CloseBracket) {
                 foundCloseBracket = true;
                 break;
             }
-            if (nextToken.type === TokenType.Comma) {
+
+            if (nextToken.type === TokenType.Identifier) {
+                foundIdentifier = true;
+                continue;
+            }
+
+            if (nextToken.type === TokenType.Comma && !foundIdentifier) {
                 return this._peekViewDims(originalCount, isFunction);
             }
             if (nextToken.type === TokenType.Colon) {
@@ -6098,7 +6106,7 @@ export class Parser {
 
             if (iterToken.type === TokenType.OpenBracket) {
                 this._suppressErrors(() => {
-                    viewTokens = this._peekView(count + 1 + ptrCount + viewTokens).length;
+                    viewTokens += this._peekView(count + 1 + ptrCount + viewTokens).length;
                 });
                 continue;
             }
@@ -6153,9 +6161,21 @@ export class Parser {
 
         let returnType: ExpressionNode | undefined = undefined;
         let nameToken: NameNode | undefined = undefined;
+        let typeParameters: TypeParameterListNode | undefined;
+
         if (this._peekTokenType() === TokenType.Identifier && this._peekToken(1).type === TokenType.OpenParenthesis) {
             // Function has no declared return type
             nameToken = NameNode.create(this._getNextToken() as IdentifierToken);
+        } else if (this._peekTokenType() === TokenType.Identifier &&
+                this._peekToken(1).type === TokenType.Identifier &&
+                this._peekToken(2).type === TokenType.OpenBracket) {
+            // Template: [Type, ...]
+            returnType = NameNode.create(this._getNextToken() as IdentifierToken);
+            nameToken = NameNode.create(this._getNextToken() as IdentifierToken);
+            typeParameters = this._parseTypeParameterList();
+            this._peekToken();
+            // this._getNextToken();
+            // this._parseVarArgsList(TokenType.CloseBracket, /* allowAnnotations */ false, /* allowPrototype */ true);
         } else {
             let typedVarNode = this._parseTypedVar(TypedVarCategory.Function, /* allowPrototype */ false, /* allowNoType */ true);
             if (!typedVarNode) {
@@ -6170,7 +6190,6 @@ export class Parser {
             returnType = (typedVarNode.typeAnnotation.length > 0) ? typedVarNode.typeAnnotation : undefined;
             nameToken = typedVarNode.name;
         }
-        let typeParameters: TypeParameterListNode | undefined;
 
         const openParenToken = this._peekToken();
         if (!this._consumeTokenIfType(TokenType.OpenParenthesis)) {
@@ -6207,8 +6226,10 @@ export class Parser {
             }
         } else if (gilOrExcept === KeywordType.Except) {
             this._getNextToken();
-            this._consumeTokenIfType(TokenType.QuestionMark);
-            this._parseTestExpression(/* allowAssignment */ false);
+            if (!this._consumeTokenIfOperator(OperatorType.Add)) {
+                this._consumeTokenIfType(TokenType.QuestionMark);
+                this._parseTestExpression(/* allowAssignment */ false);
+            }
         } else if (gilOrExcept === KeywordType.Noexcept) {
             this._getNextToken();
         }
