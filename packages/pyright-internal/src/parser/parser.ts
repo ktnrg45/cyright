@@ -366,6 +366,11 @@ export class Parser {
             this._addError(Localizer.Diagnostic.unexpectedUnindent(), this._peekToken());
         }
 
+        const deprecatedProperty = this._parseDeprecatedPropertyCython();
+        if (deprecatedProperty) {
+            return deprecatedProperty;
+        }
+
         switch (this._peekKeywordType()) {
             case KeywordType.If:
                 return this._parseIfStatement();
@@ -3753,6 +3758,7 @@ export class Parser {
     //             '**' test |
     //             '*' test )
     private _parseArgument(): ArgumentNode {
+        this._consumeTokenIfOperator(OperatorType.BitwiseAnd); // Address of Operator: "&name"
         const firstToken = this._peekToken();
 
         let argType = ArgumentCategory.Simple;
@@ -6274,6 +6280,27 @@ export class Parser {
         });
 
         return importFromNode;
+    }
+
+    // Cython deprecated class property: "property name:" 
+    private _parseDeprecatedPropertyCython(): ClassNode | undefined {
+        if (this._peekTokenIfIdentifier()) {
+            let possiblePropertyToken = this._peekToken();
+            let possibleProperty = NameNode.create(this._peekToken() as IdentifierToken);
+            if (possibleProperty.value === "property") {
+                if (this._peekToken(1).type === TokenType.Identifier && this._peekToken(2).type === TokenType.Colon) {
+                    this._getNextToken();
+                    let nameToken = this._getTokenIfIdentifier();
+                    if (nameToken) {
+                        const name = NameNode.create(nameToken);
+                        const suite = this._parseSuite(/* isFunction */ false, this._parseOptions.skipFunctionAndClassBody);
+                        const classNode = ClassNode.create(possiblePropertyToken, name, suite, undefined);
+                        return classNode;
+                    }
+                }
+            }
+        }
+        return undefined;
     }
 
     private _parseFunctionDefCython(decorators?: DecoratorNode[]): FunctionNode | ErrorNode {
