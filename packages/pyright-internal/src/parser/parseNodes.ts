@@ -1806,6 +1806,7 @@ export interface ModuleNameNode extends ParseNodeBase {
 
     // This is an error condition used only for type completion.
     hasTrailingDot?: boolean;
+    isPyx?: boolean;
 }
 
 export namespace ModuleNameNode {

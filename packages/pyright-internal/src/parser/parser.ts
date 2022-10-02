@@ -138,8 +138,6 @@ import {
     TokenType,
     varModifiers,
     numericModifiers,
-    Comment,
-    CommentType,
 } from './tokenizerTypes';
 
 interface ListResult<T> {
@@ -196,6 +194,7 @@ export interface ModuleImport {
     // array implies "from X import *".
     importedSymbols: string[] | undefined;
     isCython?: boolean | undefined;
+    isPyx?: boolean | undefined;
 }
 
 export interface ArgListResult {
@@ -2140,7 +2139,7 @@ export class Parser {
                 withNode.asyncToken = asyncToken;
                 extendRange(withNode, asyncToken);
             }
-    
+
             if (typeComment) {
                 withNode.typeComment = typeComment;
             }
@@ -2860,6 +2859,9 @@ export class Parser {
 
             case KeywordType.Cimport:
                 return this._parseImportStatement(KeywordType.Cimport);
+
+            case KeywordType.Include:
+                return this._parseIncludeStatement();
 
             case KeywordType.Global:
                 return this._parseGlobalStatement();
@@ -5369,7 +5371,7 @@ export class Parser {
         return tokens;
     }
 
-    private _parseEnum(nextToken: Token, structToken: Token, asSuite = true) : StatementListNode | undefined {
+    private _parseEnum(nextToken: Token, structToken: Token, asSuite = true): StatementListNode | undefined {
         if (asSuite) {
             this._consumeTokensUntilType([TokenType.NewLine]);
             this._getNextToken();
@@ -5480,7 +5482,7 @@ export class Parser {
                 skip++;
             }
         }
-        
+
         // Allow anonymous enum
         const possibleName = this._peekToken(skip);
         let className: NameNode | undefined = undefined;
@@ -5500,7 +5502,7 @@ export class Parser {
                 typeParameters = this._parseTypeParameterList(/* isCython */ true);
                 typeParameters.parameters.forEach(param => {
                     // Don't Warn if not accessed
-                    param.name.isPrototype = true; 
+                    param.name.isPrototype = true;
                     if (param.boundExpression?.nodeType === ParseNodeType.Name) {
                         (param.boundExpression as NameNode).isPrototype = true;
                         // Handle special case 'check_size'
@@ -5570,7 +5572,7 @@ export class Parser {
                 StatementListNode.addNode(statements, suite);
                 return statements;
             }
-        } 
+        }
 
         if (this._peekKeywordType() === KeywordType.Def || (!this._consumeTokenIfKeyword(KeywordType.Ctypedef) && this._peekFunctionDeclaration())) {
             const functionNode = this._parseFunctionDefCython();
@@ -5607,7 +5609,7 @@ export class Parser {
                 }
             }
             else {
-                this._consumeTokensUntilType([TokenType.NewLine]); 
+                this._consumeTokensUntilType([TokenType.NewLine]);
             }
             return statements;
         }
@@ -5619,7 +5621,7 @@ export class Parser {
         // To the parser, this should be equivalent to "name: double = double"
         // This tricks the parser into thinking that the variable is defined
         // TODO: Use AugmentedAssignment?
-        const typeAnnotation = TypeAnnotationNode.create(varName, varType);        
+        const typeAnnotation = TypeAnnotationNode.create(varName, varType);
         const firstExpression = AssignmentNode.create(typeAnnotation, varType);
         typeAnnotation.parent = firstExpression;
         StatementListNode.addNode(statements, firstExpression);
@@ -5697,7 +5699,7 @@ export class Parser {
             paramNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
             paramNode.defaultValue.parent = paramNode;
             extendRange(paramNode, paramNode.defaultValue);
-        } else if (this._peekKeywordType() === KeywordType.Not){
+        } else if (this._peekKeywordType() === KeywordType.Not) {
             // Handle extra expression after param name: "name not None". Only valid in functions defined with "def"
             const noneToken = this._peekToken(1);
             if (noneToken.type === TokenType.Keyword && (noneToken as KeywordToken).keywordType === KeywordType.None) {
@@ -5754,7 +5756,7 @@ export class Parser {
         const functionNode = FunctionNode.create(openParen, NameNode.create(varName), suite, typeParameters)
         functionNode.returnTypeAnnotation = NameNode.create(varType as IdentifierToken);
         functionNode.parameters = paramList;
-        
+
         // TODO: Do something with Function Node
         const typedVarNode = TypedVarNode.create(varType, NameNode.create(varName), NameNode.create(varType as IdentifierToken), typedVarCategory);
         typedVarNode.name.isPrototype = true;
@@ -5871,7 +5873,7 @@ export class Parser {
         typedVarCategory = TypedVarCategory.Variable,
         allowPrototype = false,
         allowNoType = false,
-    ) : TypedVarNode | undefined {
+    ): TypedVarNode | undefined {
         var numModifiers: Token[] = [];
         var lastNumModifier: KeywordType | undefined;
         let foundSigned = false;
@@ -5890,12 +5892,12 @@ export class Parser {
                     break;
             }
             this._getNextToken();
-        } 
+        }
         else if (this._peekTokenType() === TokenType.Identifier) {
             if (this._peekToken(1).type === TokenType.OpenParenthesis) {
                 return this._parseCallback(typedVarCategory);
             }
-        } 
+        }
 
         while (numModifiers.length < 4) {
             lastNumModifier = this._isNumericModifier(this._peekToken());
@@ -5949,7 +5951,7 @@ export class Parser {
             // Allow '&' after type
             let possibleAddressOf = this._peekToken(ptrCount + viewTokensCount + skip);
             if (possibleAddressOf.type === TokenType.Operator &&
-                    (possibleAddressOf as OperatorToken).operatorType === OperatorType.BitwiseAnd) {
+                (possibleAddressOf as OperatorToken).operatorType === OperatorType.BitwiseAnd) {
                 skip++;
             }
 
@@ -5969,7 +5971,7 @@ export class Parser {
                 varType = this._createDummyName(varType);
                 skip--;
             }
-    
+
             // Consume type tokens
             for (let index = 0; index < skip; index++) {
                 this._getNextToken();
@@ -6015,7 +6017,7 @@ export class Parser {
             this._addError(Localizer.Diagnostic.expectedNewline(), this._getNextToken());
             return undefined;
         }
-        
+
         // One indent is expected
         const indentToken = this._getNextToken();
         if (indentToken.type !== TokenType.Indent) {
@@ -6058,7 +6060,7 @@ export class Parser {
         return (statements.statements.length > 0) ? statements : undefined;
     }
 
-    private _parseExtern(): StatementListNode | undefined{
+    private _parseExtern(): StatementListNode | undefined {
         this._getKeywordToken(KeywordType.Extern);
         const fromToken = this._getTokenIfType(TokenType.Keyword);
         let isCpp = false;
@@ -6100,7 +6102,7 @@ export class Parser {
 
     // Test if function declaration
     // Maximum token example: const unsigned long long int* var(...)
-    private _peekFunctionDeclaration() : boolean {
+    private _peekFunctionDeclaration(): boolean {
         var count = 0;
         var ptrCount = 0;
         var viewTokens = 0;
@@ -6109,7 +6111,7 @@ export class Parser {
                 ptrCount = this._peekTokenPointers(count + 1 + ptrCount);
                 continue;
             }
-            
+
             const iterToken = this._peekToken(count + 1 + ptrCount + viewTokens);
 
             if (iterToken.type === TokenType.Keyword && (iterToken as KeywordToken).keywordType === KeywordType.Class) {
@@ -6161,6 +6163,81 @@ export class Parser {
         return this._parseTypedStatement(undefined, true);
     }
 
+    // Parse include filename: "include ./dir/filename.ext"
+    private _parseIncludeName(): ModuleNameNode {
+        let nextToken = this._peekToken();
+        let fileToken = this._getTokenIfType(TokenType.String);
+        let strToken: StringToken;
+
+        if (!fileToken || fileToken.length <= 2) {
+            this._addError(Localizer.Diagnostic.expectedFileName(), nextToken);
+            strToken = StringToken.create(0, 0, StringTokenFlags.None, "", 0, undefined);
+        } else {
+            strToken = fileToken as StringToken;
+        }
+
+        let str = strToken.escapedValue;
+        str = str.replace(/\s/g, ''); // Remove all whitespace
+
+        let nameToken = IdentifierToken.create(strToken.start, strToken.length, str, undefined);
+        let parts = str.split("/");
+        var ext = "";
+
+        let match = str.match(/[a-zA-Z0-9\.\/_]+/);
+        if (!match || match.length < 1 || match[0].length !== str.length) {
+            parts = [""];
+            this._addError(Localizer.Diagnostic.expectedFileName(), nextToken);
+        }
+
+        const extParts = parts[parts.length - 1].split(".");
+        if (extParts.length > 1) {
+            ext = extParts[extParts.length - 1];
+            parts[parts.length - 1] = extParts[0];
+        }
+
+        const moduleNameNode = ModuleNameNode.create(nameToken);
+        extendRange(moduleNameNode, nameToken);
+        if (parts.length === 0 || (parts.length === 1 && parts[0].length === 0)) {
+            this._addError(Localizer.Diagnostic.expectedFileName(), nextToken);
+            return moduleNameNode;
+        }
+        moduleNameNode.isPyx = ext.toLowerCase() === "pyx";
+        let start = 1; // Exclude first quote
+        parts.forEach(part => {
+            const token = IdentifierToken.create(nameToken.start + start, part.length, part, undefined);
+            const name = NameNode.create(token);
+            moduleNameNode.nameParts.push(name);
+            name.parent = moduleNameNode;
+            start += part.length + 1; // Add the '/' separator
+        });
+        if (ext.length > 0) {
+            let last = moduleNameNode.nameParts[moduleNameNode.nameParts.length - 1];
+            let value = "." + ext;
+            const token = IdentifierToken.create(last.start + last.length + 1 , ext.length, value, undefined);
+            extendRange(last, token);
+        }
+        return moduleNameNode;
+    }
+
+    // 'include "filedir/filename.ext"' Handle as 'from filedir.filename import *'
+    private _parseIncludeStatement(): ImportFromNode {
+        const includeToken = this._getKeywordToken(KeywordType.Include);
+        let moduleNameNode = this._parseIncludeName();
+        const importFromNode = ImportFromNode.create(includeToken, moduleNameNode);
+        importFromNode.isWildcardImport = true;
+        this._containsWildcardImport = true;
+        this._importedModules.push({
+            nameNode: importFromNode.module,
+            leadingDots: importFromNode.module.leadingDots,
+            nameParts: importFromNode.module.nameParts.map((p) => p.value),
+            importedSymbols: importFromNode.imports.map((imp) => imp.name.value),
+            isCython: true,
+            isPyx: moduleNameNode.isPyx,
+        });
+
+        return importFromNode;
+    }
+
     private _parseFunctionDefCython(decorators?: DecoratorNode[]): FunctionNode | ErrorNode {
         const firstToken = this._peekToken();
         let cDefType: KeywordType | undefined = undefined;
@@ -6179,8 +6256,8 @@ export class Parser {
             // Function has no declared return type
             nameToken = NameNode.create(this._getNextToken() as IdentifierToken);
         } else if (this._peekTokenType() === TokenType.Identifier &&
-                this._peekToken(1).type === TokenType.Identifier &&
-                this._peekToken(2).type === TokenType.OpenBracket) {
+            this._peekToken(1).type === TokenType.Identifier &&
+            this._peekToken(2).type === TokenType.OpenBracket) {
             // Template: [Type, ...]
             returnType = NameNode.create(this._getNextToken() as IdentifierToken);
             nameToken = NameNode.create(this._getNextToken() as IdentifierToken);
@@ -6276,7 +6353,7 @@ export class Parser {
                 extendRange(functionNode, decorators[0]);
             }
         }
-    
+
         if (returnType) {
             functionNode.returnTypeAnnotation = returnType;
             functionNode.returnTypeAnnotation.parent = functionNode;

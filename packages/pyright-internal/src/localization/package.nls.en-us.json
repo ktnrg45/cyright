@@ -522,7 +522,8 @@
         "invalidTrailingGilFunction": "Use of \"gil\" or \"nogil\" in a function declaration not declared with \"cdef\"",
         "noneCheckNotAllowed": "None check only allowed in functions defined with \"def\"",
         "expectedComma": "Expected \",\"",
-        "expectedNamespace": "Expected namespace string"
+        "expectedNamespace": "Expected namespace string",
+        "expectedFileName": "Expected file name after \"include\""
     },
     "DiagnosticAddendum": {
         "argParam": "Argument corresponds to parameter \"{paramName}\"",

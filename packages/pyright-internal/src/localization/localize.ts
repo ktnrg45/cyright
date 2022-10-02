@@ -998,6 +998,7 @@ export namespace Localizer {
         export const noneCheckNotAllowed = () => getRawString('Diagnostic.noneCheckNotAllowed');
         export const expectedComma = () => getRawString('Diagnostic.expectedComma');
         export const expectedNamespace = () => getRawString('Diagnostic.expectedNamespace');
+        export const expectedFileName = () => getRawString('Diagnostic.expectedFileName');
 
     }
 
