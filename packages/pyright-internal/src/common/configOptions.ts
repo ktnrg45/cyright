@@ -743,6 +743,9 @@ export class ConfigOptions {
     // Default extraPaths. Can be overridden by executionEnvironment.
     defaultExtraPaths?: string[] | undefined;
 
+    // Cython Include Paths
+    includePaths?: string[] | undefined;
+
     //---------------------------------------------------------------
     // Internal-only switches
 

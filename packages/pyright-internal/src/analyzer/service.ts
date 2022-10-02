@@ -831,6 +831,8 @@ export class AnalyzerService {
             }
         }
 
+        configOptions.includePaths = commandLineOptions.includePaths;
+
         return configOptions;
     }
 

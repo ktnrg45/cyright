@@ -138,4 +138,7 @@ export class CommandLineOptions {
 
     // Analyze functions and methods that have no type annotations?
     analyzeUnannotatedFunctions = true;
+
+    // Include paths to search cython
+    includePaths: string[] = [];
 }

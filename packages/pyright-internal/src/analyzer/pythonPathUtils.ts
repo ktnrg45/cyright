@@ -95,6 +95,13 @@ export function findPythonSearchPaths(
             addPathIfUnique(foundPaths, cythonPath);
         });
 
+        if (configOptions.includePaths) {
+            configOptions.includePaths.forEach(path => {
+                addPathIfUnique(foundPaths, path);
+                importFailureInfo.push(`Cython Added Include Path: ${path}`);
+            });
+        }
+
         if (foundPaths.length > 0) {
             importFailureInfo.push(`Found the following '${pathConsts.sitePackages}' dirs`);
             foundPaths.forEach((path) => {
@@ -115,6 +122,12 @@ export function findPythonSearchPaths(
         const cythonPath = combinePaths(sitePackagesPath, pathConsts.cython, pathConsts.includes);
         addPathIfUnique(pathResult.paths, cythonPath);
     });
+    if (configOptions.includePaths) {
+        configOptions.includePaths.forEach(path => {
+            addPathIfUnique(pathResult.paths, path);
+            importFailureInfo.push(`Cython Added Include Path: ${path}`);
+        });
+    }
     if (includeWatchPathsOnly && workspaceRoot) {
         const paths = pathResult.paths.filter(
             (p) =>

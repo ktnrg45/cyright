@@ -153,5 +153,9 @@ function getEffectiveCommandLineOptions(
     commandLineOptions.excludeFileSpecs = serverSettings.excludeFileSpecs ?? [];
     commandLineOptions.ignoreFileSpecs = serverSettings.ignoreFileSpecs ?? [];
 
+    if (serverSettings.includePaths) {
+        commandLineOptions.includePaths = serverSettings.includePaths;
+    }
+
     return commandLineOptions;
 }
