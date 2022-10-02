@@ -2384,6 +2384,7 @@ export const enum TypedVarCategory {
     Variable,
     Parameter,
     Function,
+    Callback,
 }
 export interface TypedVarNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType;

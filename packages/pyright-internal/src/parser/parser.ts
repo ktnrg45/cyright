@@ -5184,8 +5184,7 @@ export class Parser {
 
     // Return the number of tokens away from the first endType reached
     // Using return value in `_peekToken()` should return the token stopped at
-    private _peekUntilType(endTypes: TokenType[]): number {
-        var count = 0;
+    private _peekUntilType(endTypes: TokenType[], count = 0): number {
         if (endTypes.length <= 0) {
             return count;
         }
@@ -5576,7 +5575,8 @@ export class Parser {
             }
         }
 
-        if (this._peekKeywordType() === KeywordType.Def || (!this._consumeTokenIfKeyword(KeywordType.Ctypedef) && this._peekFunctionDeclaration())) {
+        let functionType = this._peekFunctionDeclaration();
+        if (this._peekKeywordType() === KeywordType.Def || functionType === TypedVarCategory.Function) {
             const functionNode = this._parseFunctionDefCython();
             if (functionNode) {
                 StatementListNode.addNode(statements, functionNode);
@@ -5669,7 +5669,7 @@ export class Parser {
             this._peekToken().type === TokenType.Identifier &&
             (this._peekToken(1).type === TokenType.Comma || this._peekToken(1).type === TokenType.CloseParenthesis)
         );
-        if (!allowPrototype && isPythonParam) {
+        if ((!allowPrototype && isPythonParam) || this._peekToken().type === TokenType.Ellipsis) {
             return this._parseParameter(allowAnnotations);
         }
         let typedVarNode = this._parseTypedVar(TypedVarCategory.Parameter, allowPrototype);
@@ -5718,8 +5718,17 @@ export class Parser {
 
     // C Callback Function: "void (*function_name)(void *args)"
     private _parseCallback(typedVarCategory: TypedVarCategory): TypedVarNode | undefined {
+        if (!this._consumeTokenIfKeyword(KeywordType.Cdef)) {
+            this._consumeTokenIfKeyword(KeywordType.Ctypedef);
+        }
+        if (this._isVarModifier(this._peekToken())) {
+            this._getNextToken();
+        }
         const varType = this._getTokenIfType(TokenType.Identifier);
-        assert(varType);
+        if (!varType) {
+            return undefined;
+        }
+        this._consumeTokenPointers();
 
         const openParen = this._getTokenIfType(TokenType.OpenParenthesis);
         if (!openParen) {
@@ -5758,20 +5767,19 @@ export class Parser {
         const functionNode = FunctionNode.create(openParen, NameNode.create(varName), suite, typeParameters)
         functionNode.returnTypeAnnotation = NameNode.create(varType as IdentifierToken);
         functionNode.parameters = paramList;
-
-        // TODO: Do something with Function Node
-        const typedVarNode = TypedVarNode.create(varType, NameNode.create(varName), NameNode.create(varType as IdentifierToken), typedVarCategory);
-        typedVarNode.name.isPrototype = true;
-        typedVarNode.callbackFunc = functionNode;
-        extendRange(typedVarNode, closeParen);
         // Optional trailing: "with gil"
         if (this._peekKeywordType() === KeywordType.With && this._peekToken(1).type === TokenType.Keyword) {
             const gilToken = this._peekToken(1) as KeywordToken;
             if (gilToken.keywordType === KeywordType.Gil || gilToken.keywordType === KeywordType.Nogil) {
                 this._getNextToken();
-                extendRange(typedVarNode, this._getNextToken())
             }
         }
+
+        // // TODO: Do something with Function Node
+        const typedVarNode = TypedVarNode.create(varType, NameNode.create(varName), NameNode.create(varType as IdentifierToken), typedVarCategory);
+        typedVarNode.name.isPrototype = true;
+        typedVarNode.callbackFunc = functionNode;
+        extendRange(typedVarNode, closeParen);
         return typedVarNode;
 
     }
@@ -5882,7 +5890,10 @@ export class Parser {
         let longCount = 0;
         let lastLong: IdentifierToken | undefined = undefined;
         const firstToken = this._peekToken();
-        const varModifier = this._isVarModifier(firstToken);
+        if (firstToken.type === TokenType.Keyword && (firstToken as KeywordToken).keywordType === KeywordType.Ctypedef) {
+            this._getNextToken();
+        }
+        const varModifier = this._isVarModifier(this._peekToken());
 
         if (varModifier) {
             switch (typedVarCategory) {
@@ -5894,11 +5905,6 @@ export class Parser {
                     break;
             }
             this._getNextToken();
-        }
-        else if (this._peekTokenType() === TokenType.Identifier) {
-            if (this._peekToken(1).type === TokenType.OpenParenthesis) {
-                return this._parseCallback(typedVarCategory);
-            }
         }
 
         while (numModifiers.length < 4) {
@@ -5957,6 +5963,10 @@ export class Parser {
                 skip++;
             }
 
+            if (this._peekToken(ptrCount + viewTokensCount + skip).type === TokenType.OpenParenthesis) {
+                return this._parseCallback(typedVarCategory);
+            }
+    
             let possibleName = this._peekTokenIfIdentifier(ptrCount + viewTokensCount + skip)
             if (possibleName) {
                 varName = NameNode.create(possibleName);
@@ -5994,6 +6004,7 @@ export class Parser {
         }
 
         if (!varName || !varType) {
+            this._addError(Localizer.Diagnostic.expectedNewlineOrSemicolon(), this._peekToken());
             return undefined
         }
 
@@ -6104,7 +6115,7 @@ export class Parser {
 
     // Test if function declaration
     // Maximum token example: const unsigned long long int* var(...)
-    private _peekFunctionDeclaration(): boolean {
+    private _peekFunctionDeclaration(): TypedVarCategory | undefined {
         var count = 0;
         var ptrCount = 0;
         var viewTokens = 0;
@@ -6113,8 +6124,8 @@ export class Parser {
                 ptrCount = this._peekTokenPointers(count + 1 + ptrCount);
                 continue;
             }
-
-            const iterToken = this._peekToken(count + 1 + ptrCount + viewTokens);
+            const skip = count + 1 + ptrCount + viewTokens;
+            const iterToken = this._peekToken(skip);
 
             if (iterToken.type === TokenType.Keyword && (iterToken as KeywordToken).keywordType === KeywordType.Class) {
                 break;
@@ -6122,20 +6133,28 @@ export class Parser {
 
             if (iterToken.type === TokenType.OpenBracket) {
                 this._suppressErrors(() => {
-                    viewTokens += this._peekView(count + 1 + ptrCount + viewTokens).length;
+                    viewTokens += this._peekView(skip).length;
                 });
                 continue;
             }
             // If open Parenthesis assume function declaration
             if (iterToken.type == TokenType.OpenParenthesis) {
-                return true;
+                let skipAhead = this._peekUntilType([TokenType.CloseParenthesis, TokenType.NewLine], skip);
+                let atToken = this._peekToken(skipAhead);
+                if (atToken.type === TokenType.CloseParenthesis) {
+                    let nextToken = this._peekToken(skipAhead + 1);
+                    if (nextToken.type === TokenType.OpenParenthesis) {
+                        return TypedVarCategory.Callback;
+                    }
+                }
+                return TypedVarCategory.Function;
             }
             if (iterToken.type !== TokenType.Keyword && iterToken.type !== TokenType.Identifier && iterToken.type !== TokenType.String) {
                 break;
             }
             count++;
         }
-        return false;
+        return undefined;
     }
 
     private _parseCdefCython(): StatementNode | ErrorNode | undefined {
@@ -6157,7 +6176,8 @@ export class Parser {
             this._getNextToken();
             return this._parseSuiteCython();
         }
-        if (this._peekFunctionDeclaration()) {
+        let functionType = this._peekFunctionDeclaration();
+        if (functionType === TypedVarCategory.Function) {
             return this._parseFunctionDefCython();
         }
         // Single line cdef
@@ -6244,7 +6264,7 @@ export class Parser {
         return importFromNode;
     }
 
-    private _parseFunctionDefCython(decorators?: DecoratorNode[]): FunctionNode | ErrorNode {
+    private _parseFunctionDefCython(decorators?: DecoratorNode[], allowPrototype = false): FunctionNode | ErrorNode {
         const firstToken = this._peekToken();
         let cDefType: KeywordType | undefined = undefined;
         if (firstToken.type === TokenType.Keyword) {
@@ -6257,6 +6277,7 @@ export class Parser {
         let returnType: ExpressionNode | undefined = undefined;
         let nameToken: NameNode | undefined = undefined;
         let typeParameters: TypeParameterListNode | undefined;
+        let typedVarNode: TypedVarNode | undefined = undefined;
 
         if (this._peekTokenType() === TokenType.Identifier && this._peekToken(1).type === TokenType.OpenParenthesis) {
             // Function has no declared return type
@@ -6269,10 +6290,8 @@ export class Parser {
             nameToken = NameNode.create(this._getNextToken() as IdentifierToken);
             typeParameters = this._parseTypeParameterList();
             this._peekToken();
-            // this._getNextToken();
-            // this._parseVarArgsList(TokenType.CloseBracket, /* allowAnnotations */ false, /* allowPrototype */ true);
         } else {
-            let typedVarNode = this._parseTypedVar(TypedVarCategory.Function, /* allowPrototype */ false, /* allowNoType */ true);
+            typedVarNode = this._parseTypedVar(TypedVarCategory.Function, /* allowPrototype */ false, /* allowNoType */ true);
             if (!typedVarNode) {
                 this._addError(Localizer.Diagnostic.expectedFunctionName(), firstToken);
                 return ErrorNode.create(
