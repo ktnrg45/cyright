@@ -1497,13 +1497,15 @@ export class Parser {
         let forSuite: SuiteNode;
         let elseSuite: SuiteNode | undefined;
 
-        if (!this._consumeTokenIfKeyword(KeywordType.In)) {
+        if (this._peekKeywordType() !== KeywordType.From && !this._consumeTokenIfKeyword(KeywordType.In)) {
             seqExpr = this._handleExpressionParseError(
                 ErrorExpressionCategory.MissingIn,
                 Localizer.Diagnostic.expectedIn()
             );
             forSuite = SuiteNode.create(this._peekToken());
         } else {
+            // Handle C for statement: "for i from 0 <= i < stop"
+            this._consumeTokenIfKeyword(KeywordType.From);
             seqExpr = this._parseTestOrStarListAsExpression(
                 /* allowAssignmentExpression */ false,
                 /* allowMultipleUnpack */ true,
@@ -5814,7 +5816,7 @@ export class Parser {
                 const arg = ArgumentNode.create(startToken, argExpr, ArgumentCategory.Simple);
                 const callNode = CallNode.create(varType, [arg], false);
                 extendRange(callNode, castOpen);
-                extendRange(callNode, castClose);
+                // extendRange(callNode, castClose);
                 return callNode;
             }
         }
