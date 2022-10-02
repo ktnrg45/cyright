@@ -5665,10 +5665,22 @@ export class Parser {
     }
 
     private _parseParameterCython(allowAnnotations: boolean, allowPrototype: boolean, allowExtraExpr: boolean): ParameterNode {
-        let isPythonParam = (
-            this._peekToken().type === TokenType.Identifier &&
-            (this._peekToken(1).type === TokenType.Comma || this._peekToken(1).type === TokenType.CloseParenthesis)
-        );
+        let isPythonParam = false;
+        let firstToken = this._peekToken();
+        let nextToken = this._peekToken(1);
+        if (firstToken.type === TokenType.Identifier) {
+            if (nextToken.type === TokenType.Comma || nextToken.type === TokenType.CloseParenthesis || nextToken.type === TokenType.Colon) {
+                isPythonParam = true;
+            } else if (nextToken.type === TokenType.Operator && (nextToken as OperatorToken).operatorType === OperatorType.Assign) {
+                isPythonParam = true;
+            }
+        } else if (firstToken.type === TokenType.Operator) {
+            let operatorType = (firstToken as OperatorToken).operatorType;
+            if (operatorType === OperatorType.Multiply || operatorType === OperatorType.Power) {
+                isPythonParam = true;
+            }
+
+        }
         if ((!allowPrototype && isPythonParam) || this._peekToken().type === TokenType.Ellipsis) {
             return this._parseParameter(allowAnnotations);
         }
@@ -6264,7 +6276,7 @@ export class Parser {
         return importFromNode;
     }
 
-    private _parseFunctionDefCython(decorators?: DecoratorNode[], allowPrototype = false): FunctionNode | ErrorNode {
+    private _parseFunctionDefCython(decorators?: DecoratorNode[]): FunctionNode | ErrorNode {
         const firstToken = this._peekToken();
         let cDefType: KeywordType | undefined = undefined;
         if (firstToken.type === TokenType.Keyword) {
