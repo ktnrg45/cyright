@@ -194,7 +194,7 @@ export interface ModuleImport {
     // array implies "from X import *".
     importedSymbols: string[] | undefined;
     isCython?: boolean | undefined;
-    isPyx?: boolean | undefined;
+    cythonExt?: string | undefined;
 }
 
 export interface ArgListResult {
@@ -6201,7 +6201,10 @@ export class Parser {
             this._addError(Localizer.Diagnostic.expectedFileName(), nextToken);
             return moduleNameNode;
         }
-        moduleNameNode.isPyx = ext.toLowerCase() === "pyx";
+
+        if (ext.toLowerCase() === "pyx" || ext.toLowerCase() === "pxi" || ext.toLowerCase() === "pxd") {
+            moduleNameNode.cythonExt = ext;
+        }
         let start = 1; // Exclude first quote
         parts.forEach(part => {
             const token = IdentifierToken.create(nameToken.start + start, part.length, part, undefined);
@@ -6220,6 +6223,7 @@ export class Parser {
     }
 
     // 'include "filedir/filename.ext"' Handle as 'from filedir.filename import *'
+    // Used for ".pyx" and ".pxi" files 
     private _parseIncludeStatement(): ImportFromNode {
         const includeToken = this._getKeywordToken(KeywordType.Include);
         let moduleNameNode = this._parseIncludeName();
@@ -6232,7 +6236,7 @@ export class Parser {
             nameParts: importFromNode.module.nameParts.map((p) => p.value),
             importedSymbols: importFromNode.imports.map((imp) => imp.name.value),
             isCython: true,
-            isPyx: moduleNameNode.isPyx,
+            cythonExt: moduleNameNode.cythonExt,
         });
 
         return importFromNode;
