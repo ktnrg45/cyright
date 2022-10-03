@@ -3058,13 +3058,14 @@ export class Parser {
 
     // test: or_test ['if' or_test 'else' test] | lambdef
     private _parseTestExpression(allowAssignmentExpression: boolean): ExpressionNode {
-        if (this._peekOperatorType() === OperatorType.BitwiseAnd) {
-            // Handle Address of: "&name"
-            if (this._peekToken(1).type === TokenType.Identifier) {
-                this._getNextToken();
-                return NameNode.create(this._getNextToken() as IdentifierToken);
-            }
-        }
+        // if (this._peekOperatorType() === OperatorType.BitwiseAnd) {
+        //     // Handle Address of: "&name"
+        //     if (this._peekToken(1).type === TokenType.Identifier) {
+        //         this._getNextToken();
+        //         return NameNode.create(this._getNextToken() as IdentifierToken);
+        //     }
+        // }
+        this._consumeTokenIfOperator(OperatorType.BitwiseAnd);
         if (this._peekOperatorType() === OperatorType.LessThan) {
             const castExpr = this._parseCast();
             if (castExpr) {
@@ -6003,7 +6004,10 @@ export class Parser {
             }
 
             if (this._peekToken(ptrCount + viewTokensCount + skip).type === TokenType.OpenParenthesis) {
-                return this._parseCallback(typedVarCategory);
+                let skipAhead = this._peekUntilType([TokenType.CloseParenthesis, TokenType.NewLine], ptrCount + viewTokensCount + skip);
+                if (this._peekToken(skipAhead).type === TokenType.CloseParenthesis && this._peekToken(skipAhead + 1).type === TokenType.OpenParenthesis) {
+                    return this._parseCallback(typedVarCategory);
+                }
             }
 
             let possibleName = this._peekTokenIfIdentifier(ptrCount + viewTokensCount + skip)
@@ -6165,26 +6169,14 @@ export class Parser {
         var count = 0;
         var ptrCount = 0;
         var viewTokens = 0;
-        var memberCount = 0;
-        while (count < 7) {
-            const skip = 1 + count + ptrCount + viewTokens + memberCount;
+        const validTokens = [TokenType.Keyword, TokenType.Identifier, TokenType.String, TokenType.Dot];
+        while (true) {
+            const skip = 1 + count + ptrCount + viewTokens;
             if (this._isTokenPointer(skip)) {
                 ptrCount += this._peekTokenPointers(skip);
                 continue;
             }
             let iterToken = this._peekToken(skip);
-
-            if (this._peekTokenIfIdentifier(skip) && this._peekToken(skip + 1).type === TokenType.Dot) {
-                let iterMemberCount = 1;
-                while (this._peekToken(skip + iterMemberCount).type === TokenType.Dot) {
-                    iterMemberCount++;
-                    if (this._peekTokenIfIdentifier(skip + iterMemberCount)) {
-                        iterMemberCount++;
-                    }
-                }
-                memberCount += iterMemberCount;
-                continue;
-            }
 
             if (iterToken.type === TokenType.Keyword && (iterToken as KeywordToken).keywordType === KeywordType.Class) {
                 break;
@@ -6208,7 +6200,7 @@ export class Parser {
                 }
                 return TypedVarCategory.Function;
             }
-            if (iterToken.type !== TokenType.Keyword && iterToken.type !== TokenType.Identifier && iterToken.type !== TokenType.String) {
+            if (!validTokens.includes(iterToken.type)) {
                 break;
             }
             count++;
