@@ -5022,8 +5022,8 @@ export class Parser {
         return this._peekToken().type;
     }
 
-    private _peekKeywordType(): KeywordType | undefined {
-        const nextToken = this._peekToken();
+    private _peekKeywordType(count = 0): KeywordType | undefined {
+        const nextToken = this._peekToken(count);
         if (nextToken.type !== TokenType.Keyword) {
             return undefined;
         }
@@ -5830,16 +5830,35 @@ export class Parser {
         }
         const castOpen = this._peekToken();
         let tokenCount = 1;
-        if (this._peekToken(tokenCount).type === TokenType.Identifier) {
+        if (this._isVarModifier(this._peekToken(tokenCount))) {
+            tokenCount++;
+        }
+        while (true) {
+
+            if (this._isNumericModifier(this._peekToken(tokenCount))) {
+                tokenCount++;
+                if (this._isNumericModifier(this._peekToken(tokenCount))) {
+                    continue;
+                }
+                if (!this._peekTokenIfIdentifier(tokenCount) && this._peekKeywordType(tokenCount - 1) === KeywordType.Long) {
+                    tokenCount--;
+                }
+            }
+            break;
+        }
+
+        if (this._peekTokenIfIdentifier(tokenCount)) {
             let varType: NameNode | MemberAccessNode;
-            varType = NameNode.create(this._peekToken(tokenCount) as IdentifierToken);
+            const varToken = this._peekTokenIfIdentifier(tokenCount);
+            assert (varToken)
+            varType = NameNode.create(varToken);
             tokenCount++;
             while (true) {
                 const nextToken = this._peekToken(tokenCount);
                 if (nextToken.type === TokenType.Dot) {
                     tokenCount++;
-                    const memberToken = this._peekToken(tokenCount);
-                    if (memberToken.type !== TokenType.Identifier) {
+                    const memberToken = this._peekTokenIfIdentifier(tokenCount);
+                    if (memberToken?.type !== TokenType.Identifier) {
                         return undefined;
                     }
                     varType = MemberAccessNode.create(varType, NameNode.create(memberToken as IdentifierToken));
