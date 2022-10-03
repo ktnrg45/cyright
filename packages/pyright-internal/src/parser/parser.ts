@@ -5879,7 +5879,7 @@ export class Parser {
     }
 
     // Create Dummy NameNode
-    private _createDummyName(node: ParseNode): NameNode {
+    private _createDummyName(node: ParseNode, value = ''): NameNode {
         return ({
             start: node.start,
             length: 0,
@@ -5890,9 +5890,9 @@ export class Parser {
                 start: 0,
                 length: 0,
                 comments: [],
-                value: '',
+                value: value,
             },
-            value: '',
+            value: value,
         } as NameNode);
     }
 
@@ -5984,7 +5984,7 @@ export class Parser {
             if (this._peekToken(ptrCount + viewTokensCount + skip).type === TokenType.OpenParenthesis) {
                 return this._parseCallback(typedVarCategory);
             }
-    
+
             let possibleName = this._peekTokenIfIdentifier(ptrCount + viewTokensCount + skip)
             if (possibleName) {
                 varName = NameNode.create(possibleName);
@@ -5995,11 +5995,18 @@ export class Parser {
                 skip--;
             } else if (allowPrototype) {
                 varName = this._createDummyName(varType);
-            } else if (varType?.nodeType === ParseNodeType.Name && allowNoType) {
-                // Handle no return type with modifiers: "cdef inline name()"
-                varName = varType;
-                varType = this._createDummyName(varType);
-                skip--;
+            } else if (varType?.nodeType === ParseNodeType.Name) {
+                if (allowNoType) {
+                    // Handle no return type with modifiers: "cdef inline name()"
+                    varName = varType;
+                    varType = this._createDummyName(varType);
+                    skip--;
+                } else {
+                    // Handle untyped declaration: "cdef inline name"
+                    varName = varType;
+                    varType = this._createDummyName(varType, "object");
+                    skip--;
+                }
             }
 
             // Consume type tokens
@@ -6256,7 +6263,7 @@ export class Parser {
         if (ext.length > 0) {
             let last = moduleNameNode.nameParts[moduleNameNode.nameParts.length - 1];
             let value = "." + ext;
-            const token = IdentifierToken.create(last.start + last.length + 1 , ext.length, value, undefined);
+            const token = IdentifierToken.create(last.start + last.length + 1, ext.length, value, undefined);
             extendRange(last, token);
         }
         return moduleNameNode;
