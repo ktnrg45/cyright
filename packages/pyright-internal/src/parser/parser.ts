@@ -6165,13 +6165,26 @@ export class Parser {
         var count = 0;
         var ptrCount = 0;
         var viewTokens = 0;
+        var memberCount = 0;
         while (count < 7) {
-            if (this._isTokenPointer(count + 1 + ptrCount)) {
-                ptrCount = this._peekTokenPointers(count + 1 + ptrCount);
+            const skip = 1 + count + ptrCount + viewTokens + memberCount;
+            if (this._isTokenPointer(skip)) {
+                ptrCount += this._peekTokenPointers(skip);
                 continue;
             }
-            const skip = count + 1 + ptrCount + viewTokens;
-            const iterToken = this._peekToken(skip);
+            let iterToken = this._peekToken(skip);
+
+            if (this._peekTokenIfIdentifier(skip) && this._peekToken(skip + 1).type === TokenType.Dot) {
+                let iterMemberCount = 1;
+                while (this._peekToken(skip + iterMemberCount).type === TokenType.Dot) {
+                    iterMemberCount++;
+                    if (this._peekTokenIfIdentifier(skip + iterMemberCount)) {
+                        iterMemberCount++;
+                    }
+                }
+                memberCount += iterMemberCount;
+                continue;
+            }
 
             if (iterToken.type === TokenType.Keyword && (iterToken as KeywordToken).keywordType === KeywordType.Class) {
                 break;
