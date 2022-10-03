@@ -1883,7 +1883,7 @@ export class Parser {
     //   | '**' tfpdef [','])
     // tfpdef: NAME [':' test]
     // vfpdef: NAME;
-    private _parseVarArgsList(terminator: TokenType, allowAnnotations: boolean, allowPrototype = false, allowExtraExpr = false): ParameterNode[] {
+    private _parseVarArgsList(terminator: TokenType, allowAnnotations: boolean, allowPrototype = false, allowExtraExpr = false, allowOptionalArg = false): ParameterNode[] {
         const paramMap = new Map<string, string>();
         const paramList: ParameterNode[] = [];
         let sawDefaultParam = false;
@@ -1899,7 +1899,7 @@ export class Parser {
                 break;
             }
 
-            const param = this._parseParameterCython(allowAnnotations, allowPrototype, allowExtraExpr);
+            const param = this._parseParameterCython(allowAnnotations, allowPrototype, allowExtraExpr, allowOptionalArg);
             if (!param) {
                 this._consumeTokensUntilType([terminator]);
                 break;
@@ -2006,7 +2006,7 @@ export class Parser {
         return paramList;
     }
 
-    private _parseParameter(allowAnnotations: boolean): ParameterNode {
+    private _parseParameter(allowAnnotations: boolean, allowOptionalArg = false): ParameterNode {
         let starCount = 0;
         let slashCount = 0;
         const firstToken = this._peekToken();
@@ -2068,9 +2068,16 @@ export class Parser {
         }
 
         if (this._consumeTokenIfOperator(OperatorType.Assign)) {
-            paramNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
-            paramNode.defaultValue.parent = paramNode;
-            extendRange(paramNode, paramNode.defaultValue);
+            let possibleOptionalArg = this._peekToken();
+            if (allowOptionalArg && (this._consumeTokenIfOperator(OperatorType.Multiply) || this._consumeTokenIfType(TokenType.QuestionMark))) {
+                paramNode.defaultValue = this._createDummyName(possibleOptionalArg, "object", /* useLength */ true);
+                paramNode.defaultValue.parent = paramNode;
+                extendRange(paramNode, paramNode.defaultValue);
+            } else {
+                paramNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
+                paramNode.defaultValue.parent = paramNode;
+                extendRange(paramNode, paramNode.defaultValue);
+            }
 
             if (starCount > 0) {
                 this._addError(Localizer.Diagnostic.defaultValueNotAllowed(), paramNode.defaultValue);
@@ -5670,7 +5677,7 @@ export class Parser {
         return statements;
     }
 
-    private _parseParameterCython(allowAnnotations: boolean, allowPrototype: boolean, allowExtraExpr: boolean): ParameterNode {
+    private _parseParameterCython(allowAnnotations: boolean, allowPrototype: boolean, allowExtraExpr: boolean, allowOptionalArg: boolean): ParameterNode {
         let isPythonParam = false;
         let firstToken = this._peekToken();
         let nextToken = this._peekToken(1);
@@ -5685,14 +5692,20 @@ export class Parser {
             if (operatorType === OperatorType.Multiply || operatorType === OperatorType.Power) {
                 isPythonParam = true;
             }
-
+        } else if (this._peekToken().type === TokenType.Ellipsis) {
+            isPythonParam = true;
         }
-        if ((!allowPrototype && isPythonParam) || this._peekToken().type === TokenType.Ellipsis) {
-            return this._parseParameter(allowAnnotations);
+
+        if (isPythonParam) {
+            const param = this._parseParameter(allowAnnotations, allowOptionalArg);
+            if (param.name && allowPrototype) {
+                param.name.isPrototype = allowPrototype;
+            }
+            return param;
         }
         let typedVarNode = this._parseTypedVar(TypedVarCategory.Parameter, allowPrototype);
         if (!typedVarNode) {
-            return this._parseParameter(allowAnnotations);
+            return this._parseParameter(allowAnnotations, /* allowOptionalArg */ true);
         }
         let name = typedVarNode.name;
         let typeAnnotation: ExpressionNode | undefined = typedVarNode.typeAnnotation;
@@ -5716,9 +5729,16 @@ export class Parser {
             extendRange(paramNode, paramNode.typeAnnotation);
         }
         if (this._consumeTokenIfOperator(OperatorType.Assign)) {
-            paramNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
-            paramNode.defaultValue.parent = paramNode;
-            extendRange(paramNode, paramNode.defaultValue);
+            let possibleOptionalArg = this._peekToken();
+            if (allowOptionalArg && (this._consumeTokenIfOperator(OperatorType.Multiply) || this._consumeTokenIfType(TokenType.QuestionMark))) {
+                paramNode.defaultValue = this._createDummyName(possibleOptionalArg, "object", /* useLength */ true);
+                paramNode.defaultValue.parent = paramNode;
+                extendRange(paramNode, paramNode.defaultValue);
+            } else {
+                paramNode.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
+                paramNode.defaultValue.parent = paramNode;
+                extendRange(paramNode, paramNode.defaultValue);
+            }
         } else if (this._peekKeywordType() === KeywordType.Not) {
             // Handle extra expression after param name: "name not None". Only valid in functions defined with "def"
             const noneToken = this._peekToken(1);
@@ -5879,16 +5899,17 @@ export class Parser {
     }
 
     // Create Dummy NameNode
-    private _createDummyName(node: ParseNode, value = ''): NameNode {
+    private _createDummyName(node: ParseNode | Token, value = '', useLength = false): NameNode {
+        const length = (useLength) ? node.length : 0;
         return ({
             start: node.start,
-            length: 0,
+            length: length,
             id: 0,
             nodeType: ParseNodeType.Name,
             token: {
                 type: TokenType.Identifier,
                 start: 0,
-                length: 0,
+                length: length,
                 comments: [],
                 value: value,
             },
@@ -6371,7 +6392,7 @@ export class Parser {
             }
         }
 
-        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* allowPrototype */ isPrototype);
+        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true, /* allowPrototype */ isPrototype, /* allowExtraExpr */ false, /* allowOptionalArg */ true);
 
         if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
             this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
