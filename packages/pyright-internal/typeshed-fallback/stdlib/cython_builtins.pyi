@@ -1,6 +1,6 @@
 """Cython Built In Types. Only used in Cython files."""
 
-from typing import TypeVar
+from typing import TypeVar, Any
 
 _T = TypeVar("_T")
 _N = TypeVar("_N", bound=None)
@@ -58,3 +58,8 @@ class enum(_T):
 
 class union(_T):
     """Cython Type. Represents a union."""
+
+
+def sizeof(__obj: Any) -> int:
+    """Cython Function. Return size of object or variable."""
+    ...
