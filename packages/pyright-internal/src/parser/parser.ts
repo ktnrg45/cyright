@@ -6316,7 +6316,7 @@ export class Parser {
             let possiblePropertyToken = this._peekToken();
             let possibleProperty = NameNode.create(this._peekToken() as IdentifierToken);
             if (possibleProperty.value === "property") {
-                if (this._peekToken(1).type === TokenType.Identifier && this._peekToken(2).type === TokenType.Colon) {
+                if (this._peekTokenIfIdentifier(1) && this._peekToken(2).type === TokenType.Colon) {
                     this._getNextToken();
                     let nameToken = this._getTokenIfIdentifier();
                     if (nameToken) {
