@@ -68,7 +68,7 @@ export async function activate(context: ExtensionContext) {
     cancellationStrategy = new FileBasedCancellationStrategy();
 
     // const bundlePath = context.asAbsolutePath(path.join('dist', 'server.js'));
-    const bundlePath = context.asAbsolutePath(path.join('pyright', 'packages', 'vscode-pyright', 'dist', 'server.js'));
+    const bundlePath = context.asAbsolutePath(path.join('cyright', 'packages', 'vscode-pyright', 'dist', 'server.js'));
     const runOptions = { execArgv: [`--max-old-space-size=${defaultHeapSize}`] };
     const debugOptions = { execArgv: ['--nolazy', '--inspect=9600', `--max-old-space-size=${defaultHeapSize}`] };
 
