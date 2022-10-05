@@ -5895,10 +5895,10 @@ export class Parser {
             return undefined;
         }
 
-        const statement = this._parseTypedStatement();
-        if (statement) {
-            return statement;
-        }
+        // const statement = this._parseTypedStatement();
+        // if (statement) {
+        //     return statement;
+        // }
         const struct = this._parseStructure();
         if (struct) {
             return struct
@@ -6112,6 +6112,14 @@ export class Parser {
         var statements = StatementListNode.create(this._peekToken());
         while (!this._consumeTokenIfType(TokenType.Dedent)) {
             this._consumeTokenIfType(TokenType.NewLine);
+            if (this._peekKeywordType() === KeywordType.Ctypedef) {
+                let node = this._parseCTypeDef();
+                if (node) {
+                    StatementListNode.addNode(statements, node);
+                    continue;
+                }
+
+            }
             if (this._peekKeywordType() === KeywordType.Pass) {
                 let passNode = this._parsePassStatement();
                 StatementListNode.addNode(statements, passNode);
