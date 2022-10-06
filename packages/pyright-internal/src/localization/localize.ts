@@ -999,6 +999,7 @@ export namespace Localizer {
         export const expectedComma = () => getRawString('Diagnostic.expectedComma');
         export const expectedNamespace = () => getRawString('Diagnostic.expectedNamespace');
         export const expectedFileName = () => getRawString('Diagnostic.expectedFileName');
+        export const expectedWith = () => getRawString('Diagnostic.expectedWith');
 
     }
 

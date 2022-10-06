@@ -523,7 +523,8 @@
         "noneCheckNotAllowed": "None check only allowed in functions defined with \"def\"",
         "expectedComma": "Expected \",\"",
         "expectedNamespace": "Expected namespace string",
-        "expectedFileName": "Expected file name after \"include\""
+        "expectedFileName": "Expected file name after \"include\"",
+        "expectedWith": "Expected \"with\""
     },
     "DiagnosticAddendum": {
         "argParam": "Argument corresponds to parameter \"{paramName}\"",

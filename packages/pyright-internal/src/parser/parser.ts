@@ -6431,11 +6431,20 @@ export class Parser {
             this._consumeTokensUntilType([TokenType.Colon, TokenType.NewLine]);
         }
 
+        let withToken: KeywordToken | undefined = undefined;
+        if (this._peekKeywordType() === KeywordType.With) {
+            withToken = this._getNextToken() as KeywordToken;
+        }
+        if (withToken && cDefType !== KeywordType.Cdef) {
+            this._addError(Localizer.Diagnostic.expectedColon(), withToken);
+        }
         const gilOrExcept = this._peekKeywordType();
         if (gilOrExcept === KeywordType.Nogil || gilOrExcept === KeywordType.Gil) {
             const gilToken = this._getNextToken();
-            if (cDefType && cDefType !== KeywordType.Cdef) {
+            if (cDefType !== KeywordType.Cdef) {
                 this._addError(Localizer.Diagnostic.invalidTrailingGilFunction(), gilToken);
+            } else if (!withToken) {
+                this._addError(Localizer.Diagnostic.expectedWith(), gilToken);
             }
         } else if (gilOrExcept === KeywordType.Except) {
             this._getNextToken();
