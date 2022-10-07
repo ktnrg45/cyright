@@ -1001,6 +1001,7 @@ export namespace Localizer {
         export const expectedFileName = () => getRawString('Diagnostic.expectedFileName');
         export const expectedWith = () => getRawString('Diagnostic.expectedWith');
         export const expectedNoGil = () => getRawString('Diagnostic.expectedNoGil');
+        export const expectedCastClose = () => getRawString('Diagnostic.expectedCastClose');
     }
 
     export namespace DiagnosticAddendum {

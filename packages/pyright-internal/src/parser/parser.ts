@@ -5823,68 +5823,52 @@ export class Parser {
 
     }
 
-    // Parse cast: "<double*>expr" This should be considered a call like "double(expr)"
+    // Parse cast: "<double*>expr"
     private _parseCast(): ExpressionNode | undefined {
         if (this._peekOperatorType() !== OperatorType.LessThan) {
             return undefined;
         }
-        const castOpen = this._peekToken();
-        let tokenCount = 1;
-        if (this._isVarModifier(this._peekToken(tokenCount))) {
-            tokenCount++;
+        const castOpen = this._getNextToken();
+        if (this._isVarModifier(this._peekToken())) {
+            this._getNextToken();
         }
-        while (true) {
-
-            if (this._isNumericModifier(this._peekToken(tokenCount))) {
-                tokenCount++;
-                if (this._isNumericModifier(this._peekToken(tokenCount))) {
-                    continue;
-                }
-                if (!this._peekTokenIfIdentifier(tokenCount) && this._peekKeywordType(tokenCount - 1) === KeywordType.Long) {
-                    tokenCount--;
+        while (this._isNumericModifier(this._peekToken())) {
+            const nextToken = this._peekTokenIfIdentifier();
+            if (this._peekTokenIfIdentifier() && this._peekKeywordType() === KeywordType.Long) {
+                if (!this._peekTokenIfIdentifier(1)) {
+                    break;
                 }
             }
-            break;
+            this._getNextToken();
         }
 
-        if (this._peekTokenIfIdentifier(tokenCount)) {
-            let varType: NameNode | MemberAccessNode;
-            const varToken = this._peekTokenIfIdentifier(tokenCount);
-            assert (varToken)
+        let varType: NameNode | MemberAccessNode;
+        if (this._peekTokenIfIdentifier()) {
+            const varToken = this._getNextToken() as IdentifierToken;
             varType = NameNode.create(varToken);
-            tokenCount++;
-            while (true) {
-                const nextToken = this._peekToken(tokenCount);
-                if (nextToken.type === TokenType.Dot) {
-                    tokenCount++;
-                    const memberToken = this._peekTokenIfIdentifier(tokenCount);
-                    if (memberToken?.type !== TokenType.Identifier) {
-                        return undefined;
-                    }
-                    varType = MemberAccessNode.create(varType, NameNode.create(memberToken as IdentifierToken));
-                    tokenCount++;
-                    continue;
+            while (this._consumeTokenIfType(TokenType.Dot)) {
+                const memberToken = this._peekTokenIfIdentifier();
+                if (!memberToken) {
+                    this._addError(Localizer.Diagnostic.expectedMemberName(), this._getNextToken());
+                    break;
                 }
-                break;
+                varType = MemberAccessNode.create(varType, NameNode.create(memberToken as IdentifierToken));
+                this._getNextToken()
+                continue;
             }
-            const ptrCount = this._peekTokenPointers(tokenCount);
-            if (this._peekToken(tokenCount + ptrCount).type === TokenType.QuestionMark) {
-                // Handle Type Check: "<double?>name"
-                tokenCount++;
-            }
-            const castClose = this._peekToken(tokenCount + ptrCount);
+            this._consumeTokenPointers();
+            // Handle Type Check: "<double?>name"
+            this._consumeTokenIfType(TokenType.QuestionMark);
+
+            const castClose = this._getNextToken();
             if (castClose.type === TokenType.Operator && (castClose as OperatorToken).operatorType === OperatorType.GreaterThan) {
-                const startToken = this._peekToken(tokenCount + ptrCount + 1);
-                for (let index = 0; index < tokenCount + ptrCount + 1; index++) {
-                    var t = this._getNextToken();
-                }
-                const argExpr = this._parseTestExpression(false);
-                const arg = ArgumentNode.create(startToken, argExpr, ArgumentCategory.Simple);
-                const callNode = CallNode.create(varType, [arg], false);
-                extendRange(callNode, castOpen);
-                // extendRange(callNode, castClose);
-                return callNode;
+                const startToken = this._peekToken();
+                const expr = this._parseTestExpression(false);
+                const node = CallNode.create(varType, [ArgumentNode.create(startToken, expr, ArgumentCategory.Simple)], false);
+                extendRange(node, castOpen);
+                return node;
             }
+            this._addError(Localizer.Diagnostic.expectedCastClose(), castClose);
         }
         return undefined;
     }

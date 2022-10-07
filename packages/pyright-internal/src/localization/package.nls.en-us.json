@@ -525,7 +525,8 @@
         "expectedNamespace": "Expected namespace string",
         "expectedFileName": "Expected file name after \"include\"",
         "expectedWith": "Expected \"with\"",
-        "expectedNoGil": "Expected \"nogil\""
+        "expectedNoGil": "Expected \"nogil\"",
+        "expectedCastClose": "Expected cast close: \">\""
     },
     "DiagnosticAddendum": {
         "argParam": "Argument corresponds to parameter \"{paramName}\"",
