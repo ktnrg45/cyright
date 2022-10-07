@@ -6440,11 +6440,17 @@ export class Parser {
         }
         const gilOrExcept = this._peekKeywordType();
         if (gilOrExcept === KeywordType.Nogil || gilOrExcept === KeywordType.Gil) {
-            const gilToken = this._getNextToken();
+            const gilToken = this._getNextToken() as KeywordToken;
             if (cDefType !== KeywordType.Cdef) {
                 this._addError(Localizer.Diagnostic.invalidTrailingGilFunction(), gilToken);
-            } else if (!withToken) {
-                this._addError(Localizer.Diagnostic.expectedWith(), gilToken);
+            } else {
+                if (!withToken && gilToken.keywordType === KeywordType.Gil) {
+                    // "gil" must be preceeded by "with" 
+                    this._addError(Localizer.Diagnostic.expectedWith(), gilToken);
+                } else if (withToken && gilToken.keywordType === KeywordType.Nogil) {
+                    // "nogil" must not be preceeded by "with"
+                    this._addError(Localizer.Diagnostic.expectedNoGil(), withToken);
+                }
             }
         } else if (gilOrExcept === KeywordType.Except) {
             this._getNextToken();
