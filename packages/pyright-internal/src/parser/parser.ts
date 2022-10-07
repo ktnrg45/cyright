@@ -5756,9 +5756,12 @@ export class Parser {
     }
 
     // C Callback Function: "void (*function_name)(void *args)"
-    private _parseCallback(typedVarCategory: TypedVarCategory): TypedVarNode | undefined {
-        if (!this._consumeTokenIfKeyword(KeywordType.Cdef)) {
-            this._consumeTokenIfKeyword(KeywordType.Ctypedef);
+    private _parseCallback(typedVarCategory: TypedVarCategory, cDefType = KeywordType.Cdef): TypedVarNode | undefined {
+
+        if (this._consumeTokenIfKeyword(KeywordType.Cdef)) {
+            cDefType = KeywordType.Cdef;
+        } else if (this._consumeTokenIfKeyword(KeywordType.Ctypedef)) {
+            cDefType = KeywordType.Ctypedef;
         }
         if (this._isVarModifier(this._peekToken())) {
             this._getNextToken();
@@ -5806,13 +5809,8 @@ export class Parser {
         const functionNode = FunctionNode.create(openParen, NameNode.create(varName), suite, typeParameters)
         functionNode.returnTypeAnnotation = NameNode.create(varType as IdentifierToken);
         functionNode.parameters = paramList;
-        // Optional trailing: "with gil"
-        if (this._peekKeywordType() === KeywordType.With && this._peekToken(1).type === TokenType.Keyword) {
-            const gilToken = this._peekToken(1) as KeywordToken;
-            if (gilToken.keywordType === KeywordType.Gil || gilToken.keywordType === KeywordType.Nogil) {
-                this._getNextToken();
-            }
-        }
+
+        this._parseFunctionTrailer(cDefType);
 
         // // TODO: Do something with Function Node
         const typedVarNode = TypedVarNode.create(varType, NameNode.create(varName), NameNode.create(varType as IdentifierToken), typedVarCategory);
@@ -5933,7 +5931,8 @@ export class Parser {
         let longCount = 0;
         let lastLong: IdentifierToken | undefined = undefined;
         const firstToken = this._peekToken();
-        if (firstToken.type === TokenType.Keyword && (firstToken as KeywordToken).keywordType === KeywordType.Ctypedef) {
+        const cDefType = this._peekKeywordType()
+        if (cDefType === KeywordType.Ctypedef) {
             this._getNextToken();
         }
         const varModifier = this._isVarModifier(this._peekToken());
@@ -6009,7 +6008,7 @@ export class Parser {
             if (this._peekToken(ptrCount + viewTokensCount + skip).type === TokenType.OpenParenthesis) {
                 let skipAhead = this._peekUntilType([TokenType.CloseParenthesis, TokenType.NewLine], ptrCount + viewTokensCount + skip);
                 if (this._peekToken(skipAhead).type === TokenType.CloseParenthesis && this._peekToken(skipAhead + 1).type === TokenType.OpenParenthesis) {
-                    return this._parseCallback(typedVarCategory);
+                    return this._parseCallback(typedVarCategory, cDefType);
                 }
             }
 
@@ -6201,7 +6200,7 @@ export class Parser {
             }
             // If open Parenthesis assume function declaration
             if (iterToken.type == TokenType.OpenParenthesis) {
-                let skipAhead = this._peekUntilType([TokenType.CloseParenthesis, TokenType.NewLine], skip);
+                let skipAhead = this._peekUntilType([TokenType.OpenParenthesis, TokenType.CloseParenthesis, TokenType.NewLine], skip);
                 let atToken = this._peekToken(skipAhead);
                 if (atToken.type === TokenType.CloseParenthesis) {
                     let nextToken = this._peekToken(skipAhead + 1);
@@ -6347,6 +6346,42 @@ export class Parser {
         return undefined;
     }
 
+    private _parseFunctionTrailer(keywordType: KeywordType | undefined) {
+        if (!keywordType) {
+            return;
+        }
+        let withToken: KeywordToken | undefined = undefined;
+        if (this._peekKeywordType() === KeywordType.With) {
+            withToken = this._getNextToken() as KeywordToken;
+        }
+        if (withToken && keywordType !== KeywordType.Cdef && keywordType !== KeywordType.Ctypedef) {
+            this._addError(Localizer.Diagnostic.expectedColon(), withToken);
+        }
+        const gilOrExcept = this._peekKeywordType();
+        if (gilOrExcept === KeywordType.Nogil || gilOrExcept === KeywordType.Gil) {
+            const gilToken = this._getNextToken() as KeywordToken;
+            if (keywordType !== KeywordType.Cdef && keywordType !== KeywordType.Ctypedef) {
+                this._addError(Localizer.Diagnostic.invalidTrailingGilFunction(), gilToken);
+            } else {
+                if (!withToken && gilToken.keywordType === KeywordType.Gil) {
+                    // "gil" must be preceeded by "with" 
+                    this._addError(Localizer.Diagnostic.expectedWith(), gilToken);
+                } else if (withToken && gilToken.keywordType === KeywordType.Nogil) {
+                    // "nogil" must not be preceeded by "with"
+                    this._addError(Localizer.Diagnostic.expectedNoGil(), withToken);
+                }
+            }
+        } else if (gilOrExcept === KeywordType.Except) {
+            this._getNextToken();
+            if (!this._consumeTokenIfOperator(OperatorType.Add)) {
+                this._consumeTokenIfType(TokenType.QuestionMark);
+                this._parseTestExpression(/* allowAssignment */ false);
+            }
+        } else if (gilOrExcept === KeywordType.Noexcept) {
+            this._getNextToken();
+        }
+    }
+
     private _parseFunctionDefCython(decorators?: DecoratorNode[]): FunctionNode | ErrorNode {
         const firstToken = this._peekToken();
         let cDefType: KeywordType | undefined = undefined;
@@ -6355,6 +6390,9 @@ export class Parser {
             if (cDefType === KeywordType.Cdef || cDefType === KeywordType.Cpdef || cDefType === KeywordType.Ctypedef || cDefType === KeywordType.Def) {
                 this._getNextToken();
             }
+        } else {
+            // Assume that this is "cdef". Valid in certain statements such as "extern" statement
+            cDefType = KeywordType.Cdef;
         }
 
         let returnType: ExpressionNode | undefined = undefined;
@@ -6415,36 +6453,7 @@ export class Parser {
             this._consumeTokensUntilType([TokenType.Colon, TokenType.NewLine]);
         }
 
-        let withToken: KeywordToken | undefined = undefined;
-        if (this._peekKeywordType() === KeywordType.With) {
-            withToken = this._getNextToken() as KeywordToken;
-        }
-        if (withToken && cDefType !== KeywordType.Cdef) {
-            this._addError(Localizer.Diagnostic.expectedColon(), withToken);
-        }
-        const gilOrExcept = this._peekKeywordType();
-        if (gilOrExcept === KeywordType.Nogil || gilOrExcept === KeywordType.Gil) {
-            const gilToken = this._getNextToken() as KeywordToken;
-            if (cDefType !== KeywordType.Cdef) {
-                this._addError(Localizer.Diagnostic.invalidTrailingGilFunction(), gilToken);
-            } else {
-                if (!withToken && gilToken.keywordType === KeywordType.Gil) {
-                    // "gil" must be preceeded by "with" 
-                    this._addError(Localizer.Diagnostic.expectedWith(), gilToken);
-                } else if (withToken && gilToken.keywordType === KeywordType.Nogil) {
-                    // "nogil" must not be preceeded by "with"
-                    this._addError(Localizer.Diagnostic.expectedNoGil(), withToken);
-                }
-            }
-        } else if (gilOrExcept === KeywordType.Except) {
-            this._getNextToken();
-            if (!this._consumeTokenIfOperator(OperatorType.Add)) {
-                this._consumeTokenIfType(TokenType.QuestionMark);
-                this._parseTestExpression(/* allowAssignment */ false);
-            }
-        } else if (gilOrExcept === KeywordType.Noexcept) {
-            this._getNextToken();
-        }
+        this._parseFunctionTrailer(cDefType);
 
         let functionTypeAnnotationToken: StringToken | undefined;
         let suite: SuiteNode;
