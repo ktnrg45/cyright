@@ -6093,8 +6093,16 @@ export class Parser {
         }
 
         var statements = StatementListNode.create(this._peekToken());
-        while (!this._consumeTokenIfType(TokenType.Dedent)) {
+        while (!this._consumeTokenIfType(TokenType.Dedent) && this._peekTokenType() !== TokenType.EndOfStream) {
             this._consumeTokenIfType(TokenType.NewLine);
+            if (this._consumeTokenIfType(TokenType.Dedent)) {
+                break;
+            }
+            const possibleIndent = this._getTokenIfType(TokenType.Indent);
+            if (possibleIndent && possibleIndent.length > 0) {
+                this._addError(Localizer.Diagnostic.unexpectedIndent(), possibleIndent);
+            }
+
             if (this._peekKeywordType() === KeywordType.Ctypedef) {
                 let node = this._parseCTypeDef();
                 if (node) {
