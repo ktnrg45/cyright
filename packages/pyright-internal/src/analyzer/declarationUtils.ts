@@ -185,6 +185,7 @@ export function getNameNodeForDeclaration(declaration: Declaration): NameNode | 
         case DeclarationType.Function:
         case DeclarationType.TypeParameter:
         case DeclarationType.Parameter:
+        case DeclarationType.TypeAlias: // Cython "ctypedef" with ALL CAPS Name
             return declaration.node.name;
 
         case DeclarationType.Variable:
