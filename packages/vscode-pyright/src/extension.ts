@@ -40,6 +40,7 @@ import { Commands } from 'pyright-internal/commands/commands';
 import { isThenable } from 'pyright-internal/common/core';
 
 import { FileBasedCancellationStrategy } from './cancellationUtils';
+import { Installer } from './installer';
 
 let cancellationStrategy: FileBasedCancellationStrategy | undefined;
 
@@ -138,7 +139,7 @@ export async function activate(context: ExtensionContext) {
                                     client.sendNotification(DidChangeConfigurationNotification.type, {
                                         settings: null,
                                     });
-                                });
+                                }, context);
                             }
                             return Promise.resolve(undefined);
                         });
@@ -233,7 +234,8 @@ export function deactivate() {
 async function getPythonPathFromPythonExtension(
     outputChannel: OutputChannel,
     scopeUri: Uri | undefined,
-    postConfigChanged: () => void
+    postConfigChanged: () => void,
+    context: ExtensionContext,
 ): Promise<string | undefined> {
     try {
         const extension = extensions.getExtension('ms-python.python');
@@ -265,6 +267,7 @@ async function getPythonPathFromPythonExtension(
                     outputChannel.appendLine(`No pythonPath provided by Python extension`);
                 } else {
                     outputChannel.appendLine(`Received pythonPath from Python extension: ${result}`);
+                    Installer.installCython(context, outputChannel, result);
                 }
 
                 return result;
