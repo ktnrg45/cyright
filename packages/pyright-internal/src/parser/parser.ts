@@ -6208,7 +6208,7 @@ export class Parser {
             }
             // If open Parenthesis assume function declaration
             if (iterToken.type == TokenType.OpenParenthesis) {
-                let skipAhead = this._peekUntilType([TokenType.OpenParenthesis, TokenType.CloseParenthesis, TokenType.NewLine], skip);
+                let skipAhead = this._peekUntilType([TokenType.OpenParenthesis, TokenType.CloseParenthesis, TokenType.NewLine], skip + 1);
                 let atToken = this._peekToken(skipAhead);
                 if (atToken.type === TokenType.CloseParenthesis) {
                     let nextToken = this._peekToken(skipAhead + 1);
