@@ -1,3 +1,9 @@
+# Cyright
+# Static type checker for Cython
+This is the static type checker/language server for the VS Code [Cython extension](https://github.com/ktnrg45/vs-code-cython).
+<br><br><br>
+
+#
 ![Pyright](/docs/img/PyrightLarge.png)
 
 # Static type checker for Python
