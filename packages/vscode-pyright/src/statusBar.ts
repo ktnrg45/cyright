@@ -52,11 +52,10 @@ export class StatusBar {
         this.statusBar.hide();
     }
 
-    update(outputChannel: OutputChannel, pythonPath: string | undefined) {
+    update(pythonPath: string | undefined) {
         if (pythonPath) {
             this.statusBar.text = this.getText(pythonPath);
             this.statusBar.backgroundColor = undefined;
-            outputChannel.appendLine("Status Bar Update:" );
         } else {
             this.statusBar.backgroundColor = new ThemeColor('statusBarItem.warningBackground');
             this.statusBar.text = `$(alert) ${BUTTON_LABEL}`;

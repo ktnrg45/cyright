@@ -271,7 +271,7 @@ async function getPythonPathFromPythonExtension(
                     outputChannel.appendLine(`Received pythonPath from Python extension: ${result}`);
                     Installer.installCython(context, outputChannel, result);
                 }
-                statusBar.update(outputChannel, result);
+                statusBar.update(result);
 
                 return result;
             }
