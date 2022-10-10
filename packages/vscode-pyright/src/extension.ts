@@ -41,6 +41,7 @@ import { isThenable } from 'pyright-internal/common/core';
 
 import { FileBasedCancellationStrategy } from './cancellationUtils';
 import { Installer } from './installer';
+import { StatusBar} from './statusBar';
 
 let cancellationStrategy: FileBasedCancellationStrategy | undefined;
 
@@ -65,7 +66,7 @@ export async function activate(context: ExtensionContext) {
     //     );
     //     return;
     // }
-
+    const statusBar = new StatusBar(context);
     cancellationStrategy = new FileBasedCancellationStrategy();
 
     // const bundlePath = context.asAbsolutePath(path.join('dist', 'server.js'));
@@ -139,7 +140,7 @@ export async function activate(context: ExtensionContext) {
                                     client.sendNotification(DidChangeConfigurationNotification.type, {
                                         settings: null,
                                     });
-                                }, context);
+                                }, context, statusBar);
                             }
                             return Promise.resolve(undefined);
                         });
@@ -236,6 +237,7 @@ async function getPythonPathFromPythonExtension(
     scopeUri: Uri | undefined,
     postConfigChanged: () => void,
     context: ExtensionContext,
+    statusBar: StatusBar,
 ): Promise<string | undefined> {
     try {
         const extension = extensions.getExtension('ms-python.python');
@@ -269,6 +271,7 @@ async function getPythonPathFromPythonExtension(
                     outputChannel.appendLine(`Received pythonPath from Python extension: ${result}`);
                     Installer.installCython(context, outputChannel, result);
                 }
+                statusBar.update(outputChannel, result);
 
                 return result;
             }

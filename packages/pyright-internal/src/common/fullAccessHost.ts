@@ -7,12 +7,13 @@
  */
 
 import * as child_process from 'child_process';
+import { string } from 'yargs';
 
 import { PythonPathResult } from '../analyzer/pythonPathUtils';
 import { PythonPlatform } from './configOptions';
 import { assertNever } from './debug';
 import { FileSystem } from './fileSystem';
-import { HostKind, NoAccessHost } from './host';
+import { HostKind, NoAccessHost, PythonExecDetails } from './host';
 import { isDirectory, normalizePath } from './pathUtils';
 import { PythonVersion, versionFromMajorMinor } from './pythonVersion';
 
@@ -35,8 +36,15 @@ const extractSys = [
 
 const extractVersion = [
     ...removeCwdFromSysPath,
-    'import sys, json',
-    'json.dump(dict(major=sys.version_info[0], minor=sys.version_info[1]), sys.stdout)',
+    'import sys, json, platform',
+    'json.dump(dict(major=sys.version_info[0], minor=sys.version_info[1], micro=sys.version_info[2]), sys.stdout)',
+].join('; ');
+
+const extractExecDetails = [
+    ...removeCwdFromSysPath,
+    'import sys, json, platform, os',
+    'prefix = getattr(sys, "base_prefix", None) or getattr(sys, "real_prefix", None) or sys.prefix',
+    'json.dump(dict(arch=platform.architecture()[0], isGlobal=prefix==sys.prefix), sys.stdout)',
 ].join('; ');
 
 export class LimitedAccessHost extends NoAccessHost {
@@ -121,6 +129,42 @@ export class FullAccessHost extends LimitedAccessHost {
             return version;
         } catch {
             importFailureInfo.push('Unable to get Python version from interpreter');
+            return undefined;
+        }
+    }
+
+    override getPythonVersionAsString(pythonPath?: string, logInfo?: string[]): string | undefined {
+        const importFailureInfo = logInfo ?? [];
+
+        try {
+            const commandLineArgs: string[] = ['-c', extractVersion];
+            const execOutput = this._executePythonInterpreter(pythonPath, (p) =>
+                child_process.execFileSync(p, commandLineArgs, { encoding: 'utf8' })
+            );
+
+            const version: { major: number; minor: number, micro: number } = JSON.parse(execOutput!);
+            return `${version.major}.${version.minor}.${version.micro}`;
+        } catch {
+            importFailureInfo.push('Unable to get Python version from interpreter');
+            return undefined;
+        }
+    }
+
+
+    override getPythonExecDetails(pythonPath?: string, logInfo?: string[]): PythonExecDetails | undefined {
+        const importFailureInfo = logInfo ?? [];
+
+        try {
+            const commandLineArgs: string[] = ['-c', extractExecDetails];
+            const execOutput = this._executePythonInterpreter(pythonPath, (p) =>
+                child_process.execFileSync(p, commandLineArgs, { encoding: 'utf8' })
+            );
+
+            const details: { arch: string; isGlobal: boolean } = JSON.parse(execOutput!);
+            details.arch = details.arch.replace("bit", "-bit");
+            return details;
+        } catch {
+            importFailureInfo.push('Unable to get Python arch from interpreter');
             return undefined;
         }
     }

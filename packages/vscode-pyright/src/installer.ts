@@ -136,7 +136,7 @@ function handleInput(context: ExtensionContext, pythonPath: string, input: strin
     }
 }
 
-function prompt(context: ExtensionContext, outputChannel: OutputChannel, pythonPath: string) {
+function prompt(context: ExtensionContext, pythonPath: string) {
     const promise = window.showErrorMessage(Message.Prompt, Message.Install, Message.DontShow);
     promise.then((item) => {
         handleInput(context, pythonPath, item);
@@ -151,7 +151,7 @@ export namespace Installer {
             return;
         }
         if (!checkCythonInstalled(outputChannel, pythonPath)) {
-            prompt(context, outputChannel, pythonPath);
+            prompt(context, pythonPath);
         }
     }
 }

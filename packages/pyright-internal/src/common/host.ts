@@ -23,6 +23,11 @@ export interface Host {
     getPythonPlatform(logInfo?: string[]): PythonPlatform | undefined;
 }
 
+export interface PythonExecDetails {
+    arch: string,
+    isGlobal: boolean,
+}
+
 export class NoAccessHost implements Host {
     get kind(): HostKind {
         return HostKind.NoAccess;
@@ -38,6 +43,14 @@ export class NoAccessHost implements Host {
     }
 
     getPythonVersion(pythonPath?: string, logInfo?: string[]): PythonVersion | undefined {
+        return undefined;
+    }
+
+    getPythonVersionAsString(pythonPath?: string, logInfo?: string[]): string | undefined {
+        return undefined;
+    }
+
+    getPythonExecDetails(pythonPath?: string, logInfo?: string[]): PythonExecDetails | undefined {
         return undefined;
     }
 
