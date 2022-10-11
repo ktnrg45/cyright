@@ -25,6 +25,7 @@ import {
     isModule,
     isOverloadedFunction,
     isTypeVar,
+    PrefixSuffixMap,
     Type,
     UnknownType,
 } from '../analyzer/types';
@@ -426,8 +427,13 @@ export class HoverProvider {
     private static _getTypeText(node: NameNode, evaluator: TypeEvaluator, expandTypeAlias = false): string {
         const type = evaluator.getType(node) || UnknownType.create();
         let suffix = "";
+        let prefix = "";
         if (type.suffixMap) {
-            suffix = type.suffixMap.get(node.id) || "";
+            const suffixMap = type.suffixMap.get(node.id);
+            if (suffixMap) {
+                suffix = suffixMap.suffix || "";
+                prefix = suffixMap.prefix || "";
+            }
         }
         return ': ' + evaluator.printType(type, expandTypeAlias) + suffix;
     }

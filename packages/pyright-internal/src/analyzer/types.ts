@@ -111,6 +111,11 @@ interface TypeAliasInfo {
     typeVarScopeId: TypeVarScopeId;
 }
 
+export interface PrefixSuffixMap {
+    prefix?: string;
+    suffix?: string;
+}
+
 interface TypeBase {
     category: TypeCategory;
     flags: TypeFlags;
@@ -132,7 +137,7 @@ interface TypeBase {
     // type to be seen as distinct when comparing types.
     isAmbiguous?: boolean;
 
-    suffixMap?: Map<number, string> | undefined;
+    suffixMap?: Map<number, PrefixSuffixMap> | undefined;
 }
 
 export namespace TypeBase {

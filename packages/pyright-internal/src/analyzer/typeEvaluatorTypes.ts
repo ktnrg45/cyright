@@ -39,6 +39,7 @@ import {
     FunctionParameter,
     FunctionType,
     OverloadedFunctionType,
+    PrefixSuffixMap,
     Type,
     TypeCondition,
     TypeVarType,
@@ -306,6 +307,7 @@ export interface CallResult {
 export interface TypeEvaluator {
     runWithCancellationToken<T>(token: CancellationToken, callback: () => T): T;
 
+    getTypePrefixSuffix: (node: ParseNode, type: Type | undefined) => PrefixSuffixMap | undefined;
     getType: (node: ExpressionNode) => Type | undefined;
     getTypeOfExpression: (node: ExpressionNode, flags?: EvaluatorFlags, expectedType?: Type) => TypeResult;
     getTypeOfAnnotation: (node: ExpressionNode, options?: AnnotationTypeOptions) => Type;

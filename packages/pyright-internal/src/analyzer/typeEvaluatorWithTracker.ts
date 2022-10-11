@@ -60,6 +60,7 @@ export function createTypeEvaluatorWithTracker(
 
     const withTracker: TypeEvaluator = {
         runWithCancellationToken: typeEvaluator.runWithCancellationToken,
+        getTypePrefixSuffix: (n, t) => run('getTypePrefixSuffix', () => typeEvaluator.getTypePrefixSuffix(n, t), n),
         getType: (n) => run('getType', () => typeEvaluator.getType(n), n),
         getTypeOfExpression: (n, f, e) =>
             run('getTypeOfExpression', () => typeEvaluator.getTypeOfExpression(n, f, e), n),

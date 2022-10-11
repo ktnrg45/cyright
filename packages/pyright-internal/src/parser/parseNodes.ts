@@ -140,6 +140,11 @@ export interface ParseNodeBase extends TextRange {
     // to detect long chains of operations that can result in
     // stack overflows during evaluation.
     maxChildDepth?: number;
+
+    // Probably not the best place for these...
+    // Type Prefix
+    prefix?: string;
+    // Type Suffix
     suffix?: string;
 }
 

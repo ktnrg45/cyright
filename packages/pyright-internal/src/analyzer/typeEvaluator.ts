@@ -209,6 +209,7 @@ import {
     NoneType,
     OverloadedFunctionType,
     ParamSpecEntry,
+    PrefixSuffixMap,
     removeFromUnion,
     removeNoneFromUnion,
     removeUnbound,
@@ -689,11 +690,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         expectedType?: Type,
         allowSpeculativeCaching = false
     ) {
-        if (node.suffix) {
+        if (node.suffix || node.prefix) {
             if (!type.suffixMap) {
                 type.suffixMap = new Map();
             }
-            type.suffixMap.set(node.id, node.suffix);
+            const suffixMap = {prefix: node.prefix, suffix: node.suffix};
+            type.suffixMap.set(node.id, suffixMap);
         }
         if (isIncomplete) {
             if (incompleteTypeCache) {
@@ -824,6 +826,14 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         const index = getIndexOfSymbolResolution(symbol, declaration);
         if (index >= 0) {
             return symbolResolutionStack[index].partialType;
+        }
+
+        return undefined;
+    }
+
+    function getTypePrefixSuffix(node: ParseNode, type: Type | undefined) : PrefixSuffixMap | undefined {
+        if (type && type.suffixMap) {
+            return type.suffixMap.get(node.id);
         }
 
         return undefined;
@@ -3565,6 +3575,11 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         allowAssignmentToFinalVar = false,
         expectedTypeDiagAddendum?: DiagnosticAddendum
     ) {
+        const suffixMap = getTypePrefixSuffix(srcExpr, type);
+        if (suffixMap) {
+            target.suffix = suffixMap.suffix;
+            target.prefix = suffixMap.prefix;
+        }
         // Is the source expression a TypeVar() call?
         if (isTypeVar(type)) {
             if (srcExpr && srcExpr.nodeType === ParseNodeType.Call) {
@@ -4038,6 +4053,16 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                             isIncomplete = true;
                         }
                     }
+                }
+
+                if (type) {
+                    symbol.getDeclarations().forEach(decl => {
+                        const suffixMap = getTypePrefixSuffix(decl.node, type);
+                        if (suffixMap) {
+                            node.suffix = suffixMap.suffix;
+                            node.prefix = suffixMap.prefix;
+                        }
+                    });
                 }
 
                 // Detect, report, and fill in missing type arguments if appropriate.
@@ -23996,6 +24021,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
     const evaluatorInterface: TypeEvaluator = {
         runWithCancellationToken,
+        getTypePrefixSuffix,
         getType,
         getTypeOfExpression,
         getTypeOfAnnotation,
