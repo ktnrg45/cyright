@@ -5147,10 +5147,10 @@ export class Parser {
     }
 
     // Cython
-    private _consumeTokenPointers(): Token[] {
-        var ptrTokens: Token[] = [];
+    private _consumeTokenPointers(): OperatorToken[] {
+        var ptrTokens: OperatorToken[] = [];
         while (this._isTokenPointer()) {
-            ptrTokens.push(this._getNextToken());
+            ptrTokens.push(this._getNextToken() as OperatorToken);
         }
         return ptrTokens;
     }
@@ -5975,7 +5975,7 @@ export class Parser {
         }
 
         var viewTokens: Token[] = [];
-        var ptrTokens: Token[] = [];
+        var ptrTokens: OperatorToken[] = [];
         var dimTokens: Token[] = [];
         let varType: ExpressionNode | undefined = undefined;
         let varName: NameNode | undefined = undefined;
@@ -6072,6 +6072,13 @@ export class Parser {
         typedVarNode.viewTokens = viewTokens;
         typedVarNode.numericModifiers = numModifiers.map((modToken) => NameNode.create(modToken as IdentifierToken));
         typedVarNode.aliasToken = (alias) ? alias as StringToken : undefined;
+
+        if (ptrTokens.length > 0) {
+            typedVarNode.name.suffix = "";
+            ptrTokens.forEach(token => {
+                typedVarNode.name.suffix += (token.operatorType === OperatorType.Power) ? "**" : "*";
+            });
+        }
         return typedVarNode;
     }
 
@@ -6314,7 +6321,7 @@ export class Parser {
     }
 
     // 'include "filedir/filename.ext"' Handle as 'from filedir.filename import *'
-    // Used for ".pyx" and ".pxi" files 
+    // Used for ".pyx" and ".pxi" files
     private _parseIncludeStatement(): ImportFromNode {
         const includeToken = this._getKeywordToken(KeywordType.Include);
         let moduleNameNode = this._parseIncludeName();
@@ -6333,7 +6340,7 @@ export class Parser {
         return importFromNode;
     }
 
-    // Cython deprecated class property: "property name:" 
+    // Cython deprecated class property: "property name:"
     private _parseDeprecatedPropertyCython(): ClassNode | undefined {
         if (this._peekTokenIfIdentifier()) {
             let possiblePropertyToken = this._peekToken();
@@ -6372,7 +6379,7 @@ export class Parser {
                 this._addError(Localizer.Diagnostic.invalidTrailingGilFunction(), gilToken);
             } else {
                 if (!withToken && gilToken.keywordType === KeywordType.Gil) {
-                    // "gil" must be preceeded by "with" 
+                    // "gil" must be preceeded by "with"
                     this._addError(Localizer.Diagnostic.expectedWith(), gilToken);
                 } else if (withToken && gilToken.keywordType === KeywordType.Nogil) {
                     // "nogil" must not be preceeded by "with"

@@ -689,6 +689,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         expectedType?: Type,
         allowSpeculativeCaching = false
     ) {
+        if (node.suffix) {
+            if (!type.suffixMap) {
+                type.suffixMap = new Map();
+            }
+            type.suffixMap.set(node.id, node.suffix);
+        }
         if (isIncomplete) {
             if (incompleteTypeCache) {
                 incompleteTypeCache.set(node.id, type);

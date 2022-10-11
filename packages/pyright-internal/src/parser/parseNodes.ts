@@ -140,6 +140,7 @@ export interface ParseNodeBase extends TextRange {
     // to detect long chains of operations that can result in
     // stack overflows during evaluation.
     maxChildDepth?: number;
+    suffix?: string;
 }
 
 let _nextNodeId = 1;
@@ -2400,7 +2401,7 @@ export interface TypedVarNode extends ParseNodeBase {
     defaultValue?: ExpressionNode | undefined;
     callbackFunc?: FunctionNode | undefined;
     aliasToken?: StringToken | undefined;
-    
+
 }
 
 export namespace TypedVarNode {

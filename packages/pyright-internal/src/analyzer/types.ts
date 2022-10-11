@@ -131,6 +131,8 @@ interface TypeBase {
     // with a TypeFlags because we don't want an ambiguous and unambiguous
     // type to be seen as distinct when comparing types.
     isAmbiguous?: boolean;
+
+    suffixMap?: Map<number, string> | undefined;
 }
 
 export namespace TypeBase {

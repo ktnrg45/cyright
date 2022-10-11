@@ -425,7 +425,11 @@ export class HoverProvider {
 
     private static _getTypeText(node: NameNode, evaluator: TypeEvaluator, expandTypeAlias = false): string {
         const type = evaluator.getType(node) || UnknownType.create();
-        return ': ' + evaluator.printType(type, expandTypeAlias);
+        let suffix = "";
+        if (type.suffixMap) {
+            suffix = type.suffixMap.get(node.id) || "";
+        }
+        return ': ' + evaluator.printType(type, expandTypeAlias) + suffix;
     }
 
     private static _addDocumentationPart(
