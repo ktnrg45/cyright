@@ -1440,6 +1440,9 @@ export interface NameNode extends ParseNodeBase {
     value: string;
     isPrototype?: boolean;
     ignoreUndefined?: boolean;
+    pointers?: Token[] | undefined;
+    dimTokens?: Token[] | undefined;
+    aliasToken?: StringToken | undefined;
 }
 
 export namespace NameNode {
@@ -2401,12 +2404,9 @@ export interface TypedVarNode extends ParseNodeBase {
     typeAnnotationComment?: ExpressionNode | undefined;
     modifier?: Token | undefined;
     numericModifiers?: ExpressionNode[] | undefined;
-    pointers?: Token[] | undefined;
     viewTokens?: Token[] | undefined;
     defaultValue?: ExpressionNode | undefined;
     callbackFunc?: FunctionNode | undefined;
-    aliasToken?: StringToken | undefined;
-
 }
 
 export namespace TypedVarNode {
