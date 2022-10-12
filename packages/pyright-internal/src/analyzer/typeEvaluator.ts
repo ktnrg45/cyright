@@ -23942,14 +23942,14 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         return TypePrinter.printFunctionParts(type, evaluatorOptions.printTypeFlags, getFunctionEffectiveReturnType);
     }
 
-    function printType(type: Type, expandTypeAlias = false): string {
+    function printType(type: Type, expandTypeAlias = false, suffixMap?: PrefixSuffixMap): string {
         let flags = evaluatorOptions.printTypeFlags;
 
         if (expandTypeAlias) {
             flags |= TypePrinter.PrintTypeFlags.ExpandTypeAlias;
         }
 
-        return TypePrinter.printType(type, flags, getFunctionEffectiveReturnType);
+        return TypePrinter.printType(type, flags, getFunctionEffectiveReturnType, undefined, undefined, suffixMap);
     }
 
     // Calls back into the parser to parse the contents of a string literal.

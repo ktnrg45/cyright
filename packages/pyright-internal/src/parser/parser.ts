@@ -5386,6 +5386,18 @@ export class Parser {
         return tokens;
     }
 
+    private _getTokenText(token: Token) : string {
+        return this._fileContents!.substr(token.start, token.length);
+    }
+
+    private _getTokenListText(tokens: Token[]): string {
+        let text = "";
+        for (let token of tokens) {
+            text += this._getTokenText(token);
+        }
+        return text;
+    }
+
     private _parseEnum(nextToken: Token, structToken: Token, asSuite = true): StatementListNode | undefined {
         if (asSuite) {
             this._consumeTokensUntilType([TokenType.NewLine]);
@@ -5936,6 +5948,7 @@ export class Parser {
             this._getNextToken();
         }
         const varModifier = this._isVarModifier(this._peekToken());
+        let varModifierToken: Token | undefined = undefined;
 
         if (varModifier) {
             switch (typedVarCategory) {
@@ -5946,7 +5959,7 @@ export class Parser {
                     }
                     break;
             }
-            this._getNextToken();
+            varModifierToken = this._getNextToken();
         }
 
         while (numModifiers.length < 4) {
@@ -6048,7 +6061,7 @@ export class Parser {
 
             if (varName?.value !== '') {
                 this._getNextToken();
-                let dimTokens = this._peekDimTokens();
+                dimTokens = this._peekDimTokens();
                 for (let index = 0; index < dimTokens.length; index++) {
                     this._getNextToken();
                 }
@@ -6067,17 +6080,29 @@ export class Parser {
         const alias = this._getTokenIfType(TokenType.String);
 
         const typedVarNode = TypedVarNode.create(firstToken, varName, varType, typedVarCategory)
-        typedVarNode.modifier = (varModifier) ? firstToken : undefined;
+        typedVarNode.modifier = varModifierToken;
         typedVarNode.pointers = ptrTokens;
         typedVarNode.viewTokens = viewTokens;
         typedVarNode.numericModifiers = numModifiers.map((modToken) => NameNode.create(modToken as IdentifierToken));
         typedVarNode.aliasToken = (alias) ? alias as StringToken : undefined;
 
-        if (ptrTokens.length > 0) {
-            typedVarNode.name.suffix = "";
-            ptrTokens.forEach(token => {
-                typedVarNode.name.suffix += (token.operatorType === OperatorType.Power) ? "**" : "*";
-            });
+        const prefixList: string[] = [];
+        if (varModifierToken) {
+            prefixList.push(this._getTokenText(varModifierToken));
+        }
+        for (let token of numModifiers) {
+            prefixList.push(this._getTokenText(token));
+        }
+
+        const suffixList = [...ptrTokens, ...viewTokens, ...dimTokens];
+
+        const prefix = prefixList.join(" ");
+        const suffix = this._getTokenListText(suffixList);
+        if (prefix.length > 0) {
+            typedVarNode.name.prefix = prefix;
+        }
+        if (suffix.length > 0) {
+            typedVarNode.name.suffix = suffix;
         }
         return typedVarNode;
     }

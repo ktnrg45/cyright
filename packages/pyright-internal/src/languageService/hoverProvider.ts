@@ -428,14 +428,15 @@ export class HoverProvider {
         const type = evaluator.getType(node) || UnknownType.create();
         let suffix = "";
         let prefix = "";
-        if (type.suffixMap) {
-            const suffixMap = type.suffixMap.get(node.id);
-            if (suffixMap) {
-                suffix = suffixMap.suffix || "";
-                prefix = suffixMap.prefix || "";
-            }
-        }
-        return ': ' + evaluator.printType(type, expandTypeAlias) + suffix;
+        let suffixMap = (type.suffixMap) ? type.suffixMap.get(node.id) : undefined;
+        // if (type.suffixMap) {
+        //     suffixMap = type.suffixMap.get(node.id);
+        //     if (suffixMap) {
+        //         suffix = suffixMap.suffix || "";
+        //         prefix = suffixMap.prefix || "";
+        //     }
+        // }
+        return ': ' + evaluator.printType(type, expandTypeAlias, suffixMap);
     }
 
     private static _addDocumentationPart(

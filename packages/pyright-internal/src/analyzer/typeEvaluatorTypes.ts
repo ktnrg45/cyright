@@ -477,7 +477,7 @@ export interface TypeEvaluator {
         range: TextRange
     ) => Diagnostic | undefined;
 
-    printType: (type: Type, expandTypeAlias?: boolean) => string;
+    printType: (type: Type, expandTypeAlias?: boolean, suffixMap?: PrefixSuffixMap) => string;
     printFunctionParts: (type: FunctionType) => [string[], string];
 
     getTypeCacheEntryCount: () => number;

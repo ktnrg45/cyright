@@ -24,6 +24,7 @@ import {
     isUnpacked,
     isVariadicTypeVar,
     maxTypeRecursionCount,
+    PrefixSuffixMap,
     removeNoneFromUnion,
     TupleTypeArgument,
     Type,
@@ -73,7 +74,8 @@ export function printType(
     printTypeFlags: PrintTypeFlags,
     returnTypeCallback: FunctionReturnTypeCallback,
     recursionTypes: Type[] = [],
-    recursionCount = 0
+    recursionCount = 0,
+    suffixMap?: PrefixSuffixMap,
 ): string {
     const parenthesizeUnion = (printTypeFlags & PrintTypeFlags.ParenthesizeUnion) !== 0;
     const parenthesizeCallable = (printTypeFlags & PrintTypeFlags.ParenthesizeCallable) !== 0;
@@ -99,7 +101,7 @@ export function printType(
         if (!expandTypeAlias) {
             try {
                 recursionTypes.push(type);
-                let aliasName = type.typeAliasInfo.name;
+                let aliasName = _printTextWithFixes(type.typeAliasInfo.name, suffixMap);
                 const typeParams = type.typeAliasInfo.typeParameters;
 
                 if (typeParams) {
@@ -256,7 +258,9 @@ export function printType(
                         type,
                         printTypeFlags,
                         returnTypeCallback,
-                        recursionTypes
+                        recursionTypes,
+                        undefined,
+                        suffixMap,
                     )}${getConditionalIndicator(type)}`;
                 } else {
                     let typeToWrap: string;
@@ -268,7 +272,9 @@ export function printType(
                             type,
                             printTypeFlags,
                             returnTypeCallback,
-                            recursionTypes
+                            recursionTypes,
+                            undefined,
+                            suffixMap,
                         )}`;
                     }
 
@@ -582,10 +588,11 @@ export function printObjectTypeForClass(
     printTypeFlags: PrintTypeFlags,
     returnTypeCallback: FunctionReturnTypeCallback,
     recursionTypes: Type[] = [],
-    recursionCount = 0
+    recursionCount = 0,
+    suffixMap?: PrefixSuffixMap,
 ): string {
     let objName = type.aliasName || type.details.name;
-
+    objName = _printTextWithFixes(objName, suffixMap)
     // If this is a pseudo-generic class, don't display the type arguments
     // or type parameters because it will confuse users.
     if (!ClassType.isPseudoGenericClass(type)) {
@@ -856,7 +863,7 @@ export function printFunctionParts(
 
 // Surrounds a printed type with Type[...] as many times as needed
 // for the nested instantiable count.
-function _printNestedInstantiable(type: Type, textToWrap: string) {
+function _printNestedInstantiable(type: Type, textToWrap: string, suffixMap?: PrefixSuffixMap) {
     const nestedTypes = (type.instantiableNestingLevel ?? 0) + 1;
 
     for (let nestLevel = 0; nestLevel < nestedTypes; nestLevel++) {
@@ -864,4 +871,18 @@ function _printNestedInstantiable(type: Type, textToWrap: string) {
     }
 
     return textToWrap;
+}
+
+function _printTextWithFixes(text: string, suffixMap?: PrefixSuffixMap): string {
+    if (!suffixMap) {
+        return text;
+    }
+
+    if (suffixMap.prefix) {
+        text = `${suffixMap.prefix} ${text}`;
+    }
+    if (suffixMap.suffix) {
+        text = `${text}${suffixMap.suffix}`
+    }
+    return text;
 }

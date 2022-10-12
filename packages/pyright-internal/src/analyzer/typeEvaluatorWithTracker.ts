@@ -153,7 +153,7 @@ export function createTypeEvaluatorWithTracker(
         addDeprecated: typeEvaluator.addDeprecated,
         addDiagnostic: typeEvaluator.addDiagnostic,
         addDiagnosticForTextRange: typeEvaluator.addDiagnosticForTextRange,
-        printType: (t, e) => run('printType', () => typeEvaluator.printType(t, e), t),
+        printType: (t, e, s) => run('printType', () => typeEvaluator.printType(t, e, s), t),
         printFunctionParts: (t) => run('printFunctionParts', () => typeEvaluator.printFunctionParts(t), t),
         getTypeCacheEntryCount: typeEvaluator.getTypeCacheEntryCount,
         disposeEvaluator: typeEvaluator.disposeEvaluator,
