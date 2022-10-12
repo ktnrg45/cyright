@@ -5670,18 +5670,17 @@ export class Parser {
                 break;
             }
 
-            // double name, name2
-            let nextToken = this._getNextToken();
-            if (nextToken.type !== TokenType.Comma) {
-                this._addError(Localizer.Diagnostic.expectedNewlineOrSemicolon(), nextToken);
+            // Chained declaration: "type name, name2"
+            if (!this._consumeTokenIfType(TokenType.Comma)) {
+                this._addError(Localizer.Diagnostic.expectedNewlineOrSemicolon(), this._peekToken());
                 break;
             }
-            nextToken = this._getNextToken();
-            if (nextToken.type !== TokenType.Identifier) {
-                this._addError(Localizer.Diagnostic.expectedIdentifier(), nextToken);
+            const name = this._parseTypedName();
+            if (!name) {
+                this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
                 break;
             }
-            let name = NameNode.create(nextToken as IdentifierToken);
+            this._addFixesToName(typedVarNode, name);
             const annotation = TypeAnnotationNode.create(name, varType);
             const expression = AssignmentNode.create(annotation, varType);
             annotation.parent = expression;
@@ -5945,11 +5944,32 @@ export class Parser {
             for (let index = 0; index < dimTokens.length; index++) {
                 this._getNextToken();
             }
-            name.pointers = ptrTokens;
+            name.ptrTokens = ptrTokens;
             name.dimTokens = dimTokens;
             name.aliasToken = this._getTokenIfType(TokenType.String) as StringToken;
         }
         return name;
+    }
+
+    private _addFixesToName(typedVarNode: TypedVarNode, name: NameNode) {
+        const prefixList: string[] = [];
+        if (typedVarNode.modifier) {
+            prefixList.push(this._getTokenText(typedVarNode.modifier));
+        }
+        for (let token of typedVarNode.numericModifiers || []) {
+            prefixList.push(this._getTokenText(token));
+        }
+
+        const suffixList = [...typedVarNode.viewTokens || [], ...name.ptrTokens || [], ...name.dimTokens || []];
+
+        const prefix = prefixList.join(" ");
+        const suffix = this._getTokenListText(suffixList);
+        if (prefix.length > 0) {
+            name.prefix = prefix;
+        }
+        if (suffix.length > 0) {
+            name.suffix = suffix;
+        }
     }
 
     // const unsigned long long int* var
@@ -6071,7 +6091,7 @@ export class Parser {
 
         if (!varName || !varType) {
             this._addError(Localizer.Diagnostic.expectedNewlineOrSemicolon(), this._peekToken());
-            return undefined
+            return undefined;
         }
 
         if (allowPrototype) {
@@ -6080,27 +6100,10 @@ export class Parser {
 
         const typedVarNode = TypedVarNode.create(firstToken, varName, varType, typedVarCategory)
         typedVarNode.modifier = varModifierToken;
-        typedVarNode.numericModifiers = numModifiers.map((modToken) => NameNode.create(modToken as IdentifierToken));
+        typedVarNode.numericModifiers = numModifiers.map((modToken) => modToken as IdentifierToken);
         typedVarNode.viewTokens = viewTokens;
 
-        const prefixList: string[] = [];
-        if (varModifierToken) {
-            prefixList.push(this._getTokenText(varModifierToken));
-        }
-        for (let token of numModifiers) {
-            prefixList.push(this._getTokenText(token));
-        }
-
-        const suffixList = [...viewTokens, ...varName.pointers || [], ...varName.dimTokens || []];
-
-        const prefix = prefixList.join(" ");
-        const suffix = this._getTokenListText(suffixList);
-        if (prefix.length > 0) {
-            typedVarNode.name.prefix = prefix;
-        }
-        if (suffix.length > 0) {
-            typedVarNode.name.suffix = suffix;
-        }
+        this._addFixesToName(typedVarNode, typedVarNode.name);
         return typedVarNode;
     }
 
