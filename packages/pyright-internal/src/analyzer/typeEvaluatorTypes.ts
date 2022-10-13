@@ -28,6 +28,7 @@ import {
     ParseNode,
     RaiseNode,
     StringNode,
+    PrefixSuffixMap,
 } from '../parser/parseNodes';
 import * as DeclarationUtils from './aliasDeclarationUtils';
 import { AnalyzerFileInfo } from './analyzerFileInfo';
@@ -39,7 +40,6 @@ import {
     FunctionParameter,
     FunctionType,
     OverloadedFunctionType,
-    PrefixSuffixMap,
     Type,
     TypeCondition,
     TypeVarType,

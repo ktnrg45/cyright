@@ -25,7 +25,6 @@ import {
     isModule,
     isOverloadedFunction,
     isTypeVar,
-    PrefixSuffixMap,
     Type,
     UnknownType,
 } from '../analyzer/types';
@@ -40,7 +39,7 @@ import { assertNever, fail } from '../common/debug';
 import { convertOffsetToPosition, convertPositionToOffset } from '../common/positionUtils';
 import { Position, Range } from '../common/textRange';
 import { TextRange } from '../common/textRange';
-import { NameNode, ParseNode, ParseNodeType, StringNode } from '../parser/parseNodes';
+import { NameNode, ParseNode, ParseNodeType, StringNode, PrefixSuffixMap } from '../parser/parseNodes';
 import { ParseResults } from '../parser/parser';
 import { getDocumentationPartsForTypeAndDecl, getOverloadedFunctionTooltip } from './tooltipUtils';
 
@@ -426,7 +425,7 @@ export class HoverProvider {
 
     private static _getTypeText(node: NameNode, evaluator: TypeEvaluator, expandTypeAlias = false): string {
         const type = evaluator.getType(node) || UnknownType.create();
-        let suffixMap = (type.suffixMap) ? type.suffixMap.get(node.id) : undefined;
+        let suffixMap = (type.suffixMaps) ? type.suffixMaps.get(node.id) : undefined;
         return ': ' + evaluator.printType(type, expandTypeAlias, suffixMap);
     }
 

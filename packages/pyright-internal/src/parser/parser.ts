@@ -119,6 +119,7 @@ import {
     YieldNode,
     TypedVarNode,
     TypedVarCategory,
+    PrefixSuffixMap,
 } from './parseNodes';
 import * as StringTokenUtils from './stringTokenUtils';
 import { Tokenizer, TokenizerOutput } from './tokenizer';
@@ -5953,7 +5954,8 @@ export class Parser {
 
     private _addFixesToName(typedVarNode: TypedVarNode, name: NameNode) {
         const prefixList: string[] = [];
-        if (typedVarNode.modifier) {
+        const exclude = [KeywordType.Inline, KeywordType.Public, KeywordType.Readonly];
+        if (typedVarNode.modifier && !exclude.includes((typedVarNode.modifier as KeywordToken).keywordType)) {
             prefixList.push(this._getTokenText(typedVarNode.modifier));
         }
         for (let token of typedVarNode.numericModifiers || []) {
@@ -5964,11 +5966,9 @@ export class Parser {
 
         const prefix = prefixList.join(" ");
         const suffix = this._getTokenListText(suffixList);
-        if (prefix.length > 0) {
-            name.prefix = prefix;
-        }
-        if (suffix.length > 0) {
-            name.suffix = suffix;
+
+        if (prefix.length > 0 || suffix.length > 0) {
+            name.suffixMap = PrefixSuffixMap.create(prefix, suffix);
         }
     }
 
@@ -6436,19 +6436,19 @@ export class Parser {
         }
 
         let returnType: ExpressionNode | undefined = undefined;
-        let nameToken: NameNode | undefined = undefined;
+        let nameNode: NameNode | undefined = undefined;
         let typeParameters: TypeParameterListNode | undefined;
         let typedVarNode: TypedVarNode | undefined = undefined;
 
         if (this._peekTokenType() === TokenType.Identifier && this._peekToken(1).type === TokenType.OpenParenthesis) {
             // Function has no declared return type
-            nameToken = NameNode.create(this._getNextToken() as IdentifierToken);
+            nameNode = NameNode.create(this._getNextToken() as IdentifierToken);
         } else if (this._peekTokenType() === TokenType.Identifier &&
             this._peekToken(1).type === TokenType.Identifier &&
             this._peekToken(2).type === TokenType.OpenBracket) {
             // Template: [Type, ...]
             returnType = NameNode.create(this._getNextToken() as IdentifierToken);
-            nameToken = NameNode.create(this._getNextToken() as IdentifierToken);
+            nameNode = NameNode.create(this._getNextToken() as IdentifierToken);
             typeParameters = this._parseTypeParameterList();
             this._peekToken();
         } else {
@@ -6463,7 +6463,7 @@ export class Parser {
                 );
             }
             returnType = (typedVarNode.typeAnnotation.length > 0) ? typedVarNode.typeAnnotation : undefined;
-            nameToken = typedVarNode.name;
+            nameNode = typedVarNode.name;
         }
 
         const openParenToken = this._peekToken();
@@ -6508,7 +6508,7 @@ export class Parser {
             });
         }
 
-        const functionNode = FunctionNode.create(firstToken, nameToken, suite, typeParameters);
+        const functionNode = FunctionNode.create(firstToken, nameNode, suite, typeParameters);
 
         functionNode.parameters = paramList;
         paramList.forEach((param) => {
@@ -6529,6 +6529,7 @@ export class Parser {
         if (returnType) {
             functionNode.returnTypeAnnotation = returnType;
             functionNode.returnTypeAnnotation.parent = functionNode;
+            functionNode.suffixMap = nameNode.suffixMap;
         }
 
         // If there was a type annotation comment for the function,

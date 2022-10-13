@@ -8,7 +8,7 @@
  */
 
 import { assert } from '../common/debug';
-import { ExpressionNode, ParameterCategory } from '../parser/parseNodes';
+import { ExpressionNode, ParameterCategory, PrefixSuffixMap, } from '../parser/parseNodes';
 import { FunctionDeclaration } from './declaration';
 import { Symbol, SymbolTable } from './symbol';
 
@@ -111,11 +111,6 @@ interface TypeAliasInfo {
     typeVarScopeId: TypeVarScopeId;
 }
 
-export interface PrefixSuffixMap {
-    prefix?: string;
-    suffix?: string;
-}
-
 interface TypeBase {
     category: TypeCategory;
     flags: TypeFlags;
@@ -137,7 +132,7 @@ interface TypeBase {
     // type to be seen as distinct when comparing types.
     isAmbiguous?: boolean;
 
-    suffixMap?: Map<number, PrefixSuffixMap> | undefined;
+    suffixMaps?: Map<number, PrefixSuffixMap> | undefined;
 }
 
 export namespace TypeBase {

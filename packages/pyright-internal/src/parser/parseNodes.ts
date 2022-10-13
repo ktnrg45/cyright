@@ -8,6 +8,7 @@
  * syntax tree (AST).
  */
 
+import { create } from 'domain';
 import { TextRange } from '../common/textRange';
 import {
     IdentifierToken,
@@ -19,6 +20,20 @@ import {
     Token,
     TokenType,
 } from './tokenizerTypes';
+
+export interface PrefixSuffixMap {
+    prefix?: string;
+    suffix?: string;
+}
+
+export namespace PrefixSuffixMap {
+    export function create(prefix?: string, suffix?: string) {
+        return {
+            prefix: (prefix && prefix.length > 0) ? prefix : undefined,
+            suffix: (suffix && suffix.length > 0) ? suffix : undefined,
+        };
+    }
+}
 
 export const enum ParseNodeType {
     Error, // 0
@@ -141,11 +156,9 @@ export interface ParseNodeBase extends TextRange {
     // stack overflows during evaluation.
     maxChildDepth?: number;
 
-    // Probably not the best place for these...
-    // Type Prefix
-    prefix?: string;
-    // Type Suffix
-    suffix?: string;
+    // Probably not the best place for this...
+    // Prefix and Suffix for types
+    suffixMap?: PrefixSuffixMap;
 }
 
 let _nextNodeId = 1;

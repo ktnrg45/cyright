@@ -61,6 +61,7 @@ import {
     ParameterNode,
     ParseNode,
     ParseNodeType,
+    PrefixSuffixMap,
     RaiseNode,
     SetNode,
     SliceNode,
@@ -209,7 +210,6 @@ import {
     NoneType,
     OverloadedFunctionType,
     ParamSpecEntry,
-    PrefixSuffixMap,
     removeFromUnion,
     removeNoneFromUnion,
     removeUnbound,
@@ -690,12 +690,11 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         expectedType?: Type,
         allowSpeculativeCaching = false
     ) {
-        if (node.suffix || node.prefix) {
-            if (!type.suffixMap) {
-                type.suffixMap = new Map();
+        if (node.suffixMap) {
+            if (!type.suffixMaps) {
+                type.suffixMaps = new Map();
             }
-            const suffixMap = {prefix: node.prefix, suffix: node.suffix};
-            type.suffixMap.set(node.id, suffixMap);
+            type.suffixMaps.set(node.id, node.suffixMap);
         }
         if (isIncomplete) {
             if (incompleteTypeCache) {
@@ -832,8 +831,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
     }
 
     function getTypePrefixSuffix(node: ParseNode, type: Type | undefined) : PrefixSuffixMap | undefined {
-        if (type && type.suffixMap) {
-            return type.suffixMap.get(node.id);
+        if (type && type.suffixMaps) {
+            return type.suffixMaps.get(node.id);
         }
 
         return undefined;
@@ -3577,8 +3576,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
     ) {
         const suffixMap = getTypePrefixSuffix(srcExpr, type);
         if (suffixMap) {
-            target.suffix = suffixMap.suffix;
-            target.prefix = suffixMap.prefix;
+            target.suffixMap = suffixMap;
         }
         // Is the source expression a TypeVar() call?
         if (isTypeVar(type)) {
@@ -4060,12 +4058,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                         let suffixMap: PrefixSuffixMap | undefined = undefined;
                         switch (decl.node.nodeType) {
                             case ParseNodeType.Parameter:
-                                if (decl.node.name && (decl.node.name.suffix || decl.node.name.prefix)) {
-                                    suffixMap = {
-                                        suffix: decl.node.name.suffix,
-                                        prefix: decl.node.name.prefix,
-                                    }
-                                }
+                                suffixMap = decl.node.name?.suffixMap;
                                 break;
                             default:
                                 break;
@@ -4074,8 +4067,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                             suffixMap = getTypePrefixSuffix(decl.node, type);
                         }
                         if (suffixMap) {
-                            node.suffix = suffixMap.suffix;
-                            node.prefix = suffixMap.prefix;
+                            node.suffixMap = suffixMap;
                             break;
                         }
                     }

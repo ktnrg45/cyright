@@ -7,7 +7,7 @@
  * Converts a type into a string representation.
  */
 
-import { ParameterCategory } from '../parser/parseNodes';
+import { ParameterCategory, ParseNodeType, PrefixSuffixMap, } from '../parser/parseNodes';
 import * as ParseTreeUtils from './parseTreeUtils';
 import {
     ClassType,
@@ -24,7 +24,6 @@ import {
     isUnpacked,
     isVariadicTypeVar,
     maxTypeRecursionCount,
-    PrefixSuffixMap,
     removeNoneFromUnion,
     TupleTypeArgument,
     Type,
@@ -773,10 +772,12 @@ export function printFunctionParts(
         if (param.name) {
             // Avoid printing type types if parameter have unknown type.
             if (param.hasDeclaredType || param.isTypeInferred) {
+                const node = param.typeAnnotation?.parent;
+                let nodeSuffixMap = (node?.nodeType === ParseNodeType.Parameter) ? node?.name?.suffixMap : undefined;
                 const paramType = FunctionType.getEffectiveParameterType(type, index);
                 const paramTypeString =
                     recursionTypes.length < maxTypeRecursionCount
-                        ? printType(paramType, printTypeFlags, returnTypeCallback, recursionTypes, recursionCount)
+                        ? printType(paramType, printTypeFlags, returnTypeCallback, recursionTypes, recursionCount, nodeSuffixMap)
                         : '';
 
                 if (!param.isNameSynthesized) {
