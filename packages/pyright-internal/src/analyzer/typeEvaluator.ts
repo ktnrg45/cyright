@@ -17328,7 +17328,14 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 );
             }
         }
-
+        if (resolvedAliasInfo.declaration.node.suffixMap) {
+            // Add suffix to this node
+            node.suffixMap = resolvedAliasInfo.declaration.node.suffixMap;
+            if (aliasDecl.node.nodeType === ParseNodeType.ImportFromAs) {
+                // Add suffix to the imported symbol
+                aliasDecl.node.name.suffixMap = resolvedAliasInfo.declaration.node.suffixMap;
+            }
+        }
         return getInferredTypeOfDeclaration(symbolWithScope.symbol, aliasDecl);
     }
 
@@ -19032,7 +19039,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         }
     }
 
-    function getInferredTypeOfDeclaration(symbol: Symbol, decl: Declaration): Type | undefined {
+    function getInferredTypeOfDeclaration(symbol: Symbol, decl: Declaration, usageNode?: ParseNode): Type | undefined {
         const resolvedDecl = resolveAliasDeclaration(
             decl,
             /* resolveLocalNames */ true,
@@ -19118,6 +19125,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
         const declaredType = getTypeForDeclaration(resolvedDecl);
         if (declaredType) {
+            if (usageNode && resolvedDecl.node.suffixMap) {
+                usageNode.suffixMap = resolvedDecl.node.suffixMap
+            }
             return declaredType;
         }
 
@@ -19450,7 +19460,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
                 if (pushSymbolResolution(symbol, decl)) {
                     try {
-                        let type = getInferredTypeOfDeclaration(symbol, decl);
+                        let type = getInferredTypeOfDeclaration(symbol, decl, usageNode);
 
                         if (!popSymbolResolution(symbol)) {
                             isIncomplete = true;
