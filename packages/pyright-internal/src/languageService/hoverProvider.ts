@@ -426,16 +426,7 @@ export class HoverProvider {
 
     private static _getTypeText(node: NameNode, evaluator: TypeEvaluator, expandTypeAlias = false): string {
         const type = evaluator.getType(node) || UnknownType.create();
-        let suffix = "";
-        let prefix = "";
         let suffixMap = (type.suffixMap) ? type.suffixMap.get(node.id) : undefined;
-        // if (type.suffixMap) {
-        //     suffixMap = type.suffixMap.get(node.id);
-        //     if (suffixMap) {
-        //         suffix = suffixMap.suffix || "";
-        //         prefix = suffixMap.prefix || "";
-        //     }
-        // }
         return ': ' + evaluator.printType(type, expandTypeAlias, suffixMap);
     }
 

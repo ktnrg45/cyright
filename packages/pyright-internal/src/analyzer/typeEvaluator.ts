@@ -4056,13 +4056,29 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 }
 
                 if (type) {
-                    symbol.getDeclarations().forEach(decl => {
-                        const suffixMap = getTypePrefixSuffix(decl.node, type);
+                    for (let decl of symbol.getDeclarations()) {
+                        let suffixMap: PrefixSuffixMap | undefined = undefined;
+                        switch (decl.node.nodeType) {
+                            case ParseNodeType.Parameter:
+                                if (decl.node.name && (decl.node.name.suffix || decl.node.name.prefix)) {
+                                    suffixMap = {
+                                        suffix: decl.node.name.suffix,
+                                        prefix: decl.node.name.prefix,
+                                    }
+                                }
+                                break;
+                            default:
+                                break;
+                        }
+                        if (!suffixMap) {
+                            suffixMap = getTypePrefixSuffix(decl.node, type);
+                        }
                         if (suffixMap) {
                             node.suffix = suffixMap.suffix;
                             node.prefix = suffixMap.prefix;
+                            break;
                         }
-                    });
+                    }
                 }
 
                 // Detect, report, and fill in missing type arguments if appropriate.

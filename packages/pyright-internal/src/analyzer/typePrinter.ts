@@ -285,7 +285,7 @@ export function printType(
             case TypeCategory.Function: {
                 // If it's a Callable with a ParamSpec, use the
                 // Callable notation.
-                const parts = printFunctionParts(type, printTypeFlags, returnTypeCallback, recursionTypes);
+                const parts = printFunctionParts(type, printTypeFlags, returnTypeCallback, recursionTypes, undefined, suffixMap);
                 const paramSignature = `(${parts[0].join(', ')})`;
                 if (FunctionType.isParamSpecValue(type)) {
                     return paramSignature;
@@ -720,7 +720,8 @@ export function printFunctionParts(
     printTypeFlags: PrintTypeFlags,
     returnTypeCallback: FunctionReturnTypeCallback,
     recursionTypes: Type[] = [],
-    recursionCount = 0
+    recursionCount = 0,
+    suffixMap?: PrefixSuffixMap,
 ): [string[], string] {
     const paramTypeStrings: string[] = [];
     let sawDefinedName = false;
@@ -854,7 +855,8 @@ export function printFunctionParts(
                   printTypeFlags | PrintTypeFlags.ParenthesizeUnion | PrintTypeFlags.ParenthesizeCallable,
                   returnTypeCallback,
                   recursionTypes,
-                  recursionCount
+                  recursionCount,
+                  suffixMap,
               )
             : '';
 
