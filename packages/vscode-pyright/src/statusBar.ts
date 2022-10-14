@@ -1,8 +1,5 @@
 import {
-    Disposable,
     ExtensionContext,
-    languages,
-    OutputChannel,
     StatusBarAlignment,
     StatusBarItem,
     TextEditor,
@@ -10,13 +7,11 @@ import {
     ThemeColor,
     window,
 } from 'vscode';
-import { NoAccessHost } from 'pyright-internal/common/host'; 
+import { NoAccessHost } from 'pyright-internal/common/host';
 import { FullAccessHost } from 'pyright-internal/common/fullAccessHost';
 import { HostKind } from 'pyright-internal/common/host';
 import { createFromRealFileSystem } from 'pyright-internal/common/realFileSystem';
-import { versionToString } from 'pyright-internal/common/pythonVersion';
 import {
-    combinePaths,
     getDirectoryPath,
     getPathComponents,
 } from 'pyright-internal/common/pathUtils';
@@ -56,9 +51,11 @@ export class StatusBar {
         if (pythonPath) {
             this.statusBar.text = this.getText(pythonPath);
             this.statusBar.backgroundColor = undefined;
+            this.statusBar.tooltip = pythonPath;
         } else {
             this.statusBar.backgroundColor = new ThemeColor('statusBarItem.warningBackground');
             this.statusBar.text = `$(alert) ${BUTTON_LABEL}`;
+            this.statusBar.tooltip = "Select Interpreter";
         }
         this.show();
 
@@ -87,5 +84,5 @@ export class StatusBar {
             info = details?.arch || '';
         }
         return `${version} ${info}`;
-    } 
+    }
 }
