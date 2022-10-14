@@ -1876,6 +1876,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         );
 
         if (memberInfo) {
+            for (let decl of memberInfo.symbol?.getTypedDeclarations() || []) {
+                if (decl.node.suffixMap) {
+                    errorNode.suffixMap = decl.node.suffixMap;
+                    break;
+                }
+            }
             return {
                 type: memberInfo.type,
                 classType: memberInfo.classType,
