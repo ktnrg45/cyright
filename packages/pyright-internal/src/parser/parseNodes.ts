@@ -2408,22 +2408,19 @@ export const enum TypedVarCategory {
     Function,
     Callback,
 }
-export interface TypedVarNode extends ParseNodeBase {
+
+export interface VarTypeNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType;
     readonly typedVarCategory: TypedVarCategory;
     startToken: Token;
-    name: NameNode;
-    typeAnnotation: ExpressionNode;
-    typeAnnotationComment?: ExpressionNode | undefined;
+    typeAnnotation: ExpressionNode | undefined;
     modifier?: Token | undefined;
     numericModifiers?: IdentifierToken[] | undefined;
     viewTokens?: Token[] | undefined;
-    defaultValue?: ExpressionNode | undefined;
-    callbackFunc?: FunctionNode | undefined;
 }
 
-export namespace TypedVarNode {
-    export function create(startToken: Token, name: NameNode, typeAnnotation: ExpressionNode, typedVarCategory: TypedVarCategory) {
+export namespace VarTypeNode {
+    export function create(startToken: Token, typeAnnotation: ExpressionNode | undefined, typedVarCategory: TypedVarCategory) {
         let nodeType: ParseNodeType;
         switch (typedVarCategory) {
             case TypedVarCategory.Function:
@@ -2435,17 +2432,45 @@ export namespace TypedVarNode {
             default:
                 nodeType = ParseNodeType.TypeAnnotation;
         }
-        const node: TypedVarNode = {
+        const node: VarTypeNode = {
             startToken: startToken,
             start: startToken.start,
             length: startToken.length,
             nodeType: nodeType,
             id: _nextNodeId++,
-            name: name,
             typeAnnotation: typeAnnotation,
             typedVarCategory: typedVarCategory,
         };
 
+        return node;
+    }
+}
+
+export interface TypedVarNode extends VarTypeNode {
+    readonly nodeType: ParseNodeType;
+    readonly typedVarCategory: TypedVarCategory;
+    name: NameNode;
+    typeAnnotation: ExpressionNode;
+    typeAnnotationComment?: ExpressionNode | undefined;
+    defaultValue?: ExpressionNode | undefined;
+    callbackFunc?: FunctionNode | undefined;
+}
+
+export namespace TypedVarNode {
+    export function create(name: NameNode, typeAnnotation: ExpressionNode, varTypeNode: VarTypeNode) {
+        const node: TypedVarNode = {
+            startToken: varTypeNode.startToken,
+            start: varTypeNode.startToken.start,
+            length: varTypeNode.startToken.length,
+            nodeType: varTypeNode.nodeType,
+            id: _nextNodeId++,
+            name: name,
+            typeAnnotation: typeAnnotation,
+            typedVarCategory: varTypeNode.typedVarCategory,
+            modifier: varTypeNode.modifier,
+            numericModifiers: varTypeNode.numericModifiers,
+            viewTokens: varTypeNode.viewTokens,
+        };
         return node;
     }
 }

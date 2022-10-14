@@ -120,6 +120,7 @@ import {
     TypedVarNode,
     TypedVarCategory,
     PrefixSuffixMap,
+    VarTypeNode,
 } from './parseNodes';
 import * as StringTokenUtils from './stringTokenUtils';
 import { Tokenizer, TokenizerOutput } from './tokenizer';
@@ -5777,14 +5778,12 @@ export class Parser {
         } else if (this._consumeTokenIfKeyword(KeywordType.Ctypedef)) {
             cDefType = KeywordType.Ctypedef;
         }
-        if (this._isVarModifier(this._peekToken())) {
-            this._getNextToken();
-        }
-        const varType = this._getTokenIfType(TokenType.Identifier);
+        const varTypeNode = this._parseVarType(typedVarCategory);
+        const varType = varTypeNode.typeAnnotation;
+
         if (!varType) {
             return undefined;
         }
-        this._consumeTokenPointers();
 
         const openParen = this._getTokenIfType(TokenType.OpenParenthesis);
         if (!openParen) {
@@ -5821,13 +5820,13 @@ export class Parser {
         let typeParameters: TypeParameterListNode | undefined;
         const suite = SuiteNode.create(closeParen)
         const functionNode = FunctionNode.create(openParen, NameNode.create(varName), suite, typeParameters)
-        functionNode.returnTypeAnnotation = NameNode.create(varType as IdentifierToken);
+        functionNode.returnTypeAnnotation = varType;
         functionNode.parameters = paramList;
 
         this._parseFunctionTrailer(cDefType);
 
         // // TODO: Do something with Function Node
-        const typedVarNode = TypedVarNode.create(varType, NameNode.create(varName), NameNode.create(varType as IdentifierToken), typedVarCategory);
+        const typedVarNode = TypedVarNode.create(NameNode.create(varName), varType, varTypeNode);
         typedVarNode.name.isPrototype = true;
         typedVarNode.callbackFunc = functionNode;
         extendRange(typedVarNode, closeParen);
@@ -5972,20 +5971,17 @@ export class Parser {
         }
     }
 
-    // const unsigned long long int* var
-    private _parseTypedVar(
-        typedVarCategory = TypedVarCategory.Variable,
-        allowPrototype = false,
-        allowNoType = false,
-    ): TypedVarNode | undefined {
-        const tokenIndex = this._tokenIndex;
-        const firstToken = this._peekToken();
-        var numModifiers: Token[] = [];
-        var lastNumModifier: KeywordType | undefined;
+    private _parseVarType(typedVarCategory = TypedVarCategory.Variable) : VarTypeNode {
+        const numModifiers: Token[] = [];
+        const viewTokens: Token[] = [];
+        let lastNumModifier: KeywordType | undefined;
         let foundSigned = false;
         let longCount = 0;
         let lastLong: IdentifierToken | undefined = undefined;
-        const cDefType = this._peekKeywordType()
+        let varType: ExpressionNode | undefined = undefined;
+        const firstToken = this._peekToken();
+        const cDefType = this._peekKeywordType();
+
         if (cDefType === KeywordType.Ctypedef) {
             this._getNextToken();
         }
@@ -6010,7 +6006,6 @@ export class Parser {
                 if (lastNumModifier === KeywordType.Unsigned || lastNumModifier === KeywordType.Signed) {
                     if (foundSigned) {
                         this._addError(Localizer.Diagnostic.unexpectedSignedness(), this._peekToken());
-                        return undefined;
                     }
                     foundSigned = true;
                 } else if (lastNumModifier === KeywordType.Long) {
@@ -6018,7 +6013,6 @@ export class Parser {
                     lastLong = this._peekTokenIfIdentifier();
                     if (longCount > 2) {
                         this._addError(Localizer.Diagnostic.expectedVarType(), this._peekToken());
-                        return undefined;
                     }
                 }
                 numModifiers.push(this._getNextToken());
@@ -6028,10 +6022,6 @@ export class Parser {
                 break;
             }
         }
-
-        var viewTokens: Token[] = [];
-        let varType: ExpressionNode | undefined = undefined;
-        let varName: NameNode | undefined = undefined;
 
         let firstVarToken = this._getTokenIfIdentifier();
         if (!firstVarToken && lastLong) {
@@ -6074,8 +6064,29 @@ export class Parser {
         //     skip++;
         // }
 
-        let ptrTokens = this._peekTokenPointers();
-        let ptrCount = ptrTokens.length;
+        const varTypeNode = VarTypeNode.create(firstToken, varType, typedVarCategory);
+        varTypeNode.modifier = varModifierToken;
+        varTypeNode.numericModifiers = numModifiers.map((modToken) => modToken as IdentifierToken);
+        varTypeNode.viewTokens = viewTokens;
+        return varTypeNode;
+    }
+
+
+    // const unsigned long long int* var
+    private _parseTypedVar(
+        typedVarCategory = TypedVarCategory.Variable,
+        allowPrototype = false,
+        allowNoType = false,
+    ): TypedVarNode | undefined {
+        const tokenIndex = this._tokenIndex;
+        const cDefType = this._peekKeywordType()
+        let varName: NameNode | undefined = undefined;
+
+        const varTypeNode = this._parseVarType(typedVarCategory);
+        let varType = varTypeNode.typeAnnotation;
+
+        const ptrTokens = this._peekTokenPointers();
+        const ptrCount = ptrTokens.length;
 
         if (this._peekToken(ptrCount).type === TokenType.OpenParenthesis) {
             let skipAhead = this._peekUntilType([TokenType.CloseParenthesis, TokenType.NewLine], ptrCount);
@@ -6115,10 +6126,7 @@ export class Parser {
             varName.isPrototype = true;
         }
 
-        const typedVarNode = TypedVarNode.create(firstToken, varName, varType, typedVarCategory)
-        typedVarNode.modifier = varModifierToken;
-        typedVarNode.numericModifiers = numModifiers.map((modToken) => modToken as IdentifierToken);
-        typedVarNode.viewTokens = viewTokens;
+        const typedVarNode = TypedVarNode.create(varName, varType, varTypeNode);
 
         this._addFixesToName(typedVarNode, typedVarNode.name);
         return typedVarNode;
