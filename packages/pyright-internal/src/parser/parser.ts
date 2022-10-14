@@ -5979,12 +5979,12 @@ export class Parser {
         allowNoType = false,
     ): TypedVarNode | undefined {
         const tokenIndex = this._tokenIndex;
+        const firstToken = this._peekToken();
         var numModifiers: Token[] = [];
         var lastNumModifier: KeywordType | undefined;
         let foundSigned = false;
         let longCount = 0;
         let lastLong: IdentifierToken | undefined = undefined;
-        const firstToken = this._peekToken();
         const cDefType = this._peekKeywordType()
         if (cDefType === KeywordType.Ctypedef) {
             this._getNextToken();
@@ -6032,8 +6032,25 @@ export class Parser {
         var viewTokens: Token[] = [];
         let varType: ExpressionNode | undefined = undefined;
         let varName: NameNode | undefined = undefined;
+
         let firstVarToken = this._getTokenIfIdentifier();
+        if (!firstVarToken && lastLong) {
+            // Consider 'long' as the type
+            firstVarToken = lastLong;
+            numModifiers.pop();
+        }
         if (firstVarToken) {
+            // Handle "float complex" and "double complex"
+            const tokenText = this._getTokenText(firstVarToken);
+            if (tokenText === 'float' || tokenText === 'double') {
+                const doubleOrFloat = firstVarToken;
+                const nextToken = this._peekTokenIfIdentifier();
+                if (nextToken && this._getTokenText(nextToken) === 'complex') {
+                    firstVarToken = nextToken;
+                    numModifiers.push(doubleOrFloat);
+                    this._getNextToken();
+                }
+            }
             varType = NameNode.create(firstVarToken);
             while (this._consumeTokenIfType(TokenType.Dot)) {
                 const maybeMember = this._getTokenIfIdentifier();
@@ -6043,50 +6060,50 @@ export class Parser {
                 }
                 varType = MemberAccessNode.create(varType, NameNode.create(maybeMember));
             }
-            // View is associated with type
-            let viewTokensCount = this._peekView(undefined, (typedVarCategory === TypedVarCategory.Function)).length;
-            for (let index = 0; index < viewTokensCount; index++) {
-                viewTokens.push(this._getNextToken());
+        }
+
+        // View is associated with type
+        let viewTokensCount = this._peekView(undefined, (typedVarCategory === TypedVarCategory.Function)).length;
+        for (let index = 0; index < viewTokensCount; index++) {
+            viewTokens.push(this._getNextToken());
+        }
+        // CPP Allow '&' after type
+        // let possibleAddressOf = this._peekToken(ptrCount + viewTokensCount + skip);
+        // if (possibleAddressOf.type === TokenType.Operator &&
+        //     (possibleAddressOf as OperatorToken).operatorType === OperatorType.BitwiseAnd) {
+        //     skip++;
+        // }
+
+        let ptrTokens = this._peekTokenPointers();
+        let ptrCount = ptrTokens.length;
+
+        if (this._peekToken(ptrCount).type === TokenType.OpenParenthesis) {
+            let skipAhead = this._peekUntilType([TokenType.CloseParenthesis, TokenType.NewLine], ptrCount);
+            if (this._peekToken(skipAhead).type === TokenType.CloseParenthesis && this._peekToken(skipAhead + 1).type === TokenType.OpenParenthesis) {
+                this._tokenIndex = tokenIndex; // Rewind index to parse callback correctly
+                return this._parseCallback(typedVarCategory, cDefType);
             }
-            // CPP Allow '&' after type
-            // let possibleAddressOf = this._peekToken(ptrCount + viewTokensCount + skip);
-            // if (possibleAddressOf.type === TokenType.Operator &&
-            //     (possibleAddressOf as OperatorToken).operatorType === OperatorType.BitwiseAnd) {
-            //     skip++;
-            // }
+        }
 
-            let ptrTokens = this._peekTokenPointers();
-            let ptrCount = ptrTokens.length;
-
-            if (this._peekToken(ptrCount).type === TokenType.OpenParenthesis) {
-                let skipAhead = this._peekUntilType([TokenType.CloseParenthesis, TokenType.NewLine], ptrCount);
-                if (this._peekToken(skipAhead).type === TokenType.CloseParenthesis && this._peekToken(skipAhead + 1).type === TokenType.OpenParenthesis) {
-                    this._tokenIndex = tokenIndex; // Rewind index to parse callback correctly
-                    return this._parseCallback(typedVarCategory, cDefType);
-                }
-            }
-
-            varName = this._parseTypedName();
-            if (!varName) {
-                if (lastLong && varType.nodeType === ParseNodeType.Name) {
-                    // Consider 'long' as the type
+        varName = this._parseTypedName();
+        if (!varName && varType) {
+            if (allowPrototype) {
+                varName = this._createDummyName(varType);
+            } else if (varType.nodeType === ParseNodeType.Name) {
+                if (allowNoType) {
+                    // Handle no return type with modifiers: "cdef inline name()"
                     varName = varType;
-                    varType = NameNode.create(lastLong);
-                    numModifiers.pop();
-                } else if (allowPrototype) {
-                    varName = this._createDummyName(varType);
-                } else if (varType?.nodeType === ParseNodeType.Name) {
-                    if (allowNoType) {
-                        // Handle no return type with modifiers: "cdef inline name()"
-                        varName = varType;
-                        varType = this._createDummyName(varType);
-                    } else {
-                        // Handle untyped declaration: "cdef inline name"
-                        varName = varType;
-                        varType = this._createDummyName(varType, "object");
-                    }
+                    varType = this._createDummyName(varType);
+                } else {
+                    // Handle untyped declaration: "cdef inline name"
+                    varName = varType;
+                    varType = this._createDummyName(varType, "object");
                 }
             }
+        }
+
+        if (this._peekTokenIfIdentifier()) {
+            this._addError(Localizer.Diagnostic.expectedNewlineOrSemicolon(), this._getNextToken());
         }
 
         if (!varName || !varType) {
