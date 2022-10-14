@@ -5149,7 +5149,7 @@ export class Parser {
     }
 
     // Cython
-    private _consumeTokenPointers(): OperatorToken[] {
+    private _getTokenPointers(): OperatorToken[] {
         var ptrTokens: OperatorToken[] = [];
         while (this._isTokenPointer()) {
             ptrTokens.push(this._getNextToken() as OperatorToken);
@@ -5770,7 +5770,7 @@ export class Parser {
         return paramNode;
     }
 
-    // C Callback Function: "void (*function_name)(void *args)"
+    // C Callback Function: "void* (*function_name)(void *args)"
     private _parseCallback(typedVarCategory: TypedVarCategory, cDefType = KeywordType.Cdef): TypedVarNode | undefined {
 
         if (this._consumeTokenIfKeyword(KeywordType.Cdef)) {
@@ -5778,12 +5778,16 @@ export class Parser {
         } else if (this._consumeTokenIfKeyword(KeywordType.Ctypedef)) {
             cDefType = KeywordType.Ctypedef;
         }
+
+        // The return type of callback
         const varTypeNode = this._parseVarType(typedVarCategory);
         const varType = varTypeNode.typeAnnotation;
 
         if (!varType) {
             return undefined;
         }
+
+        const returnTypePtrs = this._getTokenPointers();
 
         const openParen = this._getTokenIfType(TokenType.OpenParenthesis);
         if (!openParen) {
@@ -5813,10 +5817,6 @@ export class Parser {
             return undefined;
         }
 
-        if (!this._consumeTokenIfKeyword(KeywordType.Nogil)) {
-            this._consumeTokenIfKeyword(KeywordType.Gil);
-        }
-
         let typeParameters: TypeParameterListNode | undefined;
         const suite = SuiteNode.create(closeParen)
         const functionNode = FunctionNode.create(openParen, NameNode.create(varName), suite, typeParameters)
@@ -5826,8 +5826,12 @@ export class Parser {
         this._parseFunctionTrailer(cDefType);
 
         // // TODO: Do something with Function Node
+        functionNode.name.ptrTokens = returnTypePtrs;
+        functionNode.returnTypeAnnotation = varType;
+
         const typedVarNode = TypedVarNode.create(NameNode.create(varName), varType, varTypeNode);
         typedVarNode.name.isPrototype = true;
+        typedVarNode.name.ptrTokens = [pointer];
         typedVarNode.callbackFunc = functionNode;
         extendRange(typedVarNode, closeParen);
         return typedVarNode;
@@ -5867,7 +5871,7 @@ export class Parser {
                 this._getNextToken()
                 continue;
             }
-            this._consumeTokenPointers();
+            this._getTokenPointers();
             // Handle Type Check: "<double?>name"
             this._consumeTokenIfType(TokenType.QuestionMark);
 
@@ -5890,10 +5894,6 @@ export class Parser {
             return undefined;
         }
 
-        // const statement = this._parseTypedStatement();
-        // if (statement) {
-        //     return statement;
-        // }
         const struct = this._parseStructure();
         if (struct) {
             return struct
@@ -5904,6 +5904,7 @@ export class Parser {
             this._consumeTokensUntilType([TokenType.NewLine]);
             return undefined
         }
+        this._consumeTokenIfType(TokenType.NewLine);
         // const typeParam = TypeParameterNode.create(typedVarNode.name, TypeParameterCategory.TypeVar, typedVarNode.name);
         // const endToken = Token.create(TokenType.Identifier, typedVarNode.start, typedVarNode.length, undefined);
         // const typeParameters = TypeParameterListNode.create(typedVarNode.startToken, endToken, [typeParam]);
@@ -5933,7 +5934,7 @@ export class Parser {
     }
 
     private _parseTypedName(): NameNode | undefined {
-        const ptrTokens = this._consumeTokenPointers();
+        const ptrTokens = this._getTokenPointers();
         let dimTokens: Token[] = [];
         let name: NameNode | undefined = undefined;
 
