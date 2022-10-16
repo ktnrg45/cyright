@@ -5161,8 +5161,8 @@ export class Parser {
         var ptrCount = 0;
         const tokens: OperatorToken []= [];
         while (this._isTokenPointer(ptrCount + count)) {
-            ptrCount++;
             tokens.push(this._peekToken(ptrCount + count) as OperatorToken);
+            ptrCount++;
             continue;
         }
         return tokens;
@@ -6010,11 +6010,7 @@ export class Parser {
                     }
                     foundSigned = true;
                 } else if (lastNumModifier === KeywordType.Long) {
-                    longCount++;
-                    lastLong = this._peekTokenIfIdentifier();
-                    if (longCount > 2) {
-                        this._addError(Localizer.Diagnostic.expectedVarType(), this._peekToken());
-                    }
+                    break;
                 }
                 numModifiers.push(this._getNextToken());
             } else if (this._isVarModifier(this._peekToken())) {
@@ -6024,25 +6020,58 @@ export class Parser {
             }
         }
 
-        let firstVarToken = this._getTokenIfIdentifier();
-        if (!firstVarToken && lastLong) {
-            // Consider 'long' as the type
-            firstVarToken = lastLong;
-            numModifiers.pop();
-        }
-        if (firstVarToken) {
+        let varToken = this._getTokenIfIdentifier();
+        if (varToken) {
+            while (this._getTokenText(varToken) === 'long') {
+                longCount++;
+                if (longCount > 2) {
+                    this._addError(Localizer.Diagnostic.expectedVarType(), varToken);
+                }
+                let ptrCount = this._peekTokenPointers().length;
+                if (ptrCount > 0) {
+                    break;
+                }
+                const nextToken = this._peekTokenIfIdentifier();
+                if (nextToken) {
+                    const nextTokenText = this._getTokenText(nextToken);
+                    if (nextTokenText === 'long') {
+                        numModifiers.push(varToken);
+                        varToken = nextToken;
+                        this._getNextToken();
+                        continue;
+                    }
+                    ptrCount = this._peekTokenPointers(1).length;
+                    if (ptrCount > 0) {
+                        numModifiers.push(varToken);
+                        varToken = nextToken;
+                        this._getNextToken();
+                        break;
+                    }
+                    if (nextTokenText === 'float' || nextTokenText === 'double') {
+                        numModifiers.push(varToken);
+                        varToken = nextToken;
+                        this._getNextToken();
+                        break;
+                    }
+                    if (!this._peekTokenIfIdentifier(1)) {
+                        break;
+                    }
+                }
+                break;
+
+            }
             // Handle "float complex" and "double complex"
-            const tokenText = this._getTokenText(firstVarToken);
+            const tokenText = this._getTokenText(varToken);
             if (tokenText === 'float' || tokenText === 'double') {
-                const doubleOrFloat = firstVarToken;
+                const doubleOrFloat = varToken;
                 const nextToken = this._peekTokenIfIdentifier();
                 if (nextToken && this._getTokenText(nextToken) === 'complex') {
-                    firstVarToken = nextToken;
+                    varToken = nextToken;
                     numModifiers.push(doubleOrFloat);
                     this._getNextToken();
                 }
             }
-            varType = NameNode.create(firstVarToken);
+            varType = NameNode.create(varToken);
             while (this._consumeTokenIfType(TokenType.Dot)) {
                 const maybeMember = this._getTokenIfIdentifier();
                 if (!maybeMember) {
