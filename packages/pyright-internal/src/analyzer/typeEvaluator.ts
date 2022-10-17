@@ -13195,6 +13195,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 };
 
                 typeList.forEach((entry, index) => {
+                    let typeAnnotation: ExpressionNode | undefined = undefined;
+                    if (entry.node.nodeType === ParseNodeType.Name) {
+                        typeAnnotation = entry.node as NameNode;
+                    } else if (entry.node.nodeType === ParseNodeType.MemberAccess) {
+                        typeAnnotation = entry.node as MemberAccessNode;
+                    }
                     let entryType = entry.type;
                     let paramCategory: ParameterCategory = ParameterCategory.Simple;
                     const paramName = `__p${index.toString()}`;
@@ -13218,6 +13224,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                         isNameSynthesized: true,
                         type: convertToInstance(entryType),
                         hasDeclaredType: true,
+                        typeAnnotation: typeAnnotation,
                     });
                 });
 

@@ -5742,9 +5742,11 @@ export class Parser {
 
         if (name.value === '' && typeAnnotation.nodeType === ParseNodeType.Name) {
             // This is either just the param name or just the param type. Handle as if it was the param name
+            const suffixMap = name.suffixMap;
             name = typeAnnotation;
             typeAnnotation = undefined;
             name.isPrototype = allowPrototype;
+            name.suffixMap = suffixMap;
         }
         let paramNode = ParameterNode.create(typedVarNode.startToken, ParameterCategory.Simple);
 
@@ -5785,7 +5787,7 @@ export class Parser {
     }
 
     // C Callback Function: "void* (*function_name)(void *args)"
-    private _parseCallback(typedVarCategory: TypedVarCategory, cDefType = KeywordType.Cdef): TypedVarNode | undefined {
+    private _parseCallback(cDefType = KeywordType.Cdef): TypedVarNode | undefined {
 
         if (this._consumeTokenIfKeyword(KeywordType.Cdef)) {
             cDefType = KeywordType.Cdef;
@@ -5794,8 +5796,9 @@ export class Parser {
         }
 
         // The return type of callback
+        const varTypeToken = this._peekToken();
         const varTypeNode = this._parseVarType(TypedVarCategory.Callback);
-        const varType = varTypeNode.typeAnnotation;
+        let varType = varTypeNode.typeAnnotation;
 
         if (!varType) {
             return undefined;
@@ -5821,6 +5824,7 @@ export class Parser {
         if (!this._getTokenIfType(TokenType.CloseParenthesis)) {
             return undefined;
         }
+        const paramOpenParenToken = this._peekToken();
         if (!this._getTokenIfType(TokenType.OpenParenthesis)) {
             return undefined;
         }
@@ -5831,22 +5835,44 @@ export class Parser {
             return undefined;
         }
 
-        let typeParameters: TypeParameterListNode | undefined;
-        const suite = SuiteNode.create(closeParen)
-        const functionNode = FunctionNode.create(openParen, NameNode.create(varName), suite, typeParameters)
-        functionNode.returnTypeAnnotation = varType;
-        functionNode.parameters = paramList;
-
         this._parseFunctionTrailer(cDefType);
 
-        // // TODO: Do something with Function Node
-        functionNode.name.ptrTokens = returnTypePtrs;
-        functionNode.returnTypeAnnotation = varType;
+        // Create a fake 'Callable annotation': "name: Callable[[...args], returnType]"
+        const dummyCallableName = "__CYTHON_CALLABLE__";  // included in typeshed cython_builtins, so it is always available
+        let dummyCallable = this._createDummyName(Token.create(TokenType.Identifier, 0, dummyCallableName.length, undefined), dummyCallableName);
+        const args: ArgumentNode[] = [];
+        const paramListNode = ListNode.create(paramOpenParenToken);
+        for (let param of paramList) {
+            if (param.name) {
+                let paramName: ExpressionNode = param.name;
+                if (param.typeAnnotation) {
+                    // param.name.parent = undefined;
+                    param.name.isPrototype = true;
+                    paramName = param.typeAnnotation;
+                    paramName.suffixMap = param.name.suffixMap;
+                }
+                paramListNode.entries.push(paramName);
+                paramName.parent = paramListNode;
+            }
+        }
+        extendRange(paramListNode, closeParen);
 
-        const typedVarNode = TypedVarNode.create(NameNode.create(varName), varType, varTypeNode);
+        const params = ArgumentNode.create(paramOpenParenToken, paramListNode, ArgumentCategory.Simple)
+        args.push(params); // callback params
+        const returnType = ArgumentNode.create(varTypeToken, varType, ArgumentCategory.Simple)
+        args.push(returnType);
+
+        let indexNode = IndexNode.create(dummyCallable, args, false, closeParen);
+
+        const typedVarNode = TypedVarNode.create(NameNode.create(varName), indexNode, varTypeNode);
         typedVarNode.name.isPrototype = true;
-        typedVarNode.name.ptrTokens = [pointer];
-        typedVarNode.callbackFunc = functionNode;
+        const prefixTokens: Token[] = (varTypeNode.modifier) ? [varTypeNode.modifier] : [];
+        prefixTokens.push(...varTypeNode.numericModifiers || []);
+        const prefix = this._getTokenListText(prefixTokens);
+        const suffixTokens = typedVarNode.viewTokens || [];
+        suffixTokens.push(...returnTypePtrs);
+        const suffix = this._getTokenListText(suffixTokens);
+        typedVarNode.name.suffixMap = PrefixSuffixMap.create(prefix, suffix);
         extendRange(typedVarNode, closeParen);
         return typedVarNode;
 
@@ -5922,6 +5948,7 @@ export class Parser {
         // const typeParam = TypeParameterNode.create(typedVarNode.name, TypeParameterCategory.TypeVar, typedVarNode.name);
         // const endToken = Token.create(TokenType.Identifier, typedVarNode.start, typedVarNode.length, undefined);
         // const typeParameters = TypeParameterListNode.create(typedVarNode.startToken, endToken, [typeParam]);
+
         const expr = AssignmentNode.create(typedVarNode.name, typedVarNode.typeAnnotation);
         const typeAlias = TypeAliasNode.create(typeToken, typedVarNode.name, expr);
         extendRange(typeAlias, typedVarNode);
@@ -6135,17 +6162,20 @@ export class Parser {
         if (this._peekToken(possibleOpenParenCount).type === TokenType.OpenParenthesis) {
             let skipAhead = this._peekUntilType([TokenType.CloseParenthesis, TokenType.NewLine], possibleOpenParenCount);
             if (this._peekToken(skipAhead).type === TokenType.CloseParenthesis && this._peekToken(skipAhead + 1).type === TokenType.OpenParenthesis) {
-                return this._parseCallback(typedVarCategory, cDefType);
+                return this._parseCallback(cDefType);
             }
         }
 
         const varTypeNode = this._parseVarType(typedVarCategory);
         let varType = varTypeNode.typeAnnotation;
 
+        const ptrTokens = this._peekTokenPointers();
+
         varName = this._parseTypedName(typedVarCategory);
         if (!varName && varType) {
             if (allowPrototype) {
                 varName = this._createDummyName(varType);
+                varName.ptrTokens = ptrTokens;
             } else if (varType.nodeType === ParseNodeType.Name) {
                 if (allowNoType) {
                     // Handle no return type with modifiers: "cdef inline name()"

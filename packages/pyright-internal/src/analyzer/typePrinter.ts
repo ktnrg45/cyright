@@ -773,7 +773,7 @@ export function printFunctionParts(
             // Avoid printing type types if parameter have unknown type.
             if (param.hasDeclaredType || param.isTypeInferred) {
                 const node = param.typeAnnotation?.parent;
-                let nodeSuffixMap = (node?.nodeType === ParseNodeType.Parameter) ? node?.name?.suffixMap : undefined;
+                let nodeSuffixMap = (node?.nodeType === ParseNodeType.Parameter) ? node?.name?.suffixMap : param.typeAnnotation?.suffixMap;
                 const paramType = FunctionType.getEffectiveParameterType(type, index);
                 const paramTypeString =
                     recursionTypes.length < maxTypeRecursionCount

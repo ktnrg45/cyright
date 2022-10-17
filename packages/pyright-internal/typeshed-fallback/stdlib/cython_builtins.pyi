@@ -1,12 +1,13 @@
 """Cython Built In Types. Only used in Cython files."""
 
-from typing import TypeVar, Any
+from typing import TypeVar, Any, Callable
 
 _T = TypeVar("_T")
 _N = TypeVar("_N", bound=None)
 _B = TypeVar("_B", bound=bool|int)
 _I = TypeVar("_I", bound=bool|int|float)
 
+__CYTHON_CALLABLE__ = Callable
 
 class NULL(_N):
     """Cython Type. Represents null."""
