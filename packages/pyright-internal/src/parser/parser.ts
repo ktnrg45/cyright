@@ -6109,8 +6109,12 @@ export class Parser {
         allowNoType = false,
     ): TypedVarNode | undefined {
         const tokenIndex = this._tokenIndex;
-        const cDefType = this._peekKeywordType()
         let varName: NameNode | undefined = undefined;
+        let cDefType = this._peekKeywordType();
+        if (cDefType && ![KeywordType.Def, KeywordType.Cdef, KeywordType.Cpdef, KeywordType.Ctypedef].includes(cDefType)) {
+            // Could be a var modifier, i.e.: 'const'
+            cDefType = KeywordType.Cdef;
+        }
 
         const varTypeNode = this._parseVarType(typedVarCategory);
         let varType = varTypeNode.typeAnnotation;
