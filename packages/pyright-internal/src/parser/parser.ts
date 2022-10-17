@@ -5294,7 +5294,7 @@ export class Parser {
     }
 
     // [::1] or [] or [:] or [::] or [:, :] after type
-    private _peekView(count = 0, isFunction = false): Token[] {
+    private _peekView(count = 0, typedVarCategory = TypedVarCategory.Variable): Token[] {
         const originalCount = count;
         const possibleOpenBracket = this._peekToken(count);
         let foundCloseBracket = false;
@@ -5303,6 +5303,8 @@ export class Parser {
         var colonCount = 0;
         var tokens: Token[] = [];
         var lastType: TokenType | undefined;
+        let errorToken: Token | undefined = undefined;
+        let invalidAxis = false;
 
         if (possibleOpenBracket.type !== TokenType.OpenBracket) {
             return tokens;
@@ -5318,7 +5320,6 @@ export class Parser {
             tokenIndex++;
             tokens.push(nextToken);
 
-
             if (nextToken.type === TokenType.CloseBracket) {
                 foundCloseBracket = true;
                 break;
@@ -5330,7 +5331,7 @@ export class Parser {
             }
 
             if (nextToken.type === TokenType.Comma && !foundIdentifier) {
-                return this._peekViewDims(originalCount, isFunction);
+                return this._peekViewDims(originalCount, typedVarCategory === TypedVarCategory.Function);
             }
             if (nextToken.type === TokenType.Colon) {
                 colonCount++;
@@ -5338,21 +5339,34 @@ export class Parser {
                     this._addError(Localizer.Diagnostic.expectedCloseBracket(), this._peekToken(count));
                 }
             } else if (colonCount < 2) {
-                this._addError(Localizer.Diagnostic.viewInvalidAxis(), nextToken);
+                invalidAxis = true;
+                errorToken = nextToken;
             }
             lastType = nextToken.type;
         }
 
-        if (isFunction && colonCount === 0) {
-            this._addError(Localizer.Diagnostic.returnTypeCannotBeArray(), this._peekToken());
-        }
         if (!foundCloseBracket) {
             this._addError(Localizer.Diagnostic.expectedCloseBracket(), this._peekToken(count));
+        }
+        if (colonCount === 0) {
+            if (typedVarCategory === TypedVarCategory.Function) {
+                // Array valid for function return type if followed by pointer: "[]*" or "[1]*"
+                if (!this._isTokenPointer(count)) {
+                    this._addError(Localizer.Diagnostic.returnTypeCannotBeArray(), this._peekToken());
+                } else {
+                    return tokens;
+                }
+            } else if (typedVarCategory === TypedVarCategory.Callback) {
+                return tokens;
+            }
+        }
+        if (invalidAxis) {
+            this._addError(Localizer.Diagnostic.viewInvalidAxis(), errorToken || this._peekToken());
         }
         return tokens;
     }
 
-    // "[1]" or "[]"  after name
+    // "[1]" or "[]"  after name for variables or before function name
     private _peekDimTokens(count = 0): Token[] {
         const possibleOpenBracket = this._peekToken(count);
         let foundCloseBracket = false;
@@ -5780,7 +5794,7 @@ export class Parser {
         }
 
         // The return type of callback
-        const varTypeNode = this._parseVarType(typedVarCategory);
+        const varTypeNode = this._parseVarType(TypedVarCategory.Callback);
         const varType = varTypeNode.typeAnnotation;
 
         if (!varType) {
@@ -5933,7 +5947,7 @@ export class Parser {
         } as NameNode);
     }
 
-    private _parseTypedName(): NameNode | undefined {
+    private _parseTypedName(typedVarCategory = TypedVarCategory.Variable): NameNode | undefined {
         const ptrTokens = this._getTokenPointers();
         let dimTokens: Token[] = [];
         let name: NameNode | undefined = undefined;
@@ -5941,9 +5955,11 @@ export class Parser {
         let possibleName = this._getTokenIfIdentifier();
         if (possibleName) {
             name = NameNode.create(possibleName);
-            dimTokens = this._peekDimTokens();
-            for (let index = 0; index < dimTokens.length; index++) {
-                this._getNextToken();
+            if (typedVarCategory !== TypedVarCategory.Function && typedVarCategory !== TypedVarCategory.Callback) {
+                dimTokens = this._peekDimTokens();
+                for (let index = 0; index < dimTokens.length; index++) {
+                    this._getNextToken();
+                }
             }
             name.ptrTokens = ptrTokens;
             name.dimTokens = dimTokens;
@@ -6083,7 +6099,7 @@ export class Parser {
         }
 
         // View is associated with type
-        let viewTokensCount = this._peekView(undefined, (typedVarCategory === TypedVarCategory.Function)).length;
+        let viewTokensCount = this._peekView(undefined, typedVarCategory).length;
         for (let index = 0; index < viewTokensCount; index++) {
             viewTokens.push(this._getNextToken());
         }
@@ -6108,7 +6124,6 @@ export class Parser {
         allowPrototype = false,
         allowNoType = false,
     ): TypedVarNode | undefined {
-        const tokenIndex = this._tokenIndex;
         let varName: NameNode | undefined = undefined;
         let cDefType = this._peekKeywordType();
         if (cDefType && ![KeywordType.Def, KeywordType.Cdef, KeywordType.Cpdef, KeywordType.Ctypedef].includes(cDefType)) {
@@ -6116,21 +6131,18 @@ export class Parser {
             cDefType = KeywordType.Cdef;
         }
 
-        const varTypeNode = this._parseVarType(typedVarCategory);
-        let varType = varTypeNode.typeAnnotation;
-
-        const ptrTokens = this._peekTokenPointers();
-        const ptrCount = ptrTokens.length;
-
-        if (this._peekToken(ptrCount).type === TokenType.OpenParenthesis) {
-            let skipAhead = this._peekUntilType([TokenType.CloseParenthesis, TokenType.NewLine], ptrCount);
+        let possibleOpenParenCount = this._peekUntilType([TokenType.OpenParenthesis, TokenType.NewLine]);
+        if (this._peekToken(possibleOpenParenCount).type === TokenType.OpenParenthesis) {
+            let skipAhead = this._peekUntilType([TokenType.CloseParenthesis, TokenType.NewLine], possibleOpenParenCount);
             if (this._peekToken(skipAhead).type === TokenType.CloseParenthesis && this._peekToken(skipAhead + 1).type === TokenType.OpenParenthesis) {
-                this._tokenIndex = tokenIndex; // Rewind index to parse callback correctly
                 return this._parseCallback(typedVarCategory, cDefType);
             }
         }
 
-        varName = this._parseTypedName();
+        const varTypeNode = this._parseVarType(typedVarCategory);
+        let varType = varTypeNode.typeAnnotation;
+
+        varName = this._parseTypedName(typedVarCategory);
         if (!varName && varType) {
             if (allowPrototype) {
                 varName = this._createDummyName(varType);
