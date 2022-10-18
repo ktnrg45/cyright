@@ -5787,7 +5787,7 @@ export class Parser {
     }
 
     // C Callback Function: "void* (*function_name)(void *args)"
-    private _parseCallback(cDefType = KeywordType.Cdef): TypedVarNode | undefined {
+    private _parseCallback(allowPrototype: boolean, cDefType = KeywordType.Cdef): TypedVarNode | undefined {
 
         if (this._consumeTokenIfKeyword(KeywordType.Cdef)) {
             cDefType = KeywordType.Cdef;
@@ -5865,7 +5865,7 @@ export class Parser {
         let indexNode = IndexNode.create(dummyCallable, args, false, closeParen);
 
         const typedVarNode = TypedVarNode.create(NameNode.create(varName), indexNode, varTypeNode);
-        typedVarNode.name.isPrototype = true;
+        typedVarNode.name.isPrototype = allowPrototype;
         const prefixTokens: Token[] = (varTypeNode.modifier) ? [varTypeNode.modifier] : [];
         prefixTokens.push(...varTypeNode.numericModifiers || []);
         const prefix = this._getTokenListText(prefixTokens);
@@ -6150,6 +6150,7 @@ export class Parser {
         typedVarCategory = TypedVarCategory.Variable,
         allowPrototype = false,
         allowNoType = false,
+        allowCallback = true,
     ): TypedVarNode | undefined {
         let varName: NameNode | undefined = undefined;
         let cDefType = this._peekKeywordType();
@@ -6158,11 +6159,13 @@ export class Parser {
             cDefType = KeywordType.Cdef;
         }
 
-        let possibleOpenParenCount = this._peekUntilType([TokenType.OpenParenthesis, TokenType.NewLine]);
-        if (this._peekToken(possibleOpenParenCount).type === TokenType.OpenParenthesis) {
-            let skipAhead = this._peekUntilType([TokenType.CloseParenthesis, TokenType.NewLine], possibleOpenParenCount);
-            if (this._peekToken(skipAhead).type === TokenType.CloseParenthesis && this._peekToken(skipAhead + 1).type === TokenType.OpenParenthesis) {
-                return this._parseCallback(cDefType);
+        if (allowCallback) {
+            let possibleOpenParenCount = this._peekUntilType([TokenType.OpenParenthesis, TokenType.Comma, TokenType.NewLine]);
+            if (this._peekToken(possibleOpenParenCount).type === TokenType.OpenParenthesis) {
+                let skipAhead = this._peekUntilType([TokenType.CloseParenthesis, TokenType.NewLine], possibleOpenParenCount);
+                if (this._peekToken(skipAhead).type === TokenType.CloseParenthesis && this._peekToken(skipAhead + 1).type === TokenType.OpenParenthesis) {
+                    return this._parseCallback(allowPrototype, cDefType);
+                }
             }
         }
 
@@ -6553,7 +6556,7 @@ export class Parser {
             typeParameters = this._parseTypeParameterList();
             this._peekToken();
         } else {
-            typedVarNode = this._parseTypedVar(TypedVarCategory.Function, /* allowPrototype */ false, /* allowNoType */ true);
+            typedVarNode = this._parseTypedVar(TypedVarCategory.Function, /* allowPrototype */ false, /* allowNoType */ true, /* allowCallback */ false);
             if (!typedVarNode) {
                 this._addError(Localizer.Diagnostic.expectedFunctionName(), firstToken);
                 return ErrorNode.create(
