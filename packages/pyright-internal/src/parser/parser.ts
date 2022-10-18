@@ -1909,8 +1909,11 @@ export class Parser {
 
             if (param.name) {
                 const name = param.name.value;
+                if (param.typeAnnotation && param.unknownNameOrType) {
+                    param.name.value = `_p${paramList.length}`;
+                }
                 if (paramMap.has(name)) {
-                    if (!param.name.isPrototype) {
+                    if (name !== '') {
                         this._addError(Localizer.Diagnostic.duplicateParam().format({ name }), param.name);
                     }
                 } else {
@@ -5723,15 +5726,15 @@ export class Parser {
                 isPythonParam = true;
             }
         } else if (this._peekToken().type === TokenType.Ellipsis) {
-            isPythonParam = true;
-        }
-
-        if (isPythonParam) {
             const param = this._parseParameter(allowAnnotations, allowOptionalArg);
-            if (param.name && allowPrototype) {
+            if (param.name) {
                 param.name.isPrototype = allowPrototype;
             }
             return param;
+        }
+
+        if (isPythonParam && !allowPrototype) {
+            return this._parseParameter(allowAnnotations, allowOptionalArg);
         }
         let typedVarNode = this._parseTypedVar(TypedVarCategory.Parameter, allowPrototype);
         if (!typedVarNode) {
@@ -5740,15 +5743,11 @@ export class Parser {
         let name = typedVarNode.name;
         let typeAnnotation: ExpressionNode | undefined = typedVarNode.typeAnnotation;
 
-        if (name.value === '' && typeAnnotation.nodeType === ParseNodeType.Name) {
-            // This is either just the param name or just the param type. Handle as if it was the param name
-            const suffixMap = name.suffixMap;
-            name = typeAnnotation;
-            typeAnnotation = undefined;
-            name.isPrototype = allowPrototype;
-            name.suffixMap = suffixMap;
-        }
         let paramNode = ParameterNode.create(typedVarNode.startToken, ParameterCategory.Simple);
+        if (name.value === '' && typeAnnotation.nodeType === ParseNodeType.Name) {
+            // This is either just the param name or just the param type.
+            paramNode.unknownNameOrType = true;
+        }
 
         if (name) {
             paramNode.name = name;
@@ -6179,6 +6178,7 @@ export class Parser {
             if (allowPrototype) {
                 varName = this._createDummyName(varType);
                 varName.ptrTokens = ptrTokens;
+                varName.id = getNextNodeId();
             } else if (varType.nodeType === ParseNodeType.Name) {
                 if (allowNoType) {
                     // Handle no return type with modifiers: "cdef inline name()"
