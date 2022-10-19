@@ -14309,6 +14309,10 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                             typeAliasNameNode = node.leftExpression;
                             isSpeculativeTypeAlias = true;
                         }
+                        if (decls.length > 0 && decls[0].node.suffixMap) {
+                            // Keep suffixes from first declaration as type shouldn't change.
+                            node.leftExpression.suffixMap = decls[0].node.suffixMap;
+                        }
                     }
                 }
 
