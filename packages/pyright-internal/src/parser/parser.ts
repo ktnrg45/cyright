@@ -6095,7 +6095,10 @@ export class Parser {
                         this._getNextToken();
                         break;
                     }
-                    if (!this._peekTokenIfIdentifier(1)) {
+                    if (this._peekTokenIfIdentifier(1)) {
+                        numModifiers.push(varToken);
+                        varToken = nextToken;
+                        this._getNextToken();
                         break;
                     }
                 }
