@@ -768,8 +768,9 @@ export function printFunctionParts(
 
         let defaultValueAssignment = '=';
         let isParamSpecArgsKwargsParam = false;
+        const ellipsis = '...';
 
-        if (param.name) {
+        if (param.name && param.name !== ellipsis) {
             // Avoid printing type types if parameter have unknown type.
             if (param.hasDeclaredType || param.isTypeInferred) {
                 const node = param.typeAnnotation?.parent;
@@ -811,7 +812,7 @@ export function printFunctionParts(
                 paramString += 'Unknown';
                 defaultValueAssignment = ' = ';
             }
-        } else if (param.category === ParameterCategory.Simple) {
+        } else if (param.category === ParameterCategory.Simple && param.name !== ellipsis) {
             if (sawDefinedName) {
                 paramString += '/';
             } else {

@@ -2017,7 +2017,10 @@ export class Parser {
         const firstToken = this._peekToken();
 
         if (firstToken.type === TokenType.Ellipsis) {
-            return ParameterNode.create(this._getNextToken(), ParameterCategory.Simple);
+            const token = this._getNextToken();
+            const param = ParameterNode.create(token, ParameterCategory.Simple);
+            param.name = NameNode.create(IdentifierToken.create(token.start, token.length, this._getTokenText(token), undefined));
+            return param;
         }
 
         if (this._consumeTokenIfOperator(OperatorType.Multiply)) {
