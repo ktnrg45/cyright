@@ -43,7 +43,7 @@ import {
 } from '../common/pathUtils';
 import { convertPositionToOffset, convertRangeToTextRange, convertTextRangeToRange } from '../common/positionUtils';
 import { computeCompletionSimilarity } from '../common/stringUtils';
-import { DocumentRange, doesRangeContain, doRangesIntersect, Position, Range } from '../common/textRange';
+import { DocumentRange, doesRangeContain, doRangesIntersect, isEmptyRange, Position, Range } from '../common/textRange';
 import { Duration, timingStats } from '../common/timing';
 import {
     AutoImporter,
@@ -2057,11 +2057,15 @@ export class Program {
 
             const edits: FileEditAction[] = [];
             referencesResult.locations.forEach((loc) => {
-                edits.push({
-                    filePath: loc.path,
-                    range: loc.range,
-                    replacementText: newName,
-                });
+                // Ignore empty ranges
+                const empty = isEmptyRange(loc.range);
+                if (!empty) {
+                    edits.push({
+                        filePath: loc.path,
+                        range: loc.range,
+                        replacementText: newName,
+                    });
+                }
             });
 
             return { edits, fileOperations: [] };
