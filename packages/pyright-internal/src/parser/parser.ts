@@ -5944,13 +5944,9 @@ export class Parser {
             return undefined
         }
         this._consumeTokenIfType(TokenType.NewLine);
-        // const typeParam = TypeParameterNode.create(typedVarNode.name, TypeParameterCategory.TypeVar, typedVarNode.name);
-        // const endToken = Token.create(TokenType.Identifier, typedVarNode.start, typedVarNode.length, undefined);
-        // const typeParameters = TypeParameterListNode.create(typedVarNode.startToken, endToken, [typeParam]);
 
-        const expr = AssignmentNode.create(typedVarNode.name, typedVarNode.typeAnnotation);
-        const typeAlias = TypeAliasNode.create(typeToken, typedVarNode.name, expr);
-        extendRange(typeAlias, typedVarNode);
+        const typeAlias = TypeAliasNode.create(typeToken, typedVarNode.name, typedVarNode.typeAnnotation);
+        extendRange(typeAlias, typedVarNode.name);
         return typeAlias;
     }
 

@@ -4060,7 +4060,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 }
 
                 if (type) {
-                    for (let decl of symbol.getDeclarations()) {
+                    for (let decl of symbol.getTypedDeclarations()) {
                         let suffixMap: PrefixSuffixMap | undefined = undefined;
                         switch (decl.node.nodeType) {
                             case ParseNodeType.Parameter:
