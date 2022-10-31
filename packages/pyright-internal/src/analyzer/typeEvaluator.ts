@@ -14504,6 +14504,36 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
         aliasType = transformTypeForTypeAlias(aliasType, node.name, node.expression, typeParameters);
 
+        // If the type of this type alias is also a type alias, don't expand the type alias.
+        if (node.isCython && aliasTypeResult.type.typeAliasInfo && aliasTypeResult.type.category === TypeCategory.Class && aliasType.category === TypeCategory.Class) {
+            let aliasName = '';
+            switch (node.expression.nodeType) {
+                case ParseNodeType.Name:
+                    aliasName = node.expression.value;
+                    break;
+                case ParseNodeType.MemberAccess:
+                    aliasName = node.expression.memberName.value;
+                    break;
+            }
+            const symbolWIthScope = lookUpSymbolRecursive(node.expression, aliasName, true);
+            const decls = symbolWIthScope?.symbol.getDeclarations();
+            if (decls && decls.length > 0) {
+                const decl = decls[0];
+                const details = {...aliasTypeResult.type.details};
+                details.name = aliasTypeResult.type.typeAliasInfo.name;
+                details.fullName = aliasTypeResult.type.typeAliasInfo.fullName;
+                details.filePath = decl.path;
+                details.moduleName = decl.moduleName;
+                aliasType.details = details;
+
+                if (decl.node !== node && decl.node.nodeType === ParseNodeType.TypeAlias) {
+                    node.expression.suffixMap = (decl.node as TypeAliasNode).name.suffixMap;
+                    writeTypeCache(node.expression, aliasTypeResult.type, EvaluatorFlags.None, isIncomplete);
+                }
+
+            }
+        }
+
         if (isTypeAliasRecursive(typeAliasTypeVar, aliasType)) {
             addDiagnostic(
                 AnalyzerNodeInfo.getFileInfo(node).diagnosticRuleSet.reportGeneralTypeIssues,

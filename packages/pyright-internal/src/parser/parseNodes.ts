@@ -1000,6 +1000,7 @@ export interface TypeAliasNode extends ParseNodeBase {
     name: NameNode;
     typeParameters?: TypeParameterListNode;
     expression: ExpressionNode;
+    isCython?: boolean;
 }
 
 export namespace TypeAliasNode {

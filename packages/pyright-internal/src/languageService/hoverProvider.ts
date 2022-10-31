@@ -39,7 +39,7 @@ import { assertNever, fail } from '../common/debug';
 import { convertOffsetToPosition, convertPositionToOffset } from '../common/positionUtils';
 import { Position, Range } from '../common/textRange';
 import { TextRange } from '../common/textRange';
-import { NameNode, ParseNode, ParseNodeType, StringNode, PrefixSuffixMap } from '../parser/parseNodes';
+import { NameNode, ParseNode, ParseNodeType, StringNode } from '../parser/parseNodes';
 import { ParseResults } from '../parser/parser';
 import { getDocumentationPartsForTypeAndDecl, getOverloadedFunctionTooltip } from './tooltipUtils';
 

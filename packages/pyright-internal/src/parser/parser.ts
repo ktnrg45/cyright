@@ -5956,6 +5956,7 @@ export class Parser {
 
         const typeAlias = TypeAliasNode.create(typeToken, typedVarNode.name, typedVarNode.typeAnnotation);
         extendRange(typeAlias, typedVarNode.name);
+        typeAlias.isCython = true;
         return typeAlias;
     }
 
