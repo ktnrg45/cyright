@@ -29,6 +29,7 @@ import {
     RaiseNode,
     StringNode,
     PrefixSuffixMap,
+    TypeAliasNode,
 } from '../parser/parseNodes';
 import * as DeclarationUtils from './aliasDeclarationUtils';
 import { AnalyzerFileInfo } from './analyzerFileInfo';
@@ -486,4 +487,5 @@ export interface TypeEvaluator {
     setTypeForNode: (node: ParseNode, type?: Type, flags?: EvaluatorFlags) => void;
 
     checkForCancellation: () => void;
+    getTypeOfTypeAlias: (node: TypeAliasNode) => Type;
 }

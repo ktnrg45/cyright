@@ -24169,6 +24169,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         useSpeculativeMode,
         setTypeForNode,
         checkForCancellation,
+        getTypeOfTypeAlias,
     };
 
     const codeFlowEngine = getCodeFlowEngine(evaluatorInterface, speculativeTypeTracker);

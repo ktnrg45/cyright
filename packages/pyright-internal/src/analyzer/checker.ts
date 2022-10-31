@@ -75,6 +75,7 @@ import {
     TernaryNode,
     TryNode,
     TupleNode,
+    TypeAliasNode,
     TypeAnnotationNode,
     TypeParameterListNode,
     TypeParameterNode,
@@ -1409,6 +1410,11 @@ export class Checker extends ParseTreeWalker {
 
     override visitTypeAnnotation(node: TypeAnnotationNode): boolean {
         this._evaluator.getType(node.typeAnnotation);
+        return true;
+    }
+
+    override visitTypeAlias(node: TypeAliasNode): boolean {
+        this._evaluator.getTypeOfTypeAlias(node);
         return true;
     }
 

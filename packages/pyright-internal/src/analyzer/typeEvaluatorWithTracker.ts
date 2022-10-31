@@ -160,6 +160,7 @@ export function createTypeEvaluatorWithTracker(
         useSpeculativeMode: typeEvaluator.useSpeculativeMode,
         setTypeForNode: typeEvaluator.setTypeForNode,
         checkForCancellation: typeEvaluator.checkForCancellation,
+        getTypeOfTypeAlias: (n) => run('getTypeOfTypeAlias', () => typeEvaluator.getTypeOfTypeAlias(n), n),
     };
 
     return withTracker;
