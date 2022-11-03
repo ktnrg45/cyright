@@ -1511,8 +1511,10 @@ export class Parser {
             );
             forSuite = SuiteNode.create(this._peekToken());
         } else {
-            // Handle C for statement: "for i from 0 <= i < stop"
-            this._consumeTokenIfKeyword(KeywordType.From);
+            // Handle deprecated for from statement: "for i from 0 <= i < stop"
+            if (this._peekKeywordType() === KeywordType.From) {
+                this._addDeprecated(Localizer.Diagnostic.deprecatedForFromLoop(), this._getNextToken());
+            }
             seqExpr = this._parseTestOrStarListAsExpression(
                 /* allowAssignmentExpression */ false,
                 /* allowMultipleUnpack */ true,
@@ -5154,6 +5156,17 @@ export class Parser {
         }
     }
 
+    private _addDeprecated(message: string, range: TextRange) {
+        assert(range !== undefined);
+
+        if (!this._areErrorsSuppressed) {
+            this._diagSink.addDeprecated(
+                message,
+                convertOffsetsToRange(range.start, range.start + range.length, this._tokenizerOutput!.lines)
+            );
+        }
+    }
+
     // Cython
     private _getTokenPointers(): OperatorToken[] {
         var ptrTokens: OperatorToken[] = [];
@@ -6491,6 +6504,7 @@ export class Parser {
                         const name = NameNode.create(nameToken);
                         const suite = this._parseSuite(/* isFunction */ false, this._parseOptions.skipFunctionAndClassBody);
                         const classNode = ClassNode.create(possiblePropertyToken, name, suite, undefined);
+                        this._addDeprecated(Localizer.Diagnostic.deprecatedPropertyCython(), possibleProperty);
                         return classNode;
                     }
                 }

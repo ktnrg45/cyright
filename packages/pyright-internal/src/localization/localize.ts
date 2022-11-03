@@ -1002,6 +1002,8 @@ export namespace Localizer {
         export const expectedWith = () => getRawString('Diagnostic.expectedWith');
         export const expectedNoGil = () => getRawString('Diagnostic.expectedNoGil');
         export const expectedCastClose = () => getRawString('Diagnostic.expectedCastClose');
+        export const deprecatedPropertyCython = () => getRawString('Diagnostic.deprecatedPropertyCython');
+        export const deprecatedForFromLoop = () => getRawString('Diagnostic.deprecatedForFromLoop');
     }
 
     export namespace DiagnosticAddendum {
