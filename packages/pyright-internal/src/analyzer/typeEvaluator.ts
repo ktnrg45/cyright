@@ -4066,6 +4066,17 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                             case ParseNodeType.Parameter:
                                 suffixMap = decl.node.name?.suffixMap;
                                 break;
+                            case ParseNodeType.TypeAlias:
+                                if (decl.node.isCython) {
+                                    let possibleAnnotation = node.parent;
+                                    if (possibleAnnotation?.nodeType === ParseNodeType.MemberAccess) {
+                                        possibleAnnotation = possibleAnnotation.parent;
+                                    }
+                                    if (possibleAnnotation?.nodeType === ParseNodeType.TypeAnnotation) {
+                                        suffixMap = decl.node.name.suffixMap;
+                                    }
+                                }
+                                break;
                             default:
                                 break;
                         }
@@ -4911,6 +4922,17 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                             }),
                             node.memberName
                         );
+                    }
+
+                    if (type.typeAliasInfo && type.category === TypeCategory.Class) {
+                        // Module.typealias
+                        const decls = importLookup(type.details.filePath)?.symbolTable.get(type.typeAliasInfo.name)?.getDeclarations();
+                        if (decls && decls.length > 0) {
+                            const aliasNode = decls[0].node;
+                            if (aliasNode.nodeType === ParseNodeType.TypeAlias && aliasNode.isCython && !node.memberName.suffixMap) {
+                                node.memberName.suffixMap = aliasNode.name.suffixMap;
+                            }
+                        }
                     }
                 } else {
                     // Does the module export a top-level __getattr__ function?
@@ -14520,15 +14542,51 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             if (decls && decls.length > 0) {
                 const decl = decls[0];
                 const details = {...aliasTypeResult.type.details};
-                details.name = aliasTypeResult.type.typeAliasInfo.name;
-                details.fullName = aliasTypeResult.type.typeAliasInfo.fullName;
+                let detailsName = aliasTypeResult.type.typeAliasInfo.name;
+                if (node.expression.nodeType === ParseNodeType.Name) {
+                    detailsName = node.expression.value;
+                } else if (node.expression.nodeType === ParseNodeType.MemberAccess) {
+                    detailsName = node.expression.memberName.value
+                }
+                // Change the details of the type so that the previous typealias is the type
+                details.name = detailsName;
+                // TODO: Check if changing the module name is correct
+                details.fullName = `${decl.moduleName}.${details.name}`;
                 details.filePath = decl.path;
                 details.moduleName = decl.moduleName;
                 aliasType.details = details;
 
-                if (decl.node !== node && decl.node.nodeType === ParseNodeType.TypeAlias) {
-                    node.expression.suffixMap = (decl.node as TypeAliasNode).name.suffixMap;
-                    writeTypeCache(node.expression, aliasTypeResult.type, EvaluatorFlags.None, isIncomplete);
+                if (decl.node !== node) {
+                    let declName: NameNode | undefined = undefined;
+                    switch (decl.node.nodeType) {
+                        case ParseNodeType.TypeAlias:
+                            declName = (decl.node as TypeAliasNode).name;
+                            break;
+                        case ParseNodeType.ImportFromAs:
+                            declName = decl.node.alias;
+                            break;
+                        case ParseNodeType.ImportFrom:
+                            if (aliasTypeResult.type.category === TypeCategory.Class) {
+                                const symbolDecls = importLookup(
+                                    aliasTypeResult.type.details.filePath
+                                )?.symbolTable.get(
+                                    aliasTypeResult.type.typeAliasInfo.name
+                                )?.getDeclarations();
+                                if (symbolDecls && symbolDecls.length > 0) {
+                                    const symbolDecl = symbolDecls[0];
+                                    if (symbolDecl.node.nodeType === ParseNodeType.TypeAlias) {
+                                        declName = symbolDecl.node.name;
+                                    }
+                                }
+                            }
+                            break;
+                    }
+                    if (declName) {
+                        if (!node.expression.suffixMap) {
+                            node.expression.suffixMap = declName.suffixMap;
+                        }
+                        writeTypeCache(node.expression, aliasTypeResult.type, EvaluatorFlags.None, isIncomplete);
+                    }
                 }
 
             }
@@ -17165,6 +17223,20 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             }
         }
 
+        if (symbolType.typeAliasInfo && symbolType.category === TypeCategory.Class) {
+            const symbol = importLookup(symbolType.details.filePath)?.symbolTable.get(symbolType.typeAliasInfo.name);
+            const decls = symbol?.getDeclarations();
+            const decl = (decls && decls.length > 0) ? decls[0] : undefined
+            if (decl && decl.node.nodeType === ParseNodeType.TypeAlias && decl.node.isCython) {
+                if (!aliasNode.suffixMap) {
+                    aliasNode.suffixMap = decl.node.name.suffixMap;
+                }
+                if (!node.name.suffixMap) {
+                    node.name.suffixMap = decl.node.name.suffixMap;
+                }
+                writeTypeCache(node.name, symbolType, EvaluatorFlags.None, /* isIncomplete */ false);
+            }
+        }
         assignTypeToNameNode(aliasNode, symbolType, /* isIncomplete */ false, /* ignoreEmptyContainers */ false);
         writeTypeCache(node, symbolType, EvaluatorFlags.None, /* isIncomplete */ false);
     }
@@ -19063,6 +19135,34 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                                     declaration.node,
                                     () => declaredType
                                 ) || declaredType;
+
+                            // In the case that this is an imported type alias apply suffix map
+                            if (declaredType.typeAliasInfo && declaredType.category === TypeCategory.Class) {
+                                let annotationNode = declaration.node.parent;
+                                if (annotationNode?.nodeType === ParseNodeType.MemberAccess) {
+                                    annotationNode = annotationNode.parent;
+                                }
+                                if (annotationNode?.nodeType === ParseNodeType.TypeAnnotation) {
+                                    const decls = importLookup(declaredType.details.filePath)?.symbolTable.get(declaredType.typeAliasInfo.name)?.getDeclarations();
+                                    if (decls && decls.length > 0) {
+                                        const aliasNode = decls[0].node;
+                                        if (aliasNode.nodeType === ParseNodeType.TypeAlias && aliasNode.isCython && aliasNode.name.suffixMap) {
+                                            annotationNode.typeAnnotation.suffixMap = aliasNode.name.suffixMap;
+                                            const aliasType = getTypeOfTypeAlias(aliasNode as TypeAliasNode);
+                                            if (aliasType) {
+                                                writeTypeCache(
+                                                    annotationNode.typeAnnotation,
+                                                    aliasType,
+                                                    undefined,
+                                                    false,
+                                                    undefined,
+                                                    false,
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         if (typeAliasNode && typeAliasNode.valueExpression.nodeType === ParseNodeType.Name) {
