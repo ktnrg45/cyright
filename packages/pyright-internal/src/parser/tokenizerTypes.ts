@@ -154,7 +154,6 @@ export const enum KeywordType {
     Gil,
     Nogil,
     Include,
-    Define,
     Inline,
     Const,
     Readonly,
@@ -163,6 +162,11 @@ export const enum KeywordType {
     Unsigned,
     Long,
     Noexcept,
+    // Macros
+    DEF,
+    IF,
+    ELIF,
+    ELSE,
     // CPP
     Namespace,
     Cppclass,

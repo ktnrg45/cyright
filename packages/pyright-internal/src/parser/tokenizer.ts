@@ -95,7 +95,6 @@ const _keywords: Map<string, KeywordType> = new Map([
     ['gil', KeywordType.Gil],
     ['nogil', KeywordType.Nogil],
     ['include', KeywordType.Include],
-    ['DEF', KeywordType.Define],
     ['inline', KeywordType.Inline],
     ['const', KeywordType.Const],
     ['readonly', KeywordType.Readonly],
@@ -104,6 +103,11 @@ const _keywords: Map<string, KeywordType> = new Map([
     ['unsigned', KeywordType.Unsigned],
     ['long', KeywordType.Long],
     ['noexcept', KeywordType.Noexcept],
+    // Macros
+    ['DEF', KeywordType.DEF],
+    ['IF', KeywordType.IF],
+    ['ELIF', KeywordType.ELIF],
+    ['ELSE', KeywordType.ELSE],
     // CPP
     ['namespace', KeywordType.Namespace],
     ['cppclass', KeywordType.Cppclass],
@@ -534,7 +538,7 @@ export class Tokenizer {
                     this._tokens.push(Token.create(TokenType.Dot, this._cs.position, 1, this._getComments()));
                     break;
                 }
-                
+
                 if (!this._tryIdentifier()) {
                     if (!this._tryOperator()) {
                         return this._handleInvalid();

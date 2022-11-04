@@ -401,9 +401,12 @@ export class Parser {
             case KeywordType.Ctypedef:
                 return this._parseCTypeDef();
 
-            case KeywordType.Define:
+            case KeywordType.DEF:
                 this._getNextToken();
                 return this._parseStatement();
+
+            case KeywordType.IF:
+                return this._parseIfStatementMacro();
 
             case KeywordType.Class:
                 return this._parseClassDef();
@@ -6511,6 +6514,28 @@ export class Parser {
             }
         }
         return undefined;
+    }
+
+    // IF ELSE statement. Equivalent to preprocessor macros: "#if, #elif, #else"
+    private _parseIfStatementMacro(keywordType: KeywordType.IF | KeywordType.ELIF = KeywordType.IF): IfNode {
+        const ifOrElifToken = this._getKeywordToken(keywordType);
+
+        const test = this._parseTestExpression(/* allowAssignmentExpression */ true);
+        const suite = this._parseSuite(this._isInFunction);
+        const ifNode = IfNode.create(ifOrElifToken, test, suite);
+
+        if (this._consumeTokenIfKeyword(KeywordType.ELSE)) {
+            ifNode.elseSuite = this._parseSuite(this._isInFunction);
+            ifNode.elseSuite.parent = ifNode;
+            extendRange(ifNode, ifNode.elseSuite);
+        } else if (this._peekKeywordType() === KeywordType.ELIF) {
+            // Recursively handle an "elif" statement.
+            ifNode.elseSuite = this._parseIfStatementMacro(KeywordType.ELIF);
+            ifNode.elseSuite.parent = ifNode;
+            extendRange(ifNode, ifNode.elseSuite);
+        }
+
+        return ifNode;
     }
 
     private _parseFunctionTrailer(keywordType: KeywordType | undefined) {
