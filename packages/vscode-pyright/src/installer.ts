@@ -6,18 +6,6 @@ import {
     window,
 } from 'vscode';
 
-import * as pathConsts from 'pyright-internal/common/pathConsts';
-import {
-    combinePaths,
-    getDirectoryPath,
-    getPathComponents,
-    isDirectory,
-} from 'pyright-internal/common/pathUtils';
-import { FullAccessHost } from 'pyright-internal/common/fullAccessHost';
-import { versionToString } from 'pyright-internal/common/pythonVersion';
-import { HostKind } from 'pyright-internal/common/host';
-import { createFromRealFileSystem } from 'pyright-internal/common/realFileSystem';
-
 
 const COMMAND = "-m pip install cython";
 const DISABLE_PROMPT_KEY = "cython_disable_install_prompt"
@@ -90,37 +78,16 @@ async function startInstall(outputChannel: OutputChannel, pythonPath: string) {
     );
 }
 
-function checkCythonInstalled(outputChannel: OutputChannel, pythonPath: string): boolean {
-    let foundCython = false;
-    let path = "";
-    const fs = createFromRealFileSystem(undefined, undefined);
-    const host = FullAccessHost.createHost(HostKind.FullAccess, fs);
+function checkCythonInstalled(context: ExtensionContext, outputChannel: OutputChannel, pythonPath: string) {
 
-    let parts = getPathComponents(getDirectoryPath(pythonPath));
-    parts.pop(); // One dir up should be where lib path is
-    const dirPath = combinePaths("", ...parts);
-    const pyVer = host.getPythonVersion(pythonPath, undefined);
-
-    if (!pyVer) {
-        // Something went wrong. Avoid showing prompt
-        return true;
-    }
-
-    const pyVerStr: string = `python${versionToString(pyVer)}`;
-    [pathConsts.lib, pathConsts.lib64, pathConsts.libAlternate].forEach((libPath) => {
-        const cythonPath = combinePaths(dirPath, libPath, pyVerStr, pathConsts.sitePackages, pathConsts.cython);
-        if (fs.existsSync(cythonPath) && isDirectory(fs, cythonPath)) {
-            path = cythonPath;
-            foundCython = true;
+    const command = `${pythonPath} -c "import cython"`
+    outputChannel.appendLine("Checking for Cython installation");
+    exec(command, (error, stdout, stderr) => {
+        if (error?.code !== undefined) {
+            outputChannel.appendLine("Cython Not Found.");
+            prompt(context, pythonPath);
         }
     });
-    if (foundCython) {
-        outputChannel.append("Found Cython at: ");
-        outputChannel.appendLine(path);
-    } else {
-        outputChannel.appendLine("Cython Not found");
-    }
-    return foundCython;
 }
 
 function handleInput(context: ExtensionContext, pythonPath: string, input: string | undefined) {
@@ -150,8 +117,6 @@ export namespace Installer {
         if (context.globalState.get(DISABLE_PROMPT_KEY)) {
             return;
         }
-        if (!checkCythonInstalled(outputChannel, pythonPath)) {
-            prompt(context, pythonPath);
-        }
+        checkCythonInstalled(context, outputChannel, pythonPath);
     }
 }
