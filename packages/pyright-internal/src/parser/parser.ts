@@ -6289,10 +6289,13 @@ export class Parser {
                     continue;
                 }
             }
-            let count = statements.statements.length;
+            const count = statements.statements.length;
             statements = this._parseTypedStatement(statements);
-            if (count === statements.statements.length) {
+            const newCount = statements.statements.length;
+            if (count === newCount) {
                 this._consumeTokensUntilType([TokenType.NewLine]);
+            } else if (newCount > 0 && statements.statements[newCount - 1].nodeType === ParseNodeType.Error) {
+                this._getNextToken();
             }
             this._consumeTokenIfType(TokenType.NewLine);
             if (this._peekTokenType() === TokenType.EndOfStream) {
