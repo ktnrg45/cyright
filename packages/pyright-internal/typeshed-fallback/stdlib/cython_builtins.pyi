@@ -59,7 +59,7 @@ class double(_I):
     ...
 
 
-class ptrdiff_T(_I):
+class ptrdiff_t(_I):
     """Cython Type. Represents the signed integer type of the result of subtracting two pointers."""
     ...
 
