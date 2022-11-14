@@ -59,6 +59,11 @@ class double(_I):
     ...
 
 
+class ptrdiff_T(_I):
+    """Cython Type. Represents the signed integer type of the result of subtracting two pointers."""
+    ...
+
+
 class struct(_T):
     """Cython Type. Represents a struct."""
     ...
