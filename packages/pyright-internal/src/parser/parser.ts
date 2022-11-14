@@ -5620,7 +5620,7 @@ export class Parser {
         if (structToken.type != TokenType.Identifier) {
             if (structToken.type === TokenType.Keyword) {
                 if (validKeywords.includes((structToken as KeywordToken).keywordType)) {
-                    dataType = this._getTokenText(structToken);
+                    dataType = this._getRangeText(structToken);
                 }
             } else {
                 return undefined;
@@ -6106,6 +6106,51 @@ export class Parser {
         } as NameNode);
     }
 
+    // CPP class operator functions
+    private _parseCppOperator(name: NameNode): NameNode {
+        const operator = this._peekToken()
+        const operator2 = this._peekToken(1)
+        let advance = 0;
+        if (operator.type === TokenType.Operator) {
+            switch ((operator as OperatorToken).operatorType) {
+                case OperatorType.Add:
+                    advance++;
+                    if (operator2.type === TokenType.Operator) {
+                        if ((operator2 as OperatorToken).operatorType === OperatorType.Add) {
+                            advance++;
+                        }
+                    }
+                    break;
+                case OperatorType.Subtract:
+                    advance++;
+                    if (operator2.type === TokenType.Operator) {
+                        if ((operator2 as OperatorToken).operatorType === OperatorType.Subtract) {
+                            advance++;
+                        }
+                    }
+                    break;
+                case OperatorType.Multiply:
+                case OperatorType.Divide:
+                case OperatorType.GreaterThan:
+                case OperatorType.GreaterThanOrEqual:
+                case OperatorType.LessThan:
+                case OperatorType.LessThanOrEqual:
+                case OperatorType.Equals:
+                case OperatorType.Assign:
+                case OperatorType.NotEquals:
+                    advance++;
+                    break;
+            }
+        }
+
+        for (advance; advance > 0; advance--) {
+            const token = this._getNextToken();
+            extendRange(name, token);
+            name.value += this._getRangeText(token);
+        }
+        return name;
+    }
+
     private _parseTypedName(typedVarCategory = TypedVarCategory.Variable): NameNode | undefined {
         const ptrTokens = this._getTokenPointers();
         let dimTokens: Token[] = [];
@@ -6114,7 +6159,10 @@ export class Parser {
         let possibleName = this._getTokenIfIdentifier();
         if (possibleName) {
             name = NameNode.create(possibleName);
-            if (typedVarCategory !== TypedVarCategory.Function && typedVarCategory !== TypedVarCategory.Callback) {
+            if (typedVarCategory === TypedVarCategory.Function && possibleName.value === "operator") {
+                name = this._parseCppOperator(name);
+            }
+            else if (typedVarCategory !== TypedVarCategory.Function && typedVarCategory !== TypedVarCategory.Callback) {
                 dimTokens = this._peekDimTokens();
                 for (let index = 0; index < dimTokens.length; index++) {
                     this._getNextToken();
@@ -6123,48 +6171,6 @@ export class Parser {
             name.ptrTokens = ptrTokens;
             name.dimTokens = dimTokens;
             name.aliasToken = this._getTokenIfType(TokenType.String) as StringToken;
-
-            if (typedVarCategory === TypedVarCategory.Function && possibleName.value === "operator") {
-                const operator = this._peekToken()
-                const operator2 = this._peekToken(1)
-                let advance = 0;
-                if (operator.type === TokenType.Operator) {
-                    switch ((operator as OperatorToken).operatorType) {
-                        case OperatorType.Add:
-                            advance++;
-                            if (operator2.type === TokenType.Operator) {
-                                if ((operator2 as OperatorToken).operatorType === OperatorType.Add) {
-                                    advance++;
-                                }
-                            }
-                            break;
-                        case OperatorType.Subtract:
-                            advance++;
-                            if (operator2.type === TokenType.Operator) {
-                                if ((operator2 as OperatorToken).operatorType === OperatorType.Subtract) {
-                                    advance++;
-                                }
-                            }
-                            break;
-                        case OperatorType.Multiply:
-                        case OperatorType.Divide:
-                        case OperatorType.GreaterThan:
-                        case OperatorType.GreaterThanOrEqual:
-                        case OperatorType.LessThan:
-                        case OperatorType.LessThanOrEqual:
-                        case OperatorType.Equals:
-                        case OperatorType.Assign:
-                            advance++;
-                            break;
-                    }
-                    for (advance; advance > 0; advance--) {
-                        const token = this._getNextToken();
-                        extendRange(name, token);
-                        name.value += this._getRangeText(token);
-                    }
-                }
-
-            }
         }
         return name;
     }
