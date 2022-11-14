@@ -6110,25 +6110,18 @@ export class Parser {
 
     // CPP class operator functions
     private _parseCppOperator(name: NameNode): NameNode {
-        const operator = this._peekToken()
-        const operator2 = this._peekToken(1)
+        const token = this._peekToken()
+        const token2 = this._peekToken(1)
         let advance = 0;
-        if (operator.type === TokenType.Operator) {
-            switch ((operator as OperatorToken).operatorType) {
+        if (token.type === TokenType.Operator) {
+            const operatorType = (token as OperatorToken).operatorType;
+            const operatorType2 = (token2 as OperatorToken).operatorType;
+            switch (operatorType) {
                 case OperatorType.Add:
-                    advance++;
-                    if (operator2.type === TokenType.Operator) {
-                        if ((operator2 as OperatorToken).operatorType === OperatorType.Add) {
-                            advance++;
-                        }
-                    }
-                    break;
                 case OperatorType.Subtract:
                     advance++;
-                    if (operator2.type === TokenType.Operator) {
-                        if ((operator2 as OperatorToken).operatorType === OperatorType.Subtract) {
-                            advance++;
-                        }
+                    if (operatorType === operatorType2) {
+                        advance++;
                     }
                     break;
                 case OperatorType.Multiply:
@@ -6143,7 +6136,7 @@ export class Parser {
                     advance++;
                     break;
             }
-        } else if (operator.type === TokenType.OpenBracket && operator2.type === TokenType.CloseBracket) {
+        } else if (token.type === TokenType.OpenBracket && token2.type === TokenType.CloseBracket) {
             // Index Operator: "operator[]"
             advance += 2;
         }
