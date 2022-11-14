@@ -6121,6 +6121,48 @@ export class Parser {
             name.ptrTokens = ptrTokens;
             name.dimTokens = dimTokens;
             name.aliasToken = this._getTokenIfType(TokenType.String) as StringToken;
+
+            if (typedVarCategory === TypedVarCategory.Function && possibleName.value === "operator") {
+                const operator = this._peekToken()
+                const operator2 = this._peekToken(1)
+                let advance = 0;
+                if (operator.type === TokenType.Operator) {
+                    switch ((operator as OperatorToken).operatorType) {
+                        case OperatorType.Add:
+                            advance++;
+                            if (operator2.type === TokenType.Operator) {
+                                if ((operator2 as OperatorToken).operatorType === OperatorType.Add) {
+                                    advance++;
+                                }
+                            }
+                            break;
+                        case OperatorType.Subtract:
+                            advance++;
+                            if (operator2.type === TokenType.Operator) {
+                                if ((operator2 as OperatorToken).operatorType === OperatorType.Subtract) {
+                                    advance++;
+                                }
+                            }
+                            break;
+                        case OperatorType.Multiply:
+                        case OperatorType.Divide:
+                        case OperatorType.GreaterThan:
+                        case OperatorType.GreaterThanOrEqual:
+                        case OperatorType.LessThan:
+                        case OperatorType.LessThanOrEqual:
+                        case OperatorType.Equals:
+                        case OperatorType.Assign:
+                            advance++;
+                            break;
+                    }
+                    for (advance; advance > 0; advance--) {
+                        const token = this._getNextToken();
+                        extendRange(name, token);
+                        name.value += this._getRangeText(token);
+                    }
+                }
+
+            }
         }
         return name;
     }
