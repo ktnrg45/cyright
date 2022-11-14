@@ -6143,6 +6143,9 @@ export class Parser {
                     advance++;
                     break;
             }
+        } else if (operator.type === TokenType.OpenBracket && operator2.type === TokenType.CloseBracket) {
+            // Index Operator: "operator[]"
+            advance += 2;
         }
 
         for (advance; advance > 0; advance--) {
