@@ -5618,8 +5618,10 @@ export class Parser {
         let dataType: string | undefined = undefined;
         const structToken = this._peekToken(skip);
         if (structToken.type != TokenType.Identifier) {
-            if (structToken.type === TokenType.Keyword && validKeywords.includes((structToken as KeywordToken).keywordType)) {
-                dataType = 'class';
+            if (structToken.type === TokenType.Keyword) {
+                if (validKeywords.includes((structToken as KeywordToken).keywordType)) {
+                    dataType = this._getTokenText(structToken);
+                }
             } else {
                 return undefined;
             }
@@ -5687,7 +5689,7 @@ export class Parser {
             this._consumeTokensUntilType([TokenType.Colon]);
         }
 
-        if (!className && (dataType === 'struct' || dataType === 'union' || dataType === 'class')) {
+        if (!className && (dataType === 'struct' || dataType === 'union' || dataType === 'class' || dataType === 'cppclass')) {
             this._addError(Localizer.Diagnostic.expectedVarName(), possibleName);
             this._consumeTokensUntilType([TokenType.NewLine]);
             return undefined;
@@ -6533,7 +6535,6 @@ export class Parser {
                     return undefined;
                 }
                 isCpp = true;
-                return undefined; // TODO: Implement cpp
             }
         }
         const possibleGilToken = this._getTokenIfType(TokenType.Keyword);
