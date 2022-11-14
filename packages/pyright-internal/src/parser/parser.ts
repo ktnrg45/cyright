@@ -4399,6 +4399,8 @@ export class Parser {
 
         // Is this a simple assignment?
         if (this._consumeTokenIfOperator(OperatorType.Assign)) {
+            // CPP consume 'new'
+            this._consumeTokenIfKeyword(KeywordType.New);
             return this._parseChainAssignments(leftExpr);
         }
 

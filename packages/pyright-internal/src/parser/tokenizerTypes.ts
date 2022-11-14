@@ -171,6 +171,7 @@ export const enum KeywordType {
     Namespace,
     Cppclass,
     Operator,
+    New,
 }
 
 export const varModifiers = [

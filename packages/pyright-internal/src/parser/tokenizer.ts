@@ -112,6 +112,7 @@ const _keywords: Map<string, KeywordType> = new Map([
     ['namespace', KeywordType.Namespace],
     ['cppclass', KeywordType.Cppclass],
     ['operator', KeywordType.Operator],
+    ['new', KeywordType.New],
 ]);
 
 const _operatorInfo: { [key: number]: OperatorFlags } = {
