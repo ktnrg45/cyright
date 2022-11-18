@@ -6368,13 +6368,13 @@ export class Parser {
             // View is associated with type
             viewTokens.push(...this._parseView(typedVarCategory));
         }
-
-        // CPP Allow '&' after type
-        // let possibleAddressOf = this._peekToken(ptrCount + viewTokensCount + skip);
-        // if (possibleAddressOf.type === TokenType.Operator &&
-        //     (possibleAddressOf as OperatorToken).operatorType === OperatorType.BitwiseAnd) {
-        //     skip++;
-        // }
+        // CPP Allow Reference '&' after type
+        if (varType) {
+            let possibleReference = this._peekToken();
+            if (this._consumeTokenIfOperator(OperatorType.BitwiseAnd)) {
+                extendRange(varType, possibleReference);
+            }
+        }
 
         const varTypeNode = VarTypeNode.create(firstToken, varType, typedVarCategory);
         varTypeNode.modifier = varModifierToken;
@@ -6477,6 +6477,17 @@ export class Parser {
             const possibleIndent = this._getTokenIfType(TokenType.Indent);
             if (possibleIndent && possibleIndent.length > 0) {
                 this._addError(Localizer.Diagnostic.unexpectedIndent(), possibleIndent);
+            }
+
+            if (this._peekKeywordType() === KeywordType.Cdef) {
+                const nextToken = this._peekToken(1);
+                if (nextToken.type === TokenType.Keyword && (nextToken as KeywordToken).keywordType === KeywordType.Cppclass) {
+                    this._getNextToken();
+                }
+            }
+            if (this._peekKeywordType() === KeywordType.Cppclass) {
+                StatementListNode.addNode(statements, this._parseCppClassDef());
+                continue;
             }
 
             if (this._peekKeywordType() === KeywordType.Ctypedef) {
@@ -6777,6 +6788,123 @@ export class Parser {
         }
 
         return ifNode;
+    }
+
+    // TODO: Use a Template Node
+    // [template_type, ...]
+    private _parseTemplateParameter(): TypeParameterNode | undefined {
+        let typeParamCategory = TypeParameterCategory.TypeVar;
+
+        const nameToken = this._getTokenIfIdentifier();
+        if (!nameToken) {
+            this._addError(Localizer.Diagnostic.expectedTypeParameterName(), this._peekToken());
+            return undefined;
+        }
+
+        const name = NameNode.create(nameToken);
+        const param = TypeParameterNode.create(name, typeParamCategory, undefined);
+        const equals = this._peekToken() as OperatorToken;
+        if (equals.operatorType === OperatorType.Assign) {
+            extendRange(param, equals);
+            this._getNextToken();
+            const optionalToken = this._peekToken();
+            if (this._consumeTokenIfOperator(OperatorType.Multiply)) {
+                extendRange(param, optionalToken);
+            } else {
+                this._addError(Localizer.Diagnostic.unpackExpectedTypeVarTuple(), optionalToken);
+            }
+        }
+        return param;
+    }
+
+    private _parseTemplateParameterList(): TypeParameterListNode {
+        const typeVariableNodes: TypeParameterNode[] = [];
+
+        const openBracketToken = this._getNextToken();
+        assert(openBracketToken.type === TokenType.OpenBracket);
+
+        while (true) {
+            const firstToken = this._peekToken();
+
+            if (firstToken.type === TokenType.CloseBracket) {
+                if (typeVariableNodes.length === 0) {
+                    this._addError(Localizer.Diagnostic.typeParametersMissing(), this._peekToken());
+                }
+                break;
+            }
+
+            const typeVarNode = this._parseTemplateParameter();
+            if (!typeVarNode) {
+                break;
+            }
+
+            typeVariableNodes.push(typeVarNode);
+
+            if (!this._consumeTokenIfType(TokenType.Comma)) {
+                break;
+            }
+        }
+
+        const closingToken = this._peekToken();
+        if (closingToken.type !== TokenType.CloseBracket) {
+            this._addError(Localizer.Diagnostic.expectedCloseBracket(), this._peekToken());
+            this._consumeTokensUntilType([TokenType.NewLine, TokenType.CloseBracket, TokenType.Colon]);
+        } else {
+            this._getNextToken();
+        }
+
+        return TypeParameterListNode.create(openBracketToken, closingToken, typeVariableNodes);
+    }
+
+    private _parseCppClassDef(decorators?: DecoratorNode[]): ClassNode {
+        const classToken = this._getKeywordToken(KeywordType.Cppclass);
+
+        let nameToken = this._getTokenIfIdentifier();
+        if (!nameToken) {
+            this._addError(Localizer.Diagnostic.expectedClassName(), this._peekToken());
+            nameToken = IdentifierToken.create(0, 0, '', /* comments */ undefined);
+        }
+
+        let typeParameters: TypeParameterListNode | undefined;
+        const possibleOpenBracket = this._peekToken();
+        if (possibleOpenBracket.type === TokenType.OpenBracket) {
+            typeParameters = this._parseTemplateParameterList();
+        }
+
+        let argList: ArgumentNode[] = [];
+        const openParenToken = this._peekToken();
+        if (this._consumeTokenIfType(TokenType.OpenParenthesis)) {
+            argList = this._parseArgList().args;
+
+            if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
+                this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
+            }
+        }
+        const suite = SuiteNode.create(this._peekToken());
+        const statements = this._parseSuiteCython();
+        if (statements) {
+            suite.statements.push(statements);
+            extendRange(suite, statements);
+            statements.parent = suite;
+        }
+
+        const classNode = ClassNode.create(classToken, NameNode.create(nameToken), suite, typeParameters);
+        classNode.arguments = argList;
+        argList.forEach((arg) => {
+            arg.parent = classNode;
+        });
+
+        if (decorators) {
+            classNode.decorators = decorators;
+            if (decorators.length > 0) {
+                decorators.forEach((decorator) => {
+                    decorator.parent = classNode;
+                });
+                extendRange(classNode, decorators[0]);
+            }
+        }
+
+        return classNode;
     }
 
     private _parseFunctionTrailer(keywordType: KeywordType | undefined) {
