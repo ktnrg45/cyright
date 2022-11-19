@@ -6139,6 +6139,12 @@ export class Parser {
         } else if (token.type === TokenType.OpenBracket && token2.type === TokenType.CloseBracket) {
             // Index Operator: "operator[]"
             advance += 2;
+        } else if (token.type === TokenType.Identifier) {
+            // Type Conversion: "operator bool"
+            if (this._getTokenText(token) == 'bool') {
+                // Only seems to work with 'bool' type
+                advance += 1;
+            }
         }
 
         for (advance; advance > 0; advance--) {
