@@ -122,6 +122,7 @@ import {
     PrefixSuffixMap,
     VarTypeNode,
     BufferOptionsNode,
+    CythonClassType,
 } from './parseNodes';
 import * as StringTokenUtils from './stringTokenUtils';
 import { Tokenizer, TokenizerOutput } from './tokenizer';
@@ -5611,33 +5612,33 @@ export class Parser {
     // Handle struct, union, enum declaration. "struct name:", "enum name:", "union name:"
     // class module.classname [type structname, ...]:
     private _parseStructure(): StatementNode | undefined {
-        const validKeywords = [KeywordType.Class, KeywordType.Cppclass];
-        const validTypes = ['struct', 'enum', 'union', 'class'];
         let skip = 0;
         if (this._peekKeywordType() === KeywordType.Cdef || this._peekKeywordType() === KeywordType.Ctypedef) {
             skip++
         }
-        let dataType: string | undefined = undefined;
+        let dataType: CythonClassType | undefined = undefined;
         const structToken = this._peekToken(skip);
-        if (structToken.type != TokenType.Identifier) {
-            if (structToken.type === TokenType.Keyword) {
-                if (validKeywords.includes((structToken as KeywordToken).keywordType)) {
-                    dataType = this._getRangeText(structToken);
-                }
-            } else {
-                return undefined;
-            }
+        switch (this._getRangeText(structToken)) {
+            case 'struct':
+                dataType = CythonClassType.Struct;
+                break;
+            case 'enum':
+                dataType = CythonClassType.Enum;
+                break;
+            case 'union':
+                dataType = CythonClassType.Union;
+                break;
+            case 'class':
+                dataType = CythonClassType.Class;
+                break;
+        }
+        if (dataType === undefined) {
+            return undefined;
         }
 
-        if (!dataType) {
-            dataType = (structToken as IdentifierToken).value;
-            if (!validTypes.includes(dataType)) {
-                return undefined;
-            }
-        }
         skip++;
 
-        if (dataType === 'class') {
+        if (dataType === CythonClassType.Class) {
             // This is a public/external extension type
             // https://cython.readthedocs.io/en/latest/src/userguide/extension_types.html#public-and-external-extension-types
             let moduleToken = this._peekToken(skip) as IdentifierToken;
@@ -5663,10 +5664,10 @@ export class Parser {
         }
 
         let typeParameters: TypeParameterListNode | undefined;
-        if (this._peekToken(skip).type !== TokenType.Colon && dataType !== 'class') {
+        if (this._peekToken(skip).type !== TokenType.Colon && dataType !== CythonClassType.Class) {
             // This is a typed var declaration with no suite
             return undefined;
-        } else if (dataType === 'class') {
+        } else if (dataType === CythonClassType.Class) {
             const possibleOpenBracket = this._peekToken(skip);
             if (possibleOpenBracket.type === TokenType.OpenBracket) {
                 this._consumeTokensUntilType([TokenType.OpenBracket]);
@@ -5691,7 +5692,7 @@ export class Parser {
             this._consumeTokensUntilType([TokenType.Colon]);
         }
 
-        if (!className && (dataType === 'struct' || dataType === 'union' || dataType === 'class' || dataType === 'cppclass')) {
+        if (!className && (dataType === CythonClassType.Struct || dataType === CythonClassType.Union || dataType === CythonClassType.Class)) {
             this._addError(Localizer.Diagnostic.expectedVarName(), possibleName);
             this._consumeTokensUntilType([TokenType.NewLine]);
             return undefined;
@@ -5706,7 +5707,7 @@ export class Parser {
             const suite = SuiteNode.create(colon);
             var statements: StatementListNode | undefined = undefined;
 
-            if (dataType === "enum") {
+            if (dataType === CythonClassType.Enum) {
                 statements = this._parseEnum(nextToken, structToken);
             } else {
                 statements = this._parseSuiteCython();
@@ -5717,11 +5718,12 @@ export class Parser {
                 statements.parent = suite;
                 extendRange(suite, statements);
                 const classNode = ClassNode.create(structToken, className, suite, typeParameters);
+                classNode.cythonType = dataType;
                 return classNode;
             } else if (statements) {
                 return statements;
             }
-        } else if (dataType === "enum" && this._peekToken().type === TokenType.Colon) {
+        } else if (dataType === CythonClassType.Enum && this._peekToken().type === TokenType.Colon) {
             statements = this._parseEnum(this._getNextToken(), structToken, false);
             if (statements) {
                 return statements;
@@ -6141,7 +6143,7 @@ export class Parser {
             advance += 2;
         } else if (token.type === TokenType.Identifier) {
             // Type Conversion: "operator bool"
-            if (this._getTokenText(token) == 'bool') {
+            if (this._getRangeText(token) == 'bool') {
                 // Only seems to work with 'bool' type
                 advance += 1;
             }
@@ -6895,6 +6897,7 @@ export class Parser {
         }
 
         const classNode = ClassNode.create(classToken, NameNode.create(nameToken), suite, typeParameters);
+        classNode.cythonType = CythonClassType.CppClass;
         classNode.arguments = argList;
         argList.forEach((arg) => {
             arg.parent = classNode;

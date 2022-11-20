@@ -39,7 +39,7 @@ import { assertNever, fail } from '../common/debug';
 import { convertOffsetToPosition, convertPositionToOffset } from '../common/positionUtils';
 import { Position, Range } from '../common/textRange';
 import { TextRange } from '../common/textRange';
-import { NameNode, ParseNode, ParseNodeType, StringNode } from '../parser/parseNodes';
+import { ClassNode, CythonClassType, NameNode, ParseNode, ParseNodeType, StringNode } from '../parser/parseNodes';
 import { ParseResults } from '../parser/parser';
 import { getDocumentationPartsForTypeAndDecl, getOverloadedFunctionTooltip } from './tooltipUtils';
 
@@ -246,7 +246,19 @@ export class HoverProvider {
                     return;
                 }
 
-                this._addResultsPart(parts, '(class) ' + node.value, /* python */ true);
+                let classTypeText = 'class';
+                switch ((resolvedDecl.node as ClassNode).cythonType) {
+                    case CythonClassType.Enum:
+                        classTypeText = 'enum';
+                        break;
+                    case CythonClassType.Struct:
+                        classTypeText = 'struct';
+                        break;
+                    case CythonClassType.Union:
+                        classTypeText = 'union';
+                        break;
+                }
+                this._addResultsPart(parts, `(${classTypeText}) ` + node.value, /* python */ true);
                 this._addDocumentationPart(format, sourceMapper, parts, node, evaluator, resolvedDecl);
                 break;
             }

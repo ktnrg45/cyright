@@ -510,6 +510,7 @@ export interface ClassNode extends ParseNodeBase {
     typeParameters?: TypeParameterListNode;
     arguments: ArgumentNode[];
     suite: SuiteNode;
+    cythonType?: CythonClassType | undefined;
 }
 
 export namespace ClassNode {
@@ -2488,6 +2489,7 @@ export interface BufferOptionsNode extends ParseNodeBase {
     optionValues: string[];
     tokens: Token[];
 }
+
 export namespace BufferOptionsNode {
     export function create(startToken: Token): BufferOptionsNode {
         const node: BufferOptionsNode = {
@@ -2501,6 +2503,14 @@ export namespace BufferOptionsNode {
         };
         return node;
     }
+}
+
+export const enum CythonClassType {
+    Struct,
+    Enum,
+    Union,
+    Class,
+    CppClass,
 }
 
 export type PatternAtomNode =
