@@ -5677,7 +5677,7 @@ export class Parser {
             }
         }
 
-        let functionType = this._peekFunctionDeclaration();
+        const functionType = this._peekFunctionDeclaration();
         if (this._peekKeywordType() === KeywordType.Def || functionType === TypedVarCategory.Function) {
             const functionNode = this._parseFunctionDefCython();
             if (functionNode) {
@@ -6384,32 +6384,41 @@ export class Parser {
     // Test if function declaration
     // Maximum token example: const unsigned long long int* var(...)
     private _peekFunctionDeclaration(): TypedVarCategory | undefined {
-        var count = 0;
-        var ptrCount = 0;
-        var viewTokens = 0;
+        let skip = 0;
+        let seenIdentifier = false;
         const validTokens = [TokenType.Keyword, TokenType.Identifier, TokenType.String, TokenType.Dot];
-        while (true) {
-            const skip = 1 + count + ptrCount + viewTokens;
-            if (this._isTokenPointer(skip)) {
-                ptrCount += this._peekTokenPointers(skip).length;
-                continue;
-            }
-            let iterToken = this._peekToken(skip);
 
-            if (iterToken.type === TokenType.Keyword && (iterToken as KeywordToken).keywordType === KeywordType.Class) {
-                break;
+        while (true) {
+            const iterToken = this._peekToken(skip);
+
+            if (this._isTokenPointer(skip)) {
+                skip += this._peekTokenPointers(skip).length;
+                continue;
             }
 
             if (iterToken.type === TokenType.OpenBracket) {
                 this._suppressErrors(() => {
-                    viewTokens += this._peekView(skip).length;
+                    skip += this._peekView(skip).length;
                 });
                 continue;
             }
-            // If open Parenthesis assume function declaration
+
+            if ((iterToken as KeywordToken).keywordType === KeywordType.Class) {
+                break;
+            }
+
+            if (iterToken.type === TokenType.Identifier) {
+                seenIdentifier = true;
+            }
+
             if (iterToken.type == TokenType.OpenParenthesis) {
-                let skipAhead = this._peekUntilType([TokenType.OpenParenthesis, TokenType.CloseParenthesis, TokenType.NewLine], skip + 1);
-                let atToken = this._peekToken(skipAhead);
+                if (!seenIdentifier) {
+                    // This is most likely a tuple
+                    break;
+                }
+                // Assume function declaration
+                const skipAhead = this._peekUntilType([TokenType.OpenParenthesis, TokenType.CloseParenthesis, TokenType.NewLine], skip + 1);
+                const atToken = this._peekToken(skipAhead);
                 if (atToken.type === TokenType.CloseParenthesis) {
                     let nextToken = this._peekToken(skipAhead + 1);
                     if (nextToken.type === TokenType.OpenParenthesis) {
@@ -6421,7 +6430,7 @@ export class Parser {
             if (!validTokens.includes(iterToken.type)) {
                 break;
             }
-            count++;
+            skip++;
         }
         return undefined;
     }
@@ -6445,10 +6454,7 @@ export class Parser {
             this._getNextToken();
             return this._parseSuiteCython();
         }
-        let functionType = this._peekFunctionDeclaration();
-        if (functionType === TypedVarCategory.Function) {
-            return this._parseFunctionDefCython();
-        }
+
         // Single line cdef
         this._getNextToken();
         return this._parseTypedStatement(undefined, true);
