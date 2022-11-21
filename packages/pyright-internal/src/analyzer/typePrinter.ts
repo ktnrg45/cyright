@@ -653,13 +653,15 @@ export function printObjectTypeForClass(
                         if (!isAnyOrUnknown(typeArg.type)) {
                             isAllAny = false;
                         }
-
+                        const argSuffixMap = ((suffixMap && index < suffixMap.maps.length)) ? suffixMap.maps[index] : undefined;
                         const typeArgTypeText = printType(
                             typeArg.type,
                             printTypeFlags,
                             returnTypeCallback,
                             recursionTypes,
-                            recursionCount
+                            recursionCount,
+                            argSuffixMap,
+
                         );
 
                         if (typeArg.isUnbounded) {

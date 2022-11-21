@@ -6052,7 +6052,7 @@ export class Parser {
         return name;
     }
 
-    private _addFixesToName(typedVarNode: TypedVarNode, name: NameNode) {
+    private _getFixesMap(typedVarNode: TypedVarNode, name: NameNode): PrefixSuffixMap {
         const prefixList: string[] = [];
         const exclude = [KeywordType.Inline, KeywordType.Public, KeywordType.Readonly];
         if (typedVarNode.modifier && !exclude.includes((typedVarNode.modifier as KeywordToken).keywordType)) {
@@ -6066,10 +6066,67 @@ export class Parser {
 
         const prefix = prefixList.join(" ");
         const suffix = this._getTokenListText(suffixList);
+        return PrefixSuffixMap.create(prefix, suffix);
+    }
 
-        if (prefix.length > 0 || suffix.length > 0) {
-            name.suffixMap = PrefixSuffixMap.create(prefix, suffix);
+    private _addFixesToName(typedVarNode: TypedVarNode, name: NameNode) {
+        if (typedVarNode.typeAnnotation.suffixMap) {
+            name.suffixMap = typedVarNode.typeAnnotation.suffixMap;
+        } else {
+            const suffixMap = this._getFixesMap(typedVarNode, name);
+            if (suffixMap.prefix || suffixMap.suffix) {
+                name.suffixMap = suffixMap;
+            }
         }
+    }
+
+    private _parseVarTypeTuple(): IndexNode {
+        const baseExpr = NameNode.create(IdentifierToken.create(0, 0, 'tuple', undefined));
+        const args: ArgumentNode[] = [];
+        const suffixMap = PrefixSuffixMap.create('', '');
+        let trailingComma = false;
+        assert(this._consumeTokenIfType(TokenType.OpenParenthesis));
+
+        while (this._peekTokenType() !== TokenType.CloseParenthesis) {
+            trailingComma = false;
+            const varType = this._parseVarType();
+            const ptrTokens = this._getTokenPointers();
+            const nextToken = this._peekToken();
+            if (!varType.typeAnnotation || nextToken.type === TokenType.NewLine) {
+                this._addError(Localizer.Diagnostic.expectedCloseParen(), nextToken);
+                break;
+            }
+
+            if (nextToken.type === TokenType.Comma) {
+                trailingComma = true;
+                this._getNextToken();
+            } else if (this._peekTokenType() !== TokenType.CloseParenthesis) {
+                this._addError(Localizer.Diagnostic.expectedComma(), nextToken);
+            }
+            if (varType.typeAnnotation.nodeType === ParseNodeType.Index) {
+                varType;
+            }
+            const argNode = ArgumentNode.create(varType.startToken, varType.typeAnnotation, ArgumentCategory.Simple);
+            args.push(argNode);
+            let nameOrMember = varType.typeAnnotation;
+            let argSuffixMap = PrefixSuffixMap.create();
+
+            while (nameOrMember.nodeType === ParseNodeType.MemberAccess) {
+                nameOrMember = nameOrMember.leftExpression;
+            }
+
+            if (nameOrMember.nodeType === ParseNodeType.Name) {
+                nameOrMember.ptrTokens = ptrTokens;
+                const typedVarNode = TypedVarNode.create(this._createDummyName(nameOrMember, ''), nameOrMember, varType);
+                argSuffixMap = this._getFixesMap(typedVarNode, nameOrMember);
+            } else if (varType.typeAnnotation.suffixMap){
+                argSuffixMap = varType.typeAnnotation.suffixMap;
+            }
+            suffixMap.maps.push(argSuffixMap);
+        }
+        const indexNode = IndexNode.create(baseExpr, args, trailingComma, this._getNextToken());
+        indexNode.suffixMap = suffixMap;
+        return indexNode;
     }
 
     private _parseVarType(typedVarCategory = TypedVarCategory.Variable) : VarTypeNode {
@@ -6078,7 +6135,6 @@ export class Parser {
         let lastNumModifier: KeywordType | undefined;
         let foundSigned = false;
         let longCount = 0;
-        let lastLong: IdentifierToken | undefined = undefined;
         let varType: ExpressionNode | undefined = undefined;
         const firstToken = this._peekToken();
         const cDefType = this._peekKeywordType();
@@ -6183,6 +6239,8 @@ export class Parser {
                 }
                 varType = MemberAccessNode.create(varType, NameNode.create(maybeMember));
             }
+        } else if (this._peekTokenType() === TokenType.OpenParenthesis) {
+            varType = this._parseVarTypeTuple();
         }
 
         // View is associated with type

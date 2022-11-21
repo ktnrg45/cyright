@@ -24,13 +24,15 @@ import {
 export interface PrefixSuffixMap {
     prefix?: string;
     suffix?: string;
+    maps: PrefixSuffixMap[];
 }
 
 export namespace PrefixSuffixMap {
-    export function create(prefix?: string, suffix?: string) {
+    export function create(prefix?: string, suffix?: string): PrefixSuffixMap {
         return {
             prefix: (prefix && prefix.length > 0) ? prefix : undefined,
             suffix: (suffix && suffix.length > 0) ? suffix : undefined,
+            maps: [],
         };
     }
 }
