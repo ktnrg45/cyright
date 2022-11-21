@@ -45,7 +45,7 @@ import { performQuickAction } from '../languageService/quickActions';
 import { ReferenceCallback, ReferencesProvider, ReferencesResult } from '../languageService/referencesProvider';
 import { SignatureHelpProvider, SignatureHelpResults } from '../languageService/signatureHelpProvider';
 import { Localizer } from '../localization/localize';
-import { ModuleNode, NameNode } from '../parser/parseNodes';
+import { ModuleNode, NameNode, StatementListNode} from '../parser/parseNodes';
 import { ModuleImport, ParseOptions, Parser, ParseResults } from '../parser/parser';
 import { IgnoreComment } from '../parser/tokenizer';
 import { Token } from '../parser/tokenizerTypes';
@@ -811,8 +811,25 @@ export class SourceFile {
             try {
                 // Parse the token stream, building the abstract syntax tree.
                 const parser = new Parser();
+
+                // If matching 'pxd' file exists create an import node for it
+                let declImportNode: StatementListNode | undefined = undefined;
+                if (this._filePath.endsWith('pyx')) {
+                    const pxdPath = this._filePath.slice(0, this._filePath.length - 3) + 'pxd';
+                    if (this.fileSystem.existsSync(pxdPath)) {
+                        declImportNode = parser.getMatchingDeclarationImport(this.getModuleName())
+                    }
+                }
+
                 const parseResults = parser.parseSourceFile(fileContents!, parseOptions, diagSink);
                 assert(parseResults !== undefined && parseResults.tokenizerOutput !== undefined);
+
+                // Add matching 'pxd' import to module imports
+                if (declImportNode) {
+                    declImportNode.parent = parseResults.parseTree;
+                    parseResults.parseTree.statements.push(declImportNode);
+                }
+
                 this._parseResults = parseResults;
                 this._typeIgnoreLines = this._parseResults.tokenizerOutput.typeIgnoreLines;
                 this._typeIgnoreAll = this._parseResults.tokenizerOutput.typeIgnoreAll;
