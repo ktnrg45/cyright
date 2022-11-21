@@ -6440,14 +6440,21 @@ export class Parser {
     }
 
     // Test if function declaration
-    // Maximum token example: const unsigned long long int* var(...)
+    // This is tricky since we can have:
+    // exceptions, 'nogil', 'gil' at the end of function,
+    // an optional colon after arguments ':',
+    // ctuples: '(type, type)' as return type or as a typed argument,
+    // c callback functions: '(*function_name)(args, ...) as return type or as a typed argument'
     private _peekFunctionDeclaration(): TypedVarCategory | undefined {
         let skip = 0;
         let seenIdentifier = false;
-        const validTokens = [TokenType.Keyword, TokenType.Identifier, TokenType.String, TokenType.Dot];
+        let notCallback = false;
+        let maybeTuple = false;
+        let parenDepth = 0;
+        const breakTokens = [TokenType.NewLine, TokenType.EndOfStream, TokenType.Colon];
 
         while (true) {
-            const iterToken = this._peekToken(skip);
+            let iterToken = this._peekTokenIfIdentifier(skip) || this._peekToken(skip);
 
             if (this._isTokenPointer(skip)) {
                 skip += this._peekTokenPointers(skip).length;
@@ -6466,26 +6473,40 @@ export class Parser {
             }
 
             if (iterToken.type === TokenType.Identifier) {
-                seenIdentifier = true;
-            }
-
-            if (iterToken.type == TokenType.OpenParenthesis) {
-                if (!seenIdentifier) {
-                    // This is most likely a tuple
-                    break;
-                }
-                // Assume function declaration
-                const skipAhead = this._peekUntilType([TokenType.OpenParenthesis, TokenType.CloseParenthesis, TokenType.NewLine], skip + 1);
-                const atToken = this._peekToken(skipAhead);
-                if (atToken.type === TokenType.CloseParenthesis) {
-                    let nextToken = this._peekToken(skipAhead + 1);
-                    if (nextToken.type === TokenType.OpenParenthesis) {
-                        return TypedVarCategory.Callback;
+                if (parenDepth === 0) {
+                    seenIdentifier = true;
+                    if (maybeTuple) {
+                        if (this._peekToken(skip + 1).type === TokenType.OpenParenthesis) {
+                            // The return type is tuple
+                            return TypedVarCategory.Function;
+                        }
+                        break;
                     }
                 }
-                return TypedVarCategory.Function;
-            }
-            if (!validTokens.includes(iterToken.type)) {
+            } else if (iterToken.type === TokenType.OpenParenthesis) {
+                if (
+                    !notCallback &&
+                    parenDepth === 0 &&
+                    (this._peekToken(skip + 1) as OperatorToken).operatorType === OperatorType.Multiply &&
+                    this._peekToken(skip + 2).type === TokenType.Identifier &&
+                    this._peekToken(skip + 3).type === TokenType.CloseParenthesis &&
+                    this._peekToken(skip + 4).type === TokenType.OpenParenthesis
+                ) {
+                    // This is probably a c callback function
+                    return TypedVarCategory.Callback;
+                } else {
+                    if (!seenIdentifier && parenDepth === 0) {
+                        maybeTuple = true;
+                    }
+                    if (!maybeTuple) {
+                        return TypedVarCategory.Function;
+                    }
+                    notCallback = true;
+                    parenDepth++;
+                }
+            } else if (iterToken.type === TokenType.CloseParenthesis) {
+                parenDepth--;
+            } else if (breakTokens.includes(iterToken.type)) {
                 break;
             }
             skip++;
