@@ -992,6 +992,9 @@ export namespace Localizer {
         export const invalidModifier = () => getRawString('Diagnostic.invalidModifier');
         export const unexpectedModifier = () => getRawString('Diagnostic.unexpectedModifier');
         export const viewInvalidAxis = () => getRawString('Diagnostic.viewInvalidAxis');
+        export const viewCastStartNotAllowed = () => getRawString('Diagnostic.viewCastStartNotAllowed');
+        export const viewCastMissingStop = () => getRawString('Diagnostic.viewCastMissingStop');
+        export const castToArrayNotAllowed = () => getRawString('Diagnostic.castToArrayNotAllowed');
         export const expectedExternFrom = () => getRawString('Diagnostic.expectedExternFrom');
         export const expectedCIncludes = () => getRawString('Diagnostic.expectedCIncludes');
         export const invalidTrailingGilFunction = () => getRawString('Diagnostic.invalidTrailingGilFunction');

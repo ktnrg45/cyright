@@ -2060,7 +2060,7 @@ export class Parser {
         if (firstToken.type === TokenType.Ellipsis) {
             const token = this._getNextToken();
             const param = ParameterNode.create(token, ParameterCategory.Simple);
-            param.name = NameNode.create(IdentifierToken.create(token.start, token.length, this._getTokenText(token), undefined));
+            param.name = NameNode.create(IdentifierToken.create(token.start, token.length, this._getRangeText(token), undefined));
             return param;
         }
 
@@ -5462,14 +5462,14 @@ export class Parser {
         return tokens;
     }
 
-    private _getTokenText(token: Token) : string {
-        return this._fileContents!.substr(token.start, token.length);
+    private _getRangeText(range: TextRange) : string {
+        return this._fileContents!.substr(range.start, range.length);
     }
 
-    private _getTokenListText(tokens: Token[]): string {
+    private _getRangeListText(ranges: TextRange[]): string {
         let text = "";
-        for (let token of tokens) {
-            text += this._getTokenText(token);
+        for (let range of ranges) {
+            text += this._getRangeText(range);
         }
         return text;
     }
@@ -5572,6 +5572,8 @@ export class Parser {
         skip++;
 
         if (dataType === 'class') {
+            // This is a public/external extension type
+            // https://cython.readthedocs.io/en/latest/src/userguide/extension_types.html#public-and-external-extension-types
             let moduleToken = this._peekToken(skip) as IdentifierToken;
             if (!moduleToken) {
                 this._addError(Localizer.Diagnostic.expectedClassName(), this._peekToken(skip));
@@ -5928,17 +5930,17 @@ export class Parser {
         typedVarNode.name.isPrototype = allowPrototype;
         const prefixTokens: Token[] = (varTypeNode.modifier) ? [varTypeNode.modifier] : [];
         prefixTokens.push(...varTypeNode.numericModifiers || []);
-        const prefix = this._getTokenListText(prefixTokens);
+        const prefix = this._getRangeListText(prefixTokens);
         const suffixTokens = typedVarNode.viewTokens || [];
         suffixTokens.push(...returnTypePtrs);
-        const suffix = this._getTokenListText(suffixTokens);
+        const suffix = this._getRangeListText(suffixTokens);
         typedVarNode.name.suffixMap = PrefixSuffixMap.create(prefix, suffix);
         extendRange(typedVarNode, closeParen);
         return typedVarNode;
 
     }
 
-    // Parse cast: "<double*>expr"
+    // Parse cast: "<type>expr" "<type*>expr" "<type[::slice, ...]>expr"
     private _parseCast(): ExpressionNode | undefined {
         if (this._peekOperatorType() !== OperatorType.LessThan) {
             return undefined;
@@ -5969,9 +5971,41 @@ export class Parser {
                 }
                 varType = MemberAccessNode.create(varType, NameNode.create(memberToken as IdentifierToken));
                 this._getNextToken()
-                continue;
             }
-            this._getTokenPointers();
+            const ptrTokens = this._getTokenPointers();
+            let sliceNodes: ExpressionNode[] = [];
+            const maybeOpenBracket = this._peekToken();
+            if (this._consumeTokenIfType(TokenType.OpenBracket)) {
+                const stopTokens = [TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream];
+                while (!stopTokens.includes(this._peekToken().type)) {
+                    const sliceStart = this._peekToken();
+                    const sliceNode = this._parsePossibleSlice();
+                    if (sliceNode.nodeType === ParseNodeType.Slice) {
+                        sliceNodes.push(sliceNode);
+                        if (sliceNode.startValue) {
+                            this._addError(Localizer.Diagnostic.viewCastStartNotAllowed(), sliceStart);
+                        } else if (sliceNode.stepValue && !sliceNode.endValue) {
+                            this._addError(Localizer.Diagnostic.viewCastMissingStop(), sliceStart);
+                        } else if (!sliceNode.startValue && !sliceNode.endValue && !sliceNode.stepValue) {
+                            this._addError(Localizer.Diagnostic.viewCastMissingStop(), sliceStart);
+                        }
+                    }
+                    if (!this._consumeTokenIfType(TokenType.Comma)) {
+                        break;
+                    }
+                }
+                const maybeCloseBracket = this._peekToken();
+                if (!this._consumeTokenIfType(TokenType.CloseBracket)) {
+                    this._addError(Localizer.Diagnostic.expectedCloseBracket(), maybeCloseBracket);
+                }
+                if (!sliceNodes.length && !this._getTokenPointers().length) {
+                    this._addError(Localizer.Diagnostic.castToArrayNotAllowed(), maybeCloseBracket);
+                }
+            }
+
+            if (ptrTokens.length && sliceNodes.length) {
+                this._addError(Localizer.Diagnostic.expectedCastClose(), maybeOpenBracket);
+            }
             // Handle Type Check: "<double?>name"
             this._consumeTokenIfType(TokenType.QuestionMark);
 
@@ -6056,16 +6090,16 @@ export class Parser {
         const prefixList: string[] = [];
         const exclude = [KeywordType.Inline, KeywordType.Public, KeywordType.Readonly];
         if (typedVarNode.modifier && !exclude.includes((typedVarNode.modifier as KeywordToken).keywordType)) {
-            prefixList.push(this._getTokenText(typedVarNode.modifier));
+            prefixList.push(this._getRangeText(typedVarNode.modifier));
         }
         for (let token of typedVarNode.numericModifiers || []) {
-            prefixList.push(this._getTokenText(token));
+            prefixList.push(this._getRangeText(token));
         }
 
         const suffixList = [...typedVarNode.viewTokens || [], ...name.ptrTokens || [], ...name.dimTokens || []];
 
         const prefix = prefixList.join(" ");
-        const suffix = this._getTokenListText(suffixList);
+        const suffix = this._getRangeListText(suffixList);
         return PrefixSuffixMap.create(prefix, suffix);
     }
 
@@ -6178,7 +6212,7 @@ export class Parser {
 
         let varToken = this._getTokenIfIdentifier();
         if (varToken) {
-            while (this._getTokenText(varToken) === 'long') {
+            while (this._getRangeText(varToken) === 'long') {
                 longCount++;
                 if (longCount > 2) {
                     this._addError(Localizer.Diagnostic.expectedVarType(), varToken);
@@ -6189,7 +6223,7 @@ export class Parser {
                 }
                 const nextToken = this._peekTokenIfIdentifier();
                 if (nextToken) {
-                    const nextTokenText = this._getTokenText(nextToken);
+                    const nextTokenText = this._getRangeText(nextToken);
                     if (nextTokenText === 'long') {
                         numModifiers.push(varToken);
                         varToken = nextToken;
@@ -6220,11 +6254,11 @@ export class Parser {
 
             }
             // Handle "float complex" and "double complex"
-            const tokenText = this._getTokenText(varToken);
+            const tokenText = this._getRangeText(varToken);
             if (tokenText === 'float' || tokenText === 'double') {
                 const doubleOrFloat = varToken;
                 const nextToken = this._peekTokenIfIdentifier();
-                if (nextToken && this._getTokenText(nextToken) === 'complex') {
+                if (nextToken && this._getRangeText(nextToken) === 'complex') {
                     varToken = nextToken;
                     numModifiers.push(doubleOrFloat);
                     this._getNextToken();
