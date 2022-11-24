@@ -5314,6 +5314,25 @@ export class Parser {
         let seenKwarg = false;
 
         while (!stopTokens.includes(this._peekToken().type)) {
+            if (index === 0 && this._getRangeText(this._peekToken()) !== 'dtype') {
+                const tokenIndex = this._tokenIndex;
+                const varType = this._parseVarType(TypedVarCategory.Variable);
+                if (varType.typeAnnotation) {
+                    extendRange(node, varType);
+                    node.options.push('dtype');
+                    node.optionValues.push(this._getRangeText(varType));
+                    const maybeComma = this._peekToken();
+                    if (!this._consumeTokenIfType(TokenType.Comma) && this._peekTokenType() !== TokenType.CloseBracket) {
+                        this._addError(Localizer.Diagnostic.expectedComma(), this._peekToken());
+                    } else {
+                        extendRange(node, maybeComma);
+                    }
+                    index++;
+                    continue;
+                } else {
+                    this._tokenIndex = tokenIndex;
+                }
+            }
             const param = this._getNextToken();
             extendRange(node, param);
 
@@ -5494,10 +5513,22 @@ export class Parser {
         return this._fileContents!.substr(range.start, range.length);
     }
 
-    private _getRangeListText(ranges: TextRange[]): string {
+    private _getTokenListText(tokens: Token[], prettyPrint = false): string {
         let text = "";
-        for (let range of ranges) {
-            text += this._getRangeText(range);
+        let last: Token | undefined = undefined;
+        for (let token of tokens) {
+            if (last && prettyPrint) {
+                if (token.type === TokenType.Identifier || token.type === TokenType.Keyword) {
+                    const spaceTokens = [TokenType.Comma, TokenType.Identifier, TokenType.Keyword];
+                    if (spaceTokens.includes(last.type)) {
+                        text += ' ';
+                    }
+                } else if (last.type === TokenType.Comma) {
+                    text += ' ';
+                }
+            }
+            text += this._getRangeText(token);
+            last = token;
         }
         return text;
     }
@@ -5958,10 +5989,10 @@ export class Parser {
         typedVarNode.name.isPrototype = allowPrototype;
         const prefixTokens: Token[] = (varTypeNode.modifier) ? [varTypeNode.modifier] : [];
         prefixTokens.push(...varTypeNode.numericModifiers || []);
-        const prefix = this._getRangeListText(prefixTokens);
+        const prefix = this._getTokenListText(prefixTokens);
         const suffixTokens = typedVarNode.viewTokens || [];
         suffixTokens.push(...returnTypePtrs);
-        const suffix = this._getRangeListText(suffixTokens);
+        const suffix = this._getTokenListText(suffixTokens);
         typedVarNode.name.suffixMap = PrefixSuffixMap.create(prefix, suffix);
         extendRange(typedVarNode, closeParen);
         return typedVarNode;
@@ -6127,7 +6158,7 @@ export class Parser {
         const suffixList = [...typedVarNode.viewTokens || [], ...name.ptrTokens || [], ...name.dimTokens || []];
 
         const prefix = prefixList.join(" ");
-        const suffix = this._getRangeListText(suffixList);
+        const suffix = this._getTokenListText(suffixList, true);
         return PrefixSuffixMap.create(prefix, suffix);
     }
 
