@@ -1900,6 +1900,10 @@ export function printParseNodeType(type: ParseNodeType) {
 
         case ParseNodeType.TypeAlias:
             return 'TypeAlias';
+
+        // Cython
+        case ParseNodeType.BufferOptions:
+            return 'BufferOptions';
     }
 
     assertNever(type);

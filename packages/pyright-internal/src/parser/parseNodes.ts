@@ -124,6 +124,9 @@ export const enum ParseNodeType {
     TypeParameter,
     TypeParameterList,
     TypeAlias,
+
+    // Cython
+    BufferOptions,
 }
 
 export const enum ErrorExpressionCategory {
@@ -2474,6 +2477,27 @@ export namespace TypedVarNode {
             modifier: varTypeNode.modifier,
             numericModifiers: varTypeNode.numericModifiers,
             viewTokens: varTypeNode.viewTokens,
+        };
+        return node;
+    }
+}
+
+export interface BufferOptionsNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.BufferOptions;
+    options: string[];
+    optionValues: string[];
+    tokens: Token[];
+}
+export namespace BufferOptionsNode {
+    export function create(startToken: Token): BufferOptionsNode {
+        const node: BufferOptionsNode = {
+            start: startToken.start,
+            length: startToken.length,
+            nodeType: ParseNodeType.BufferOptions,
+            id: _nextNodeId++,
+            options: [],
+            optionValues: [],
+            tokens: [],
         };
         return node;
     }

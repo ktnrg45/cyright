@@ -121,6 +121,7 @@ import {
     TypedVarCategory,
     PrefixSuffixMap,
     VarTypeNode,
+    BufferOptionsNode,
 } from './parseNodes';
 import * as StringTokenUtils from './stringTokenUtils';
 import { Tokenizer, TokenizerOutput } from './tokenizer';
@@ -5294,133 +5295,160 @@ export class Parser {
         return undefined;
     }
 
-    // [:, :] after type
-    private _peekViewDims(count = 0, isFunction = false): Token[] {
-        const possibleOpenBracket = this._peekToken(count);
-        let foundCloseBracket = false;
-        let tokenIndex = 0;
-        var tokens: Token[] = [];
-        var lastType: TokenType | undefined;
+    // Buffer syntax: '[dtype, opt=3]' after type
+    private _parseBufferOptions(): BufferOptionsNode {
+        const modes = ['c', 'fortran', 'full', 'strided']
+        const options: Map<string, [TokenType, string]> = new Map([
+            ['dtype', [TokenType.Identifier, 'data type']],
+            ['ndim', [TokenType.Number, 'non-negative integer']],
+            ['mode', [TokenType.String, `"${modes.join('", "')}"`]],
+            ['negative_indices', [TokenType.Keyword, 'bool']],
+            ['cast', [TokenType.Keyword, 'bool']],
+        ]);
+        const validKeywords = [KeywordType.True, KeywordType.False];
+        const stopTokens = [TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream];
+        const startToken = this._peekToken();
+        const node = BufferOptionsNode.create(startToken);
 
-        if (possibleOpenBracket.type !== TokenType.OpenBracket) {
-            return tokens;
-        }
+        let index = 0;
+        let seenKwarg = false;
 
-        count++;
-        tokenIndex++;
-        tokens.push(possibleOpenBracket);
-        lastType = possibleOpenBracket.type;
+        while (!stopTokens.includes(this._peekToken().type)) {
+            const param = this._getNextToken();
+            extendRange(node, param);
 
-        while (true) {
-            const nextToken = this._peekToken(count);
-
-            if (nextToken.type === TokenType.NewLine) {
-                this._addError(Localizer.Diagnostic.expectedCloseBracket(), nextToken);
-                break;
+            const maybeAssign = this._peekToken();
+            let maybeKwarg: Token | undefined = undefined;
+            if (this._consumeTokenIfOperator(OperatorType.Assign)) {
+                extendRange(node, maybeAssign);
+                seenKwarg = true;
+                maybeKwarg = this._peekToken();
+            } else if (seenKwarg || index !== 0) {
+                // Cython only allows first argument to be positional
+                this._addError(Localizer.Diagnostic.positionArgAfterNamedArg(), maybeAssign);
             }
 
-            count++
-            tokenIndex++;
-            tokens.push(nextToken);
-
-            if (nextToken.type === TokenType.CloseBracket) {
-                foundCloseBracket = true;
-                break;
+            let optionName = this._getRangeText(param);
+            let optionValue = '';
+            if (maybeKwarg) {
+                this._getNextToken();
+                optionValue = this._getRangeText(maybeKwarg);
+                extendRange(node, maybeKwarg);
             }
-
-            if (nextToken.type === TokenType.Comma) {
-                if (lastType !== TokenType.Colon) {
-                    this._addError(Localizer.Diagnostic.expectedColon(), nextToken);
+            if (param.type === TokenType.Identifier && index === 0 && !maybeKwarg) {
+                optionValue = optionName;
+                optionName = 'dtype';
+            } else if (maybeKwarg) {
+                const optionsData = options.get(optionName);
+                const validType = (optionsData) ? optionsData[0] : undefined;
+                const expected = (optionsData) ? optionsData[1] : '';
+                if (!validType) {
+                    this._addError(Localizer.Diagnostic.bufferOptionInvalid().format({name: optionName}), param);
+                } else if (validType !== maybeKwarg.type) {
+                    this._addError(Localizer.Diagnostic.bufferOptionValueInvalid().format({name: optionName, expected: expected}), maybeKwarg);
+                } else if (maybeKwarg.type === TokenType.Keyword) {
+                    if (!validKeywords.includes((maybeKwarg as KeywordToken).keywordType)) {
+                        this._addError(Localizer.Diagnostic.bufferOptionValueInvalid().format({name: optionName, expected: expected}), maybeKwarg);
+                    }
+                } else if (maybeKwarg.type === TokenType.Number) {
+                    const num = maybeKwarg as NumberToken;
+                    if (!num.isInteger || num.value < 0) {
+                        this._addError(Localizer.Diagnostic.bufferOptionValueInvalid().format({name: optionName, expected: expected}), maybeKwarg);
+                    }
+                } else if (maybeKwarg.type === TokenType.String) {
+                    if (!modes.includes((maybeKwarg as StringToken).escapedValue)) {
+                        this._addError(Localizer.Diagnostic.bufferOptionValueInvalid().format({name: optionName, expected: expected}), maybeKwarg);
+                    }
                 }
-            } else if (nextToken.type === TokenType.Colon) {
-                if (lastType === TokenType.Colon) {
-                    this._addError(Localizer.Diagnostic.expectedComma(), nextToken);
-                }
+            }
+            if (node.options.includes(optionName)) {
+                this._addError(Localizer.Diagnostic.paramAlreadyAssigned().format({name: optionName}), param);
+            }
+            node.options.push(optionName);
+            node.optionValues.push(optionValue);
+            const maybeComma = this._peekToken();
+            if (!this._consumeTokenIfType(TokenType.Comma) && this._peekTokenType() !== TokenType.CloseBracket) {
+                this._addError(Localizer.Diagnostic.expectedComma(), this._peekToken());
             } else {
-                if (lastType === TokenType.Colon) {
-                    this._addError(Localizer.Diagnostic.expectedComma(), nextToken);
-                } else {
-                    this._addError(Localizer.Diagnostic.expectedColon(), nextToken);
-                }
-                this._addError(Localizer.Diagnostic.expectedCloseBracket(), nextToken);
-                break;
+                extendRange(node, maybeComma);
             }
-
-            lastType = nextToken.type;
+            index++;
         }
-        return tokens;
+        if (!node.options.includes('dtype')) {
+            this._addError(Localizer.Diagnostic.argMissingForParam().format({name: 'dtype'}), startToken);
+        }
+        return node;
     }
 
     // [::1] or [] or [:] or [::] or [:, :] after type
-    private _peekView(count = 0, typedVarCategory = TypedVarCategory.Variable): Token[] {
-        const originalCount = count;
-        const possibleOpenBracket = this._peekToken(count);
-        let foundCloseBracket = false;
-        let foundIdentifier = false;
-        let tokenIndex = 0;
-        var colonCount = 0;
-        var tokens: Token[] = [];
-        var lastType: TokenType | undefined;
-        let errorToken: Token | undefined = undefined;
-        let invalidAxis = false;
+    private _parseView(typedVarCategory = TypedVarCategory.Variable): Token[] {
+        const tokens: Token[] = [];
+        const stopTokens = [TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream];
+        const sliceNodes: SliceNode[] = [];
+        const maybeOpenBracket = this._peekToken();
 
-        if (possibleOpenBracket.type !== TokenType.OpenBracket) {
+        if (!this._consumeTokenIfType(TokenType.OpenBracket)) {
             return tokens;
         }
-
-        count++;
-        tokenIndex++;
-        tokens.push(possibleOpenBracket);
-        lastType = possibleOpenBracket.type;
-        while (this._peekToken(count).type !== TokenType.NewLine) {
-            const nextToken = this._peekToken(count);
-            count++
-            tokenIndex++;
-            tokens.push(nextToken);
-
-            if (nextToken.type === TokenType.CloseBracket) {
-                foundCloseBracket = true;
+        if (this._peekToken().type === TokenType.Comma) {
+            return tokens
+        }
+        tokens.push(maybeOpenBracket);
+        let seenParamList = false;
+        while (!stopTokens.includes(this._peekToken().type) && !seenParamList) {
+            let index = this._tokenIndex;
+            const nodeStart = this._peekToken();
+            let node: ParseNode | BufferOptionsNode = this._parsePossibleSlice();
+            if (node.nodeType === ParseNodeType.Slice) {
+                sliceNodes.push(node);
+                if (node.startValue || node.endValue) {
+                    this._addError(Localizer.Diagnostic.viewInvalidAxis(), nodeStart);
+                }
+            } else {
+                if (!sliceNodes.length) {
+                    if (node.nodeType === ParseNodeType.Number) {
+                        // Sized Array
+                    } else {
+                        this._tokenIndex = index;
+                        node = this._parseBufferOptions();
+                    }
+                } else {
+                    break;
+                }
+            }
+            const end = node.start + node.length;
+            while (index < this._tokenizerOutput!.tokens.count) {
+                const nextToken = this._tokenizerOutput!.tokens.getItemAt(index);
+                if (nextToken.start >= end) {
+                    break;
+                }
+                tokens.push(nextToken);
+                index++;
+            }
+            const maybeComma = this._peekToken();
+            if (!this._consumeTokenIfType(TokenType.Comma)) {
                 break;
             }
-
-            if (nextToken.type === TokenType.Identifier) {
-                foundIdentifier = true;
-                continue;
-            }
-
-            if (nextToken.type === TokenType.Comma && !foundIdentifier) {
-                return this._peekViewDims(originalCount, typedVarCategory === TypedVarCategory.Function);
-            }
-            if (nextToken.type === TokenType.Colon) {
-                colonCount++;
-                if (colonCount > 2) {
-                    this._addError(Localizer.Diagnostic.expectedCloseBracket(), this._peekToken(count));
-                }
-            } else if (colonCount < 2) {
-                invalidAxis = true;
-                errorToken = nextToken;
-            }
-            lastType = nextToken.type;
+            tokens.push(maybeComma);
+        }
+        const maybeCloseBracket = this._peekToken();
+        if (this._consumeTokenIfType(TokenType.CloseBracket)) {
+            tokens.push(maybeCloseBracket);
+        } else {
+            this._addError(Localizer.Diagnostic.expectedCloseBracket(), maybeCloseBracket);
         }
 
-        if (!foundCloseBracket) {
-            this._addError(Localizer.Diagnostic.expectedCloseBracket(), this._peekToken(count));
-        }
-        if (colonCount === 0) {
-            if (typedVarCategory === TypedVarCategory.Function) {
-                // Array valid for function return type if followed by pointer: "[]*" or "[1]*"
-                if (!this._isTokenPointer(count)) {
-                    this._addError(Localizer.Diagnostic.returnTypeCannotBeArray(), this._peekToken());
-                } else {
-                    return tokens;
-                }
-            } else if (typedVarCategory === TypedVarCategory.Callback) {
-                return tokens;
+        if (typedVarCategory === TypedVarCategory.Function && tokens.length) {
+            // Array valid for function return type if followed by pointer: "[]*" or "[1]*"
+            const lastToken = tokens[tokens.length - 1];
+            const start = tokens[0].start
+            const range = TextRange.create(start, lastToken.length + lastToken.start - start);
+            const text = this._getRangeText(range);
+            if (!text.includes(':') && !this._isTokenPointer()) {
+                this._addError(Localizer.Diagnostic.returnTypeCannotBeArray(), maybeCloseBracket);
             }
         }
-        if (invalidAxis) {
-            this._addError(Localizer.Diagnostic.viewInvalidAxis(), errorToken || this._peekToken());
-        }
+
         return tokens;
     }
 
@@ -6278,10 +6306,8 @@ export class Parser {
         }
 
         // View is associated with type
-        let viewTokensCount = this._peekView(undefined, typedVarCategory).length;
-        for (let index = 0; index < viewTokensCount; index++) {
-            viewTokens.push(this._getNextToken());
-        }
+        viewTokens.push(...this._parseView(typedVarCategory));
+
         // CPP Allow '&' after type
         // let possibleAddressOf = this._peekToken(ptrCount + viewTokensCount + skip);
         // if (possibleAddressOf.type === TokenType.Operator &&
@@ -6480,25 +6506,19 @@ export class Parser {
     // ctuples: '(type, type)' as return type or as a typed argument,
     // c callback functions: '(*function_name)(args, ...) as return type or as a typed argument'
     private _peekFunctionDeclaration(): TypedVarCategory | undefined {
+        const originalIndex = this._tokenIndex;
         let skip = 0;
         let seenIdentifier = false;
         let notCallback = false;
         let maybeTuple = false;
         let parenDepth = 0;
-        const breakTokens = [TokenType.NewLine, TokenType.EndOfStream, TokenType.Colon];
+        const stopTokens = [TokenType.NewLine, TokenType.EndOfStream];
 
         while (true) {
-            let iterToken = this._peekTokenIfIdentifier(skip) || this._peekToken(skip);
+            const iterToken = this._peekTokenIfIdentifier(skip) || this._peekToken(skip);
 
             if (this._isTokenPointer(skip)) {
                 skip += this._peekTokenPointers(skip).length;
-                continue;
-            }
-
-            if (iterToken.type === TokenType.OpenBracket) {
-                this._suppressErrors(() => {
-                    skip += this._peekView(skip).length;
-                });
                 continue;
             }
 
@@ -6540,7 +6560,7 @@ export class Parser {
                 }
             } else if (iterToken.type === TokenType.CloseParenthesis) {
                 parenDepth--;
-            } else if (breakTokens.includes(iterToken.type)) {
+            } else if (stopTokens.includes(iterToken.type)) {
                 break;
             }
             skip++;

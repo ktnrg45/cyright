@@ -1007,6 +1007,10 @@ export namespace Localizer {
         export const expectedCastClose = () => getRawString('Diagnostic.expectedCastClose');
         export const deprecatedPropertyCython = () => getRawString('Diagnostic.deprecatedPropertyCython');
         export const deprecatedForFromLoop = () => getRawString('Diagnostic.deprecatedForFromLoop');
+        export const bufferOptionInvalid = () =>
+            new ParameterizedString<{ name: string }>(getRawString('Diagnostic.bufferOptionInvalid'));
+        export const bufferOptionValueInvalid = () =>
+            new ParameterizedString<{ name: string, expected: string }>(getRawString('Diagnostic.bufferOptionValueInvalid'));
     }
 
     export namespace DiagnosticAddendum {
