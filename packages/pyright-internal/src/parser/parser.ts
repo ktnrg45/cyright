@@ -6545,7 +6545,7 @@ export class Parser {
         let parenDepth = 0;
         const stopTokens = [TokenType.NewLine, TokenType.EndOfStream];
 
-        while (true) {
+        while (!stopTokens.includes(this._peekToken(skip).type)) {
             const iterToken = this._peekTokenIfIdentifier(skip) || this._peekToken(skip);
 
             if (this._isTokenPointer(skip)) {
@@ -6591,8 +6591,11 @@ export class Parser {
                 }
             } else if (iterToken.type === TokenType.CloseParenthesis) {
                 parenDepth--;
-            } else if (stopTokens.includes(iterToken.type)) {
-                break;
+            } else if (iterToken.type === TokenType.Operator) {
+                const operator = iterToken as OperatorToken;
+                if (operator.operatorType === OperatorType.Assign) {
+                    break;
+                }
             }
             skip++;
         }
