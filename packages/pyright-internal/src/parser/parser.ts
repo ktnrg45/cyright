@@ -5413,11 +5413,14 @@ export class Parser {
             return tokens
         }
         tokens.push(maybeOpenBracket);
-        let seenParamList = false;
-        while (!stopTokens.includes(this._peekToken().type) && !seenParamList) {
+        while (!stopTokens.includes(this._peekToken().type)) {
             let index = this._tokenIndex;
             const nodeStart = this._peekToken();
-            let node: ParseNode | BufferOptionsNode = this._parsePossibleSlice();
+            var node: ParseNode | BufferOptionsNode;
+            const errorsWereSuppressed = this._areErrorsSuppressed;
+            this._areErrorsSuppressed = true;
+            node = this._parsePossibleSlice();
+            this._areErrorsSuppressed = errorsWereSuppressed;
             if (node.nodeType === ParseNodeType.Slice) {
                 sliceNodes.push(node);
                 if (node.startValue || node.endValue) {
