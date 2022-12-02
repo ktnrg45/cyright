@@ -6008,79 +6008,56 @@ export class Parser {
             return undefined;
         }
         const castOpen = this._getNextToken();
-        if (this._isVarModifier(this._peekToken())) {
-            this._getNextToken();
+        const varType = this._parseVarType(TypedVarCategory.Variable, /* skipView */ true);
+        if (!varType.typeAnnotation) {
+            return undefined;
         }
-        while (this._isNumericModifier(this._peekToken())) {
-            const nextToken = this._peekTokenIfIdentifier();
-            if (this._peekTokenIfIdentifier() && this._peekKeywordType() === KeywordType.Long) {
-                if (!this._peekTokenIfIdentifier(1)) {
+        const ptrTokens = this._getTokenPointers();
+        let sliceNodes: ExpressionNode[] = [];
+        const maybeOpenBracket = this._peekToken();
+        if (this._consumeTokenIfType(TokenType.OpenBracket)) {
+            const stopTokens = [TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream];
+            while (!stopTokens.includes(this._peekToken().type)) {
+                const sliceStart = this._peekToken();
+                const sliceNode = this._parsePossibleSlice();
+                if (sliceNode.nodeType === ParseNodeType.Slice) {
+                    sliceNodes.push(sliceNode);
+                    if (sliceNode.startValue) {
+                        this._addError(Localizer.Diagnostic.viewCastStartNotAllowed(), sliceStart);
+                    } else if (sliceNode.stepValue && !sliceNode.endValue) {
+                        this._addError(Localizer.Diagnostic.viewCastMissingStop(), sliceStart);
+                    } else if (!sliceNode.startValue && !sliceNode.endValue && !sliceNode.stepValue) {
+                        this._addError(Localizer.Diagnostic.viewCastMissingStop(), sliceStart);
+                    }
+                }
+                if (!this._consumeTokenIfType(TokenType.Comma)) {
                     break;
                 }
             }
-            this._getNextToken();
+            const maybeCloseBracket = this._peekToken();
+            if (!this._consumeTokenIfType(TokenType.CloseBracket)) {
+                this._addError(Localizer.Diagnostic.expectedCloseBracket(), maybeCloseBracket);
+            }
+            if (!sliceNodes.length && !this._getTokenPointers().length) {
+                this._addError(Localizer.Diagnostic.castToArrayNotAllowed(), maybeCloseBracket);
+            }
         }
 
-        let varType: NameNode | MemberAccessNode;
-        if (this._peekTokenIfIdentifier()) {
-            const varToken = this._getNextToken() as IdentifierToken;
-            varType = NameNode.create(varToken);
-            while (this._consumeTokenIfType(TokenType.Dot)) {
-                const memberToken = this._peekTokenIfIdentifier();
-                if (!memberToken) {
-                    this._addError(Localizer.Diagnostic.expectedMemberName(), this._getNextToken());
-                    break;
-                }
-                varType = MemberAccessNode.create(varType, NameNode.create(memberToken as IdentifierToken));
-                this._getNextToken()
-            }
-            const ptrTokens = this._getTokenPointers();
-            let sliceNodes: ExpressionNode[] = [];
-            const maybeOpenBracket = this._peekToken();
-            if (this._consumeTokenIfType(TokenType.OpenBracket)) {
-                const stopTokens = [TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream];
-                while (!stopTokens.includes(this._peekToken().type)) {
-                    const sliceStart = this._peekToken();
-                    const sliceNode = this._parsePossibleSlice();
-                    if (sliceNode.nodeType === ParseNodeType.Slice) {
-                        sliceNodes.push(sliceNode);
-                        if (sliceNode.startValue) {
-                            this._addError(Localizer.Diagnostic.viewCastStartNotAllowed(), sliceStart);
-                        } else if (sliceNode.stepValue && !sliceNode.endValue) {
-                            this._addError(Localizer.Diagnostic.viewCastMissingStop(), sliceStart);
-                        } else if (!sliceNode.startValue && !sliceNode.endValue && !sliceNode.stepValue) {
-                            this._addError(Localizer.Diagnostic.viewCastMissingStop(), sliceStart);
-                        }
-                    }
-                    if (!this._consumeTokenIfType(TokenType.Comma)) {
-                        break;
-                    }
-                }
-                const maybeCloseBracket = this._peekToken();
-                if (!this._consumeTokenIfType(TokenType.CloseBracket)) {
-                    this._addError(Localizer.Diagnostic.expectedCloseBracket(), maybeCloseBracket);
-                }
-                if (!sliceNodes.length && !this._getTokenPointers().length) {
-                    this._addError(Localizer.Diagnostic.castToArrayNotAllowed(), maybeCloseBracket);
-                }
-            }
-
-            if (ptrTokens.length && sliceNodes.length) {
-                this._addError(Localizer.Diagnostic.expectedCastClose(), maybeOpenBracket);
-            }
-            // Handle Type Check: "<double?>name"
-            this._consumeTokenIfType(TokenType.QuestionMark);
-
-            const castClose = this._getNextToken();
-            if (castClose.type === TokenType.Operator && (castClose as OperatorToken).operatorType === OperatorType.GreaterThan) {
-                const startToken = this._peekToken();
-                const expr = this._parseTestExpression(false);
-                const node = CallNode.create(varType, [ArgumentNode.create(startToken, expr, ArgumentCategory.Simple)], false);
-                extendRange(node, castOpen);
-                return node;
-            }
-            this._addError(Localizer.Diagnostic.expectedCastClose(), castClose);
+        if (ptrTokens.length && sliceNodes.length) {
+            this._addError(Localizer.Diagnostic.expectedCastClose(), maybeOpenBracket);
         }
+        // Handle Type Check: "<double?>name"
+        this._consumeTokenIfType(TokenType.QuestionMark);
+
+        const castClose = this._getNextToken();
+        if (castClose.type === TokenType.Operator && (castClose as OperatorToken).operatorType === OperatorType.GreaterThan) {
+            const startToken = this._peekToken();
+            const expr = this._parseTestExpression(false);
+            const node = CallNode.create(varType.typeAnnotation, [ArgumentNode.create(startToken, expr, ArgumentCategory.Simple)], false);
+            extendRange(node, castOpen);
+            return node;
+        }
+        this._addError(Localizer.Diagnostic.expectedCastClose(), castClose);
         return undefined;
     }
 
@@ -6225,7 +6202,7 @@ export class Parser {
         return indexNode;
     }
 
-    private _parseVarType(typedVarCategory = TypedVarCategory.Variable) : VarTypeNode {
+    private _parseVarType(typedVarCategory = TypedVarCategory.Variable, skipView = false) : VarTypeNode {
         const numModifiers: Token[] = [];
         const viewTokens: Token[] = [];
         let lastNumModifier: KeywordType | undefined;
@@ -6339,8 +6316,10 @@ export class Parser {
             varType = this._parseVarTypeTuple();
         }
 
-        // View is associated with type
-        viewTokens.push(...this._parseView(typedVarCategory));
+        if (!skipView) {
+            // View is associated with type
+            viewTokens.push(...this._parseView(typedVarCategory));
+        }
 
         // CPP Allow '&' after type
         // let possibleAddressOf = this._peekToken(ptrCount + viewTokensCount + skip);
