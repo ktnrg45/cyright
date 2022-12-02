@@ -3,7 +3,7 @@ from typing import Any
 from . import address
 
 
-def typeid(__obj: Any) -> int:
+def typeid(__obj: Any) -> Any:
     """Cython Operator Function. Return type id of object."""
     ...
 
