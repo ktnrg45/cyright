@@ -12,7 +12,9 @@
         "build": "tsc",
         "clean": "shx rm -rf ./dist ./out",
         "test": "jest --forceExit",
-        "test:coverage": "jest --forceExit --reporters=jest-junit --reporters=default --coverage --coverageReporters=cobertura --coverageReporters=html --coverageReporters=json"
+        "test:coverage": "jest --forceExit --reporters=jest-junit --reporters=default --coverage --coverageReporters=cobertura --coverageReporters=html --coverageReporters=json",
+        "test-cython": "cd src/tests-cython && jest --forceExit",
+        "test-cython-compile": "python3 -B src/tests-cython/tests/test_compile.py"
     },
     "dependencies": {
         "@iarna/toml": "2.2.5",
