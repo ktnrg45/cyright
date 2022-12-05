@@ -5402,7 +5402,8 @@ export class Parser {
         const stopTokens = [TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream];
         const sliceNodes: SliceNode[] = [];
         const maybeOpenBracket = this._peekToken();
-
+        const openBracketIndex = this._tokenIndex;
+        let isTemplateParameterList = false;
         if (!this._consumeTokenIfType(TokenType.OpenBracket)) {
             return tokens;
         }
@@ -5429,7 +5430,15 @@ export class Parser {
                         // Sized Array
                     } else {
                         this._tokenIndex = index;
-                        node = this._parseBufferOptions();
+                        const count = this._peekUntilType([TokenType.Operator, TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream]);
+                        const tokenAt = this._peekToken(count);
+                        if (tokenAt.type === TokenType.Operator && (tokenAt as OperatorToken).operatorType === OperatorType.Assign) {
+                            node = this._parseBufferOptions();
+                        } else {
+                            this._tokenIndex = openBracketIndex;
+                            node = this._parseTemplateParameterList()
+                            isTemplateParameterList = true;
+                        }
                     }
                 } else {
                     break;
@@ -5450,21 +5459,24 @@ export class Parser {
             }
             tokens.push(maybeComma);
         }
-        const maybeCloseBracket = this._peekToken();
-        if (this._consumeTokenIfType(TokenType.CloseBracket)) {
-            tokens.push(maybeCloseBracket);
-        } else {
-            this._addError(Localizer.Diagnostic.expectedCloseBracket(), maybeCloseBracket);
-        }
 
-        if (typedVarCategory === TypedVarCategory.Function && tokens.length) {
-            // Array valid for function return type if followed by pointer: "[]*" or "[1]*"
-            const lastToken = tokens[tokens.length - 1];
-            const start = tokens[0].start
-            const range = TextRange.create(start, lastToken.length + lastToken.start - start);
-            const text = this._getRangeText(range);
-            if (!text.includes(':') && !this._isTokenPointer()) {
-                this._addError(Localizer.Diagnostic.returnTypeCannotBeArray(), maybeCloseBracket);
+        if (!isTemplateParameterList) {
+            const maybeCloseBracket = this._peekToken();
+            if (this._consumeTokenIfType(TokenType.CloseBracket)) {
+                tokens.push(maybeCloseBracket);
+            } else {
+                this._addError(Localizer.Diagnostic.expectedCloseBracket(), maybeCloseBracket);
+            }
+
+            if (typedVarCategory === TypedVarCategory.Function && tokens.length) {
+                // Array valid for function return type if followed by pointer: "[]*" or "[1]*"
+                const lastToken = tokens[tokens.length - 1];
+                const start = tokens[0].start
+                const range = TextRange.create(start, lastToken.length + lastToken.start - start);
+                const text = this._getRangeText(range);
+                if (!text.includes(':') && !this._isTokenPointer()) {
+                    this._addError(Localizer.Diagnostic.returnTypeCannotBeArray(), maybeCloseBracket);
+                }
             }
         }
 
