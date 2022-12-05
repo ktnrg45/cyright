@@ -3109,13 +3109,9 @@ export class Parser {
 
     // test: or_test ['if' or_test 'else' test] | lambdef
     private _parseTestExpression(allowAssignmentExpression: boolean): ExpressionNode {
-        // if (this._peekOperatorType() === OperatorType.BitwiseAnd) {
-        //     // Handle Address of: "&name"
-        //     if (this._peekToken(1).type === TokenType.Identifier) {
-        //         this._getNextToken();
-        //         return NameNode.create(this._getNextToken() as IdentifierToken);
-        //     }
-        // }
+        // CPP consume 'new'
+        this._consumeTokenIfKeyword(KeywordType.New);
+        // Handle Address of: "&name"
         this._consumeTokenIfOperator(OperatorType.BitwiseAnd);
         if (this._peekOperatorType() === OperatorType.LessThan) {
             const castExpr = this._parseCast();
@@ -4400,8 +4396,6 @@ export class Parser {
 
         // Is this a simple assignment?
         if (this._consumeTokenIfOperator(OperatorType.Assign)) {
-            // CPP consume 'new'
-            this._consumeTokenIfKeyword(KeywordType.New);
             return this._parseChainAssignments(leftExpr);
         }
 
