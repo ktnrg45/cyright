@@ -6389,7 +6389,19 @@ export class Parser {
 
         if (!skipView) {
             // View is associated with type
-            viewTokens.push(...this._parseTypeBracketSuffix(typedVarCategory).tokens);
+            const bracketNode = this._parseTypeBracketSuffix(typedVarCategory);
+            viewTokens.push(...bracketNode.tokens);
+            if (varType && bracketNode.category === TypeBracketSuffixCategory.Template) {
+                // Templates can also have members
+                while (this._consumeTokenIfType(TokenType.Dot)) {
+                    const maybeMember = this._getTokenIfIdentifier();
+                    if (!maybeMember) {
+                        this._addError(Localizer.Diagnostic.expectedMemberName(), this._peekToken());
+                        break;
+                    }
+                    varType = MemberAccessNode.create(varType, NameNode.create(maybeMember));
+                }
+            }
         }
         // CPP Allow Reference '&' after type
         if (varType) {
