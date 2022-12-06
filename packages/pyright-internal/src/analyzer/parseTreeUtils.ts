@@ -1902,8 +1902,8 @@ export function printParseNodeType(type: ParseNodeType) {
             return 'TypeAlias';
 
         // Cython
-        case ParseNodeType.BufferOptions:
-            return 'BufferOptions';
+        case ParseNodeType.TypeBracketSuffix:
+            return 'TypeBracketSuffix';
     }
 
     assertNever(type);

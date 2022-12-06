@@ -123,6 +123,8 @@ import {
     VarTypeNode,
     BufferOptionsNode,
     CythonClassType,
+    TypeBracketSuffixCategory,
+    TypeBracketSuffixNode,
 } from './parseNodes';
 import * as StringTokenUtils from './stringTokenUtils';
 import { Tokenizer, TokenizerOutput } from './tokenizer';
@@ -5396,19 +5398,17 @@ export class Parser {
         return node;
     }
 
-    // [::1] or [] or [:] or [::] or [:, :] after type
-    private _parseView(typedVarCategory = TypedVarCategory.Variable): Token[] {
+    // Brackets after type
+    private _parseTypeBracketSuffix(typedVarCategory = TypedVarCategory.Variable): TypeBracketSuffixNode {
         const tokens: Token[] = [];
         const stopTokens = [TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream];
         const sliceNodes: SliceNode[] = [];
         const maybeOpenBracket = this._peekToken();
         const openBracketIndex = this._tokenIndex;
-        let isTemplateParameterList = false;
+        let bracketNode = TypeBracketSuffixNode.create(maybeOpenBracket);
+        let bracketCategory = TypeBracketSuffixCategory.Unknown;
         if (!this._consumeTokenIfType(TokenType.OpenBracket)) {
-            return tokens;
-        }
-        if (this._peekToken().type === TokenType.Comma) {
-            return tokens
+            return bracketNode;
         }
         tokens.push(maybeOpenBracket);
         while (!stopTokens.includes(this._peekToken().type)) {
@@ -5420,6 +5420,8 @@ export class Parser {
             node = this._parsePossibleSlice();
             this._areErrorsSuppressed = errorsWereSuppressed;
             if (node.nodeType === ParseNodeType.Slice) {
+                // View "[::1] or [:] or [::] or [:, :]"
+                bracketCategory = TypeBracketSuffixCategory.View;
                 sliceNodes.push(node);
                 if (node.startValue || node.endValue) {
                     this._addError(Localizer.Diagnostic.viewInvalidAxis(), nodeStart);
@@ -5428,19 +5430,24 @@ export class Parser {
                 if (!sliceNodes.length) {
                     if (node.nodeType === ParseNodeType.Number) {
                         // Sized Array
+                        bracketCategory = TypeBracketSuffixCategory.Array;
                     } else {
                         this._tokenIndex = index;
                         const count = this._peekUntilType([TokenType.Operator, TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream]);
                         const tokenAt = this._peekToken(count);
                         if (tokenAt.type === TokenType.Operator && (tokenAt as OperatorToken).operatorType === OperatorType.Assign) {
                             node = this._parseBufferOptions();
+                            bracketNode = node;
+                            bracketCategory = TypeBracketSuffixCategory.BufferOptions;
                         } else {
                             this._tokenIndex = openBracketIndex;
                             node = this._parseTemplateParameterList()
-                            isTemplateParameterList = true;
+                            bracketCategory = TypeBracketSuffixCategory.Template;
                         }
                     }
                 } else {
+                    // Empty brackets "[]"
+                    bracketCategory = TypeBracketSuffixCategory.Array;
                     break;
                 }
             }
@@ -5460,10 +5467,11 @@ export class Parser {
             tokens.push(maybeComma);
         }
 
-        if (!isTemplateParameterList) {
+        if (bracketCategory !== TypeBracketSuffixCategory.Template) {
             const maybeCloseBracket = this._peekToken();
             if (this._consumeTokenIfType(TokenType.CloseBracket)) {
                 tokens.push(maybeCloseBracket);
+                extendRange(bracketNode, maybeCloseBracket);
             } else {
                 this._addError(Localizer.Diagnostic.expectedCloseBracket(), maybeCloseBracket);
             }
@@ -5479,8 +5487,9 @@ export class Parser {
                 }
             }
         }
-
-        return tokens;
+        bracketNode.tokens = tokens;
+        bracketNode.category = bracketCategory;
+        return bracketNode;
     }
 
     // "[1]" or "[]"  after name for variables or before function name
@@ -6380,7 +6389,7 @@ export class Parser {
 
         if (!skipView) {
             // View is associated with type
-            viewTokens.push(...this._parseView(typedVarCategory));
+            viewTokens.push(...this._parseTypeBracketSuffix(typedVarCategory).tokens);
         }
         // CPP Allow Reference '&' after type
         if (varType) {

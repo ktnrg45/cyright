@@ -126,7 +126,7 @@ export const enum ParseNodeType {
     TypeAlias,
 
     // Cython
-    BufferOptions,
+    TypeBracketSuffix,
 }
 
 export const enum ErrorExpressionCategory {
@@ -2417,6 +2417,14 @@ export const enum TypedVarCategory {
     Callback,
 }
 
+export const enum TypeBracketSuffixCategory {
+    Unknown,
+    View,
+    Array,
+    BufferOptions,
+    Template,
+}
+
 export interface VarTypeNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType;
     readonly typedVarCategory: TypedVarCategory;
@@ -2483,11 +2491,29 @@ export namespace TypedVarNode {
     }
 }
 
-export interface BufferOptionsNode extends ParseNodeBase {
-    readonly nodeType: ParseNodeType.BufferOptions;
+export interface TypeBracketSuffixNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.TypeBracketSuffix;
+    category: TypeBracketSuffixCategory;
+    tokens: Token[];
+}
+
+export namespace TypeBracketSuffixNode {
+    export function create(startToken: Token): TypeBracketSuffixNode {
+        const node: TypeBracketSuffixNode = {
+            start: startToken.start,
+            length: startToken.length,
+            nodeType: ParseNodeType.TypeBracketSuffix,
+            id: _nextNodeId++,
+            category: TypeBracketSuffixCategory.Unknown,
+            tokens: [],
+        };
+        return node;
+    }
+}
+
+export interface BufferOptionsNode extends TypeBracketSuffixNode {
     options: string[];
     optionValues: string[];
-    tokens: Token[];
 }
 
 export namespace BufferOptionsNode {
@@ -2495,11 +2521,12 @@ export namespace BufferOptionsNode {
         const node: BufferOptionsNode = {
             start: startToken.start,
             length: startToken.length,
-            nodeType: ParseNodeType.BufferOptions,
+            nodeType: ParseNodeType.TypeBracketSuffix,
             id: _nextNodeId++,
+            category: TypeBracketSuffixCategory.BufferOptions,
+            tokens: [],
             options: [],
             optionValues: [],
-            tokens: [],
         };
         return node;
     }
