@@ -7025,6 +7025,10 @@ export class Parser {
             nameNode = typedVarNode.name;
         }
 
+        if (this._peekTokenType() === TokenType.OpenBracket) {
+            this._parseTemplateParameterList();
+        }
+
         const openParenToken = this._peekToken();
         if (!this._consumeTokenIfType(TokenType.OpenParenthesis)) {
             this._addError(Localizer.Diagnostic.expectedOpenParen(), this._peekToken());
