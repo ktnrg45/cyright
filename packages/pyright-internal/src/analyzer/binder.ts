@@ -40,6 +40,7 @@ import {
     CaseNode,
     ClassNode,
     ContinueNode,
+    CythonClassType,
     DelNode,
     ExceptNode,
     ExpressionNode,
@@ -446,8 +447,16 @@ export class Binder extends ParseTreeWalker {
         this._createVariableAnnotationFlowNode();
         AnalyzerNodeInfo.setFlowNode(node, this._currentFlowNode!);
 
-        const symbol = this._bindNameToScope(this._currentScope, node.name);
         const containingClassNode = ParseTreeUtils.getEnclosingClass(node, /* stopAtFunction */ true);
+        let symbol: Symbol | undefined = undefined;
+        if (containingClassNode?.cythonType !== CythonClassType.CppClass ||
+            node.name.value !== containingClassNode.name.value
+        ) {
+            // CPP classes use functions with same name as the class as a constructor
+            // These shouldn't be added to scope as it would give the appearance
+            // That there is a member function of that name
+            symbol = this._bindNameToScope(this._currentScope, node.name);
+        }
         const functionDeclaration: FunctionDeclaration = {
             type: DeclarationType.Function,
             node,
