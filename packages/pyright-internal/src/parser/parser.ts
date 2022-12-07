@@ -6833,14 +6833,13 @@ export class Parser {
     private _parseTemplateParameter(): TypeParameterNode | undefined {
         let typeParamCategory = TypeParameterCategory.TypeVar;
 
-        const nameToken = this._getTokenIfIdentifier();
-        if (!nameToken) {
+        const varTypeNode = this._parseVarType(TypedVarCategory.Variable);
+        if (varTypeNode.typeAnnotation?.nodeType !== ParseNodeType.Name) {
             this._addError(Localizer.Diagnostic.expectedTypeParameterName(), this._peekToken());
             return undefined;
         }
 
-        const name = NameNode.create(nameToken);
-        const param = TypeParameterNode.create(name, typeParamCategory, undefined);
+        const param = TypeParameterNode.create(varTypeNode.typeAnnotation, typeParamCategory, undefined);
         const equals = this._peekToken() as OperatorToken;
         if (equals.operatorType === OperatorType.Assign) {
             extendRange(param, equals);
