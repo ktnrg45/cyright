@@ -18524,6 +18524,18 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
     ): SymbolWithScope | undefined {
         const scope = ScopeUtils.getScopeForNode(node);
         let symbolWithScope = scope?.lookUpSymbolRecursive(name);
+        if (!symbolWithScope && scope && !honorCodeFlow && preferGlobalScope) {
+            const topNode = ScopeUtils.findTopNodeInScope(node, scope);
+            if (topNode && topNode.nodeType === ParseNodeType.Class) {
+                if (name === topNode.name.value) {
+                    // This is assumed to be forward reference within a nested class
+                    // Since we are in a type annotation and the annotation matches the class name
+                    // Originally, the module scope would be used instead
+                    const classScope = ScopeUtils.getScopeForNode(topNode);
+                    symbolWithScope = classScope?.lookUpSymbolRecursive(name);
+                }
+            }
+        }
         const scopeType = scope?.type ?? ScopeType.Module;
 
         // Functions and list comprehensions don't allow access to implicitly

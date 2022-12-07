@@ -274,6 +274,9 @@ export class Parser {
         });
 
         assert(this._tokenizerOutput !== undefined);
+
+        // Allow forward references for CPP.
+        this._futureImportMap.set('annotations', true);
         return {
             text: fileContents,
             parseTree: moduleNode,
