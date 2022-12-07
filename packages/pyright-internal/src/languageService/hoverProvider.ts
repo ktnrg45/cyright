@@ -257,6 +257,8 @@ export class HoverProvider {
                     case CythonClassType.Union:
                         classTypeText = 'union';
                         break;
+                    case CythonClassType.CppClass:
+                        classTypeText = 'cppclass'
                 }
                 this._addResultsPart(parts, `(${classTypeText}) ` + node.value, /* python */ true);
                 this._addDocumentationPart(format, sourceMapper, parts, node, evaluator, resolvedDecl);

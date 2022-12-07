@@ -37,6 +37,7 @@ import {
     CaseNode,
     ClassNode,
     ConstantNode,
+    CythonClassType,
     DecoratorNode,
     DictionaryNode,
     ExceptNode,
@@ -18527,12 +18528,18 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         if (!symbolWithScope && scope && !honorCodeFlow && preferGlobalScope) {
             const topNode = ScopeUtils.findTopNodeInScope(node, scope);
             if (topNode && topNode.nodeType === ParseNodeType.Class) {
+                const classScope = ScopeUtils.getScopeForNode(topNode);
                 if (name === topNode.name.value) {
                     // This is assumed to be forward reference within a nested class
                     // Since we are in a type annotation and the annotation matches the class name
                     // Originally, the module scope would be used instead
-                    const classScope = ScopeUtils.getScopeForNode(topNode);
                     symbolWithScope = classScope?.lookUpSymbolRecursive(name);
+                } else if (topNode.cythonType === CythonClassType.CppClass) {
+                    // Nested cpp classes are allowed to share the same namespace as the parent class members
+                    // So they do not have to use a 'fully qualified name'
+                    if (node.nodeType === ParseNodeType.Name) {
+                        symbolWithScope = classScope?.lookUpSymbolRecursive(node.value);
+                    }
                 }
             }
         }
