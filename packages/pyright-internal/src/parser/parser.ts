@@ -6592,6 +6592,13 @@ export class Parser {
                 }
                 isCpp = true;
             }
+        } else if (this._consumeTokenIfKeyword(KeywordType.Namespace)) {
+            // 'extern from * namespace "some_namespace"'
+            if (!this._getTokenIfType(TokenType.String)) {
+                this._addError(Localizer.Diagnostic.expectedNamespace(), this._getNextToken());
+                return undefined;
+            }
+            isCpp = true;
         }
         const possibleGilToken = this._getTokenIfType(TokenType.Keyword);
         if (possibleGilToken) {
