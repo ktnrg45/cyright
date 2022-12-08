@@ -6959,8 +6959,8 @@ export class Parser {
         if (withToken && keywordType !== KeywordType.Cdef && keywordType !== KeywordType.Ctypedef) {
             this._addError(Localizer.Diagnostic.expectedColon(), withToken);
         }
-        const gilOrExcept = this._peekKeywordType();
-        if (gilOrExcept === KeywordType.Nogil || gilOrExcept === KeywordType.Gil) {
+        const trailingKeyword = this._peekKeywordType();
+        if (trailingKeyword === KeywordType.Nogil || trailingKeyword === KeywordType.Gil) {
             const gilToken = this._getNextToken() as KeywordToken;
             if (keywordType !== KeywordType.Cdef && keywordType !== KeywordType.Ctypedef) {
                 this._addError(Localizer.Diagnostic.invalidTrailingGilFunction(), gilToken);
@@ -6973,13 +6973,14 @@ export class Parser {
                     this._addError(Localizer.Diagnostic.expectedNoGil(), withToken);
                 }
             }
-        } else if (gilOrExcept === KeywordType.Except) {
+        } else if (trailingKeyword === KeywordType.Except) {
             this._getNextToken();
             if (!this._consumeTokenIfOperator(OperatorType.Add)) {
                 this._consumeTokenIfType(TokenType.QuestionMark);
                 this._parseTestExpression(/* allowAssignment */ false);
             }
-        } else if (gilOrExcept === KeywordType.Noexcept) {
+        } else if (trailingKeyword === KeywordType.Noexcept || trailingKeyword === KeywordType.Const) {
+            // "const" seems to be allowed for cpp functions
             this._getNextToken();
         }
     }
