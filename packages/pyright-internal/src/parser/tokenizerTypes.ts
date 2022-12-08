@@ -86,6 +86,7 @@ export const enum OperatorType {
     Subtract,
     SubtractEqual,
     Walrus,
+    Negate, // Only used in cpp operators: "!"
 
     // These operators are used with tokens
     // of type TokenType.Keyword.

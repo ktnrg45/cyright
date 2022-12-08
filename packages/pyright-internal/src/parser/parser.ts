@@ -5085,7 +5085,7 @@ export class Parser {
 
     private _peekOperatorType(): OperatorType | undefined {
         const nextToken = this._peekToken();
-        if (nextToken.type !== TokenType.Operator) {
+        if (nextToken.type !== TokenType.Operator || (nextToken as OperatorToken).operatorType === OperatorType.Negate) {
             return undefined;
         }
 
@@ -6137,6 +6137,9 @@ export class Parser {
             const operatorType = (token as OperatorToken).operatorType;
             const operatorType2 = (token2 as OperatorToken).operatorType;
             switch (operatorType) {
+                case OperatorType.Negate:
+                    advance++;
+                    break;
                 case OperatorType.Add:
                 case OperatorType.Subtract:
                     advance++;

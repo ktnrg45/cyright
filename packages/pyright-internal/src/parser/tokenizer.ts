@@ -963,11 +963,8 @@ export class Tokenizer {
                 break;
 
             case Char.ExclamationMark:
-                if (nextChar !== Char.Equal) {
-                    return false;
-                }
-                length = 2;
-                operatorType = OperatorType.NotEquals;
+                length = nextChar === Char.Equal ? 2 : 1;
+                operatorType = length === 2 ? OperatorType.NotEquals : OperatorType.Negate;
                 break;
 
             case Char.Percent:
