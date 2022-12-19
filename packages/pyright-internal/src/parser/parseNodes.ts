@@ -444,6 +444,7 @@ export interface FunctionNode extends ParseNodeBase {
     returnTypeAnnotation?: ExpressionNode | undefined;
     functionAnnotationComment?: FunctionAnnotationNode | undefined;
     suite: SuiteNode;
+    isPrototype?: boolean;
 }
 
 export namespace FunctionNode {

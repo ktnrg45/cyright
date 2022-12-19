@@ -7083,6 +7083,7 @@ export class Parser {
         }
 
         const functionNode = FunctionNode.create(firstToken, nameNode, suite, typeParameters);
+        functionNode.isPrototype = isPrototype;
 
         functionNode.parameters = paramList;
         paramList.forEach((param) => {

@@ -3718,6 +3718,9 @@ export class Checker extends ParseTreeWalker {
             const functionNeverReturns = !this._evaluator.isAfterNodeReachable(node);
             const implicitlyReturnsNone = this._evaluator.isAfterNodeReachable(node.suite);
 
+            // Cython
+            const isPrototype = node.isPrototype;
+
             let declaredReturnType = functionType.details.declaredReturnType;
 
             if (declaredReturnType) {
@@ -3779,7 +3782,7 @@ export class Checker extends ParseTreeWalker {
                             returnAnnotation
                         );
                     }
-                } else if (!FunctionType.isAbstractMethod(functionType)) {
+                } else if (!FunctionType.isAbstractMethod(functionType) && !isPrototype) {
                     // Make sure that the function doesn't implicitly return None if the declared
                     // type doesn't allow it. Skip this check for abstract methods.
                     const diagAddendum = new DiagnosticAddendum();
