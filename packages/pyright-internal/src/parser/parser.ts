@@ -6011,6 +6011,7 @@ export class Parser {
         args.push(returnType);
 
         let indexNode = IndexNode.create(dummyCallable, args, false, closeParen);
+        indexNode.isCython = true;
 
         const typedVarNode = TypedVarNode.create(NameNode.create(varName), indexNode, varTypeNode);
         typedVarNode.name.isPrototype = allowPrototype;
@@ -6078,6 +6079,7 @@ export class Parser {
             const startToken = this._peekToken();
             const expr = this._parseTestExpression(false);
             const node = CallNode.create(varType.typeAnnotation, [ArgumentNode.create(startToken, expr, ArgumentCategory.Simple)], false);
+            node.isCast = true;
             extendRange(node, castOpen);
             return node;
         }

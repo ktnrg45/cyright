@@ -1181,6 +1181,9 @@ export const enum FunctionTypeFlags {
     // that contains a forward reference that requires the function
     // type itself to be evaluated first).
     PartiallyEvaluated = 1 << 17,
+
+    // Function is a Cython callback
+    CythonCallback = 1 << 18,
 }
 
 interface FunctionDetails {
@@ -1756,6 +1759,14 @@ export namespace FunctionType {
             ? type.specializedTypes.returnType
             : type.details.declaredReturnType;
     }
+
+    export function isCythonCallback(type: TypeBase) {
+        if (type.category !== TypeCategory.Function) {
+            return false;
+        }
+        return ((type as FunctionType).details.flags & FunctionTypeFlags.CythonCallback) !== 0;
+    }
+
 }
 
 export interface OverloadedFunctionType extends TypeBase {

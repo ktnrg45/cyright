@@ -162,8 +162,11 @@ export interface ParseNodeBase extends TextRange {
     maxChildDepth?: number;
 
     // Probably not the best place for this...
-    // Prefix and Suffix for types
+    // Cython Prefix and Suffix for types
     suffixMap?: PrefixSuffixMap;
+
+    // Used to differentiate Python and Cython nodes when needed
+    isCython?: boolean;
 }
 
 let _nextNodeId = 1;
@@ -1007,7 +1010,6 @@ export interface TypeAliasNode extends ParseNodeBase {
     name: NameNode;
     typeParameters?: TypeParameterListNode;
     expression: ExpressionNode;
-    isCython?: boolean;
 }
 
 export namespace TypeAliasNode {
@@ -1246,6 +1248,8 @@ export interface CallNode extends ParseNodeBase {
     leftExpression: ExpressionNode;
     arguments: ArgumentNode[];
     trailingComma: boolean;
+    // Cython
+    isCast?: boolean;
 }
 
 export namespace CallNode {

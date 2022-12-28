@@ -8389,15 +8389,18 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
         if (TypeBase.isSpecialForm(callTypeResult.type)) {
             const exprNode = errorNode.nodeType === ParseNodeType.Call ? errorNode.leftExpression : errorNode;
-            addDiagnostic(
-                AnalyzerNodeInfo.getFileInfo(errorNode).diagnosticRuleSet.reportGeneralTypeIssues,
-                DiagnosticRule.reportGeneralTypeIssues,
-                Localizer.Diagnostic.typeNotCallable().format({
-                    expression: ParseTreeUtils.printExpression(exprNode),
-                    type: printType(callTypeResult.type, /* expandTypeAlias */ true),
-                }),
-                exprNode
-            );
+            // Cython. If type is a callback and this node is a cast, do not report type error
+            if (!FunctionType.isCythonCallback(callTypeResult.type) && !(errorNode as CallNode).isCast) {
+                addDiagnostic(
+                    AnalyzerNodeInfo.getFileInfo(errorNode).diagnosticRuleSet.reportGeneralTypeIssues,
+                    DiagnosticRule.reportGeneralTypeIssues,
+                    Localizer.Diagnostic.typeNotCallable().format({
+                        expression: ParseTreeUtils.printExpression(exprNode),
+                        type: printType(callTypeResult.type, /* expandTypeAlias */ true),
+                    }),
+                    exprNode
+                );
+            }
             return { returnType: UnknownType.create(), argumentErrors: true };
         }
 
@@ -13317,6 +13320,10 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         } else {
             FunctionType.addDefaultParameters(functionType, /* useUnknown */ true);
             functionType.details.flags |= FunctionTypeFlags.SkipArgsKwargsCompatibilityCheck;
+        }
+
+        if (errorNode.isCython) {
+            functionType.details.flags |= FunctionTypeFlags.CythonCallback;
         }
 
         return functionType;
