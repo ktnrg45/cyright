@@ -5634,6 +5634,11 @@ export class Parser {
         if (this._peekKeywordType() === KeywordType.Cdef || this._peekKeywordType() === KeywordType.Ctypedef) {
             skip++
         }
+        const packedToken = this._peekKeywordType(skip) === KeywordType.Packed ? this._peekToken(skip) : undefined;
+        if (packedToken) {
+            skip++;
+        }
+
         let dataType: CythonClassType | undefined = undefined;
         const structToken = this._peekToken(skip);
         switch (this._getRangeText(structToken)) {
@@ -5655,6 +5660,10 @@ export class Parser {
         }
 
         skip++;
+
+        if (dataType !== CythonClassType.Struct && packedToken) {
+            this._addError(Localizer.Diagnostic.invalidModifier(), packedToken);
+        }
 
         if (dataType === CythonClassType.Class) {
             // This is a public/external extension type

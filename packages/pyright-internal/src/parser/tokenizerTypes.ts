@@ -163,6 +163,7 @@ export const enum KeywordType {
     Unsigned,
     Long,
     Noexcept,
+    Packed, // Only used for struct
     // Macros
     DEF,
     IF,
@@ -188,7 +189,15 @@ export const numericModifiers = [
     KeywordType.Long,
 ];
 
-export const softKeywords = [KeywordType.Debug, KeywordType.Match, KeywordType.Case, KeywordType.Type, KeywordType.Long, KeywordType.Operator];
+export const softKeywords = [
+    KeywordType.Debug,
+    KeywordType.Match,
+    KeywordType.Case,
+    KeywordType.Type,
+    KeywordType.Long,
+    KeywordType.Operator,
+    KeywordType.Packed,
+];
 
 export const enum StringTokenFlags {
     None = 0,
