@@ -2934,16 +2934,33 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                     diagAddendum = expectedTypeDiagAddendum;
                 }
 
-                addDiagnostic(
-                    fileInfo.diagnosticRuleSet.reportGeneralTypeIssues,
-                    DiagnosticRule.reportGeneralTypeIssues,
-                    Localizer.Diagnostic.typeAssignmentMismatch().format({
-                        sourceType: printType(type),
-                        destType: printType(declaredType),
-                    }) + diagAddendum.getString(),
-                    srcExpression ?? nameNode,
-                    diagAddendum.getEffectiveTextRange() ?? srcExpression ?? nameNode
-                );
+                // Cython. Ignore error if 'struct' or 'union' is initialized with sequence
+                let ignore = false;
+                const assignTypes = ['builtins.list', 'builtins.tuple'];
+                const ignoreTypes = ['cython_builtins.struct', 'cython_builtins.union']
+                if (declaredType.category === TypeCategory.Class && type.category === TypeCategory.Class) {
+                    if (assignTypes.includes(type.details.fullName)) {
+                        for (const base of declaredType.details.mro) {
+                            if (ignoreTypes.includes((base as ClassType).details.fullName)) {
+                                ignore = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!ignore) {
+                    addDiagnostic(
+                        fileInfo.diagnosticRuleSet.reportGeneralTypeIssues,
+                        DiagnosticRule.reportGeneralTypeIssues,
+                        Localizer.Diagnostic.typeAssignmentMismatch().format({
+                            sourceType: printType(type),
+                            destType: printType(declaredType),
+                        }) + diagAddendum.getString(),
+                        srcExpression ?? nameNode,
+                        diagAddendum.getEffectiveTextRange() ?? srcExpression ?? nameNode
+                    );
+                }
 
                 // Replace the assigned type with the (unnarrowed) declared type.
                 destType = declaredType;

@@ -1,6 +1,7 @@
 """Cython Built In Types. Only used in Cython files."""
 
 from typing import TypeVar, Any, Callable
+from dataclasses import dataclass
 
 _T = TypeVar("_T")
 _N = TypeVar("_N", bound=None)
@@ -64,18 +65,20 @@ class ptrdiff_t(_I):
     ...
 
 
+@dataclass(init=True)
 class struct(_T):
     """Cython Type. Represents a struct."""
     ...
 
 
-class enum(_T):
-    """Cython Type. Represents a enum."""
+@dataclass(init=True)
+class union(_T):
+    """Cython Type. Represents a union."""
     ...
 
 
-class union(_T):
-    """Cython Type. Represents a union."""
+class enum(_T):
+    """Cython Type. Represents a enum."""
     ...
 
 

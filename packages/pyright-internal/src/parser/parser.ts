@@ -5731,12 +5731,25 @@ export class Parser {
                 statements = this._parseSuiteCython();
             }
 
+            const argList: ArgumentNode[] = [];
+            if ([CythonClassType.Struct, CythonClassType.Union].includes(dataType)) {
+                const name = dataType === CythonClassType.Struct ? "struct" : "union";
+                const identifier = IdentifierToken.create(structToken.start, name.length, name, undefined);
+                const nameNode = NameNode.create(identifier);
+                const argNode = ArgumentNode.create(structToken, nameNode, ArgumentCategory.Simple);
+                argList.push(argNode);
+            }
+
             if (className && statements) {
                 suite.statements = [statements];
                 statements.parent = suite;
                 extendRange(suite, statements);
                 const classNode = ClassNode.create(structToken, className, suite, typeParameters);
                 classNode.cythonType = dataType;
+                classNode.arguments = argList;
+                argList.forEach((arg) => {
+                    arg.parent = classNode;
+                });
                 return classNode;
             } else if (statements) {
                 return statements;
