@@ -42,6 +42,7 @@ import { isThenable } from 'pyright-internal/common/core';
 import { FileBasedCancellationStrategy } from './cancellationUtils';
 import { Installer } from './installer';
 import { StatusBar} from './statusBar';
+import { CythonCompiler } from './compiler';
 
 let cancellationStrategy: FileBasedCancellationStrategy | undefined;
 
@@ -73,6 +74,8 @@ export async function activate(context: ExtensionContext) {
     const bundlePath = context.asAbsolutePath(path.join('cyright', 'packages', 'vscode-pyright', 'dist', 'server.js'));
     const runOptions = { execArgv: [`--max-old-space-size=${defaultHeapSize}`] };
     const debugOptions = { execArgv: ['--nolazy', '--inspect=9600', `--max-old-space-size=${defaultHeapSize}`] };
+
+    const compiler = new CythonCompiler();
 
     // If the extension is launched in debug mode, then the debug server options are used.
     const serverOptions: ServerOptions = {
@@ -140,7 +143,7 @@ export async function activate(context: ExtensionContext) {
                                     client.sendNotification(DidChangeConfigurationNotification.type, {
                                         settings: null,
                                     });
-                                }, context, statusBar);
+                                }, context, statusBar, compiler);
                             }
                             return Promise.resolve(undefined);
                         });
@@ -213,6 +216,15 @@ export async function activate(context: ExtensionContext) {
         );
     });
 
+    context.subscriptions.push(
+        commands.registerTextEditorCommand(
+            'cython.compileCurrentFile',
+            (editor: TextEditor, edit: TextEditorEdit, ...args: any[]) => {
+                compiler.compileCurrentFile(editor.document.uri);
+            },
+        )
+    );
+
     await client.start();
 }
 
@@ -238,6 +250,7 @@ async function getPythonPathFromPythonExtension(
     postConfigChanged: () => void,
     context: ExtensionContext,
     statusBar: StatusBar,
+    compiler: CythonCompiler,
 ): Promise<string | undefined> {
     try {
         const extension = extensions.getExtension('ms-python.python');
@@ -270,6 +283,7 @@ async function getPythonPathFromPythonExtension(
                 } else {
                     outputChannel.appendLine(`Received pythonPath from Python extension: ${result}`);
                     Installer.installCython(context, outputChannel, result);
+                    compiler.setPythonPath(result);
                 }
                 statusBar.update(result);
 
