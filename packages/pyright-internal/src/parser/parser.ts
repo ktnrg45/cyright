@@ -5832,17 +5832,14 @@ export class Parser {
         const varType = typedVarNode.typeAnnotation;
 
         // Example expression: double name
-        // To the parser, this should be equivalent to "name: double = double"
+        // To the parser, this should be equivalent to "name: double = double()"
         // This tricks the parser into thinking that the variable is defined
-        // TODO: Use AugmentedAssignment?
         const typeAnnotation = TypeAnnotationNode.create(varName, varType);
         // Create Dummy Type so that rename action on varType succeeds.
-        // Since we would be creating a duplicate reference in the same text range.
         const dummyType = Object.assign({}, varType);
         dummyType.id = getNextNodeId();
-        dummyType.start = 0;
-        dummyType.length = 0;
-        const firstExpression = AssignmentNode.create(typeAnnotation, dummyType);
+        const dummyCallNode = CallNode.create(dummyType, [], false);
+        const firstExpression = AssignmentNode.create(typeAnnotation, dummyCallNode);
         typeAnnotation.parent = firstExpression;
         StatementListNode.addNode(statements, firstExpression);
 
@@ -5872,7 +5869,7 @@ export class Parser {
             }
             this._addFixesToName(typedVarNode, name);
             const annotation = TypeAnnotationNode.create(name, dummyType);
-            const expression = AssignmentNode.create(annotation, dummyType);
+            const expression = AssignmentNode.create(annotation, dummyCallNode);
             annotation.parent = expression;
             StatementListNode.addNode(statements, expression);
             lastName = name;
