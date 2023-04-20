@@ -43,6 +43,7 @@ import { FileBasedCancellationStrategy } from './cancellationUtils';
 import { Installer } from './installer';
 import { StatusBar} from './statusBar';
 import { CythonCompiler } from './compiler';
+import { registerSemanticTokensProvider } from './sematicTokens';
 
 let cancellationStrategy: FileBasedCancellationStrategy | undefined;
 
@@ -175,6 +176,7 @@ export async function activate(context: ExtensionContext) {
     const client = new LanguageClient('cython', 'Cython', serverOptions, clientOptions);
     languageClient = client;
 
+    registerSemanticTokensProvider(context, client);
     // Register our custom commands.
     const textEditorCommands = [Commands.orderImports, Commands.addMissingOptionalToParam];
     textEditorCommands.forEach((commandName) => {

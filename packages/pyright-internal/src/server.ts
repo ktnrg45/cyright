@@ -12,6 +12,7 @@ import {
     Command,
     Connection,
     ExecuteCommandParams,
+    SemanticTokensParams,
     WorkDoneProgressServerReporter,
 } from 'vscode-languageserver';
 
@@ -36,11 +37,13 @@ import { createFromRealFileSystem, WorkspaceFileWatcherProvider } from './common
 import { LanguageServerBase, ServerSettings, WorkspaceServiceInstance } from './languageServerBase';
 import { CodeActionProvider } from './languageService/codeActionProvider';
 import { WorkspaceMap } from './workspaceMap';
+import { CythonSemanticTokenProvider } from './languageService/semanticTokens';
 
 const maxAnalysisTimeInForeground = { openFilesTimeInMs: 50, noOpenFilesTimeInMs: 200 };
 
 export class PyrightServer extends LanguageServerBase {
     private _controller: CommandController;
+    private _semanticTokensProvider: CythonSemanticTokenProvider;
 
     constructor(connection: Connection) {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -74,6 +77,11 @@ export class PyrightServer extends LanguageServerBase {
         );
 
         this._controller = new CommandController(this);
+
+        this._semanticTokensProvider = new CythonSemanticTokenProvider(this);
+        this._connection.onRequest('textDocument/semanticTokens/full',
+            async (params) => this.provideSemanticTokens(params)
+        );
     }
 
     async getSettings(workspace: WorkspaceServiceInstance): Promise<ServerSettings> {
@@ -320,5 +328,12 @@ export class PyrightServer extends LanguageServerBase {
                 }
             },
         };
+    }
+
+    protected async provideSemanticTokens(params: SemanticTokensParams) {
+        const filePath = this._uriParser.decodeTextDocumentUri(params.textDocument.uri);
+        const workspace = await this.getWorkspaceForFile(filePath);
+        this._semanticTokensProvider.provideSemanticTokens(filePath, workspace);
+
     }
 }
