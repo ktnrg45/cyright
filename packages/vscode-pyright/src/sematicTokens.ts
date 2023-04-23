@@ -3,7 +3,6 @@ import {
     SemanticTokensLegend,
     ExtensionContext,
     CancellationToken,
-    ProviderResult,
     SemanticTokens,
     SemanticTokensBuilder,
     TextDocument,
@@ -12,6 +11,7 @@ import {
 
 import { LanguageClient, SemanticTokensParams, TextDocumentIdentifier } from "vscode-languageclient/node";
 import { tokenTypesLegend, tokenModifiersLegend } from "pyright-internal/languageService/semanticTokens";
+
 const tokenTypes = new Map<string, number>();
 const tokenModifiers = new Map<string, number>();
 
@@ -49,6 +49,6 @@ class SemanticTokenProvider implements DocumentSemanticTokensProvider {
 export function registerSemanticTokensProvider(context: ExtensionContext, client: LanguageClient) {
     context.subscriptions.push(
         languages.registerDocumentSemanticTokensProvider(
-            { language: 'cython'}, new SemanticTokenProvider(client), legend)
+            {language: 'cython'}, new SemanticTokenProvider(client), legend)
         );
 }

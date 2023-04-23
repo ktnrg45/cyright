@@ -5,11 +5,16 @@ import {
     ParseNodeType,
     ParseNode,
     NameNode,
+    AssignmentNode,
+    ExpressionNode,
+    TypeAnnotationNode,
 } from "../parser/parseNodes";
 import { ParseResults } from "../parser/parser";
 import { AnalyzerFileInfo } from "../analyzer/analyzerFileInfo";
 import { getFileInfo } from "../analyzer/analyzerNodeInfo";
 import { convertOffsetToPosition } from "../common/positionUtils";
+import { AnalyzerService } from "../analyzer/service";
+import { TypeCategory } from "../analyzer/types";
 
 
 export const tokenTypesLegend = [
@@ -33,7 +38,8 @@ export class CythonSemanticTokenProvider {
     async provideSemanticTokensFull(filePath: string, workspace: WorkspaceServiceInstance) {
         const results = workspace.serviceInstance.getParseResult(filePath);
         if (results) {
-            let builder = new CythonSemanticTokensBuilder(results);
+            const fileInfo: AnalyzerFileInfo = getFileInfo(results.parseTree);
+            let builder = new CythonSemanticTokensBuilder(workspace.serviceInstance, fileInfo, results);
             builder.parseResults();
             return builder.build();
         }
@@ -54,18 +60,20 @@ function encodeModifier(modifierName: string | undefined) {
 
 
 class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
-    private _results: ParseResults;
+    private _service: AnalyzerService;
+    private _results: ParseResults | undefined;
     private _fileInfo: AnalyzerFileInfo;
 
-    constructor(results: ParseResults) {
+    constructor(service: AnalyzerService, fileInfo: AnalyzerFileInfo, results: ParseResults) {
         super();
+        this._service = service;
         this._results = results
-        this._fileInfo = getFileInfo(results.parseTree);
+        this._fileInfo = fileInfo;
     }
 
     public parseResults() {
-        this._results.parseTree.statements.forEach(node => {
-            this.buildNode(node);
+        this._results?.parseTree.statements.forEach(node => {
+            this.parseNode(node);
         });
     }
 
@@ -73,7 +81,7 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
         return convertOffsetToPosition(node.start, this._fileInfo.lines);
     }
 
-    pushNode(node: NameNode, typeName: string | undefined, modifierName: string | undefined) {
+    pushNode(node: ParseNode, typeName: string | undefined, modifierName?: string) {
         const pos = this.getPosition(node);
         this.push(
             pos.line,
@@ -84,20 +92,71 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
         );
     }
 
-    buildNode(node: ParseNode) {
+    pushType(node: ExpressionNode) {
+        const type = this._service.getEvaluator()?.getType(node);
+        if (type) {
+            if (type.category === TypeCategory.Class) {
+                this.pushNode(node, "class");
+            }
+        }
+    }
+
+    pushVar(node: ParseNode) {
+        this.pushNode(node, "variable");
+    }
+
+    parseNode(node: ParseNode) {
         switch (node.nodeType) {
             case ParseNodeType.StatementList:
                 node.statements.forEach(item => {
-                    this.buildNode(item);
+                    this.parseNode(item);
                 });
                 break;
+            case ParseNodeType.Name:
+                this.pushVar(node);
+                break;
             case ParseNodeType.Class:
-                this.pushNode(node.name, "class", undefined);
+                this.pushType(node.name);
+                break;
+            case ParseNodeType.Assignment:
+                this.parseExpression(node.leftExpression);
+                this.parseExpression(node.rightExpression);
+                break;
+            case ParseNodeType.AssignmentExpression:
+                this.pushVar(node.name);
+                this.parseExpression(node.rightExpression);
+                break;
+            case ParseNodeType.TypeAnnotation:
+                this.parseTypeAnnotation(node);
+                break;
+            case ParseNodeType.TypeAlias:
+                this.pushType(node.expression);
+                this.pushType(node.name);
                 break;
 
             default:
+                console.log(node);
                 break;
         }
+    }
+
+    parseExpression(node: ExpressionNode) {
+        switch (node.nodeType) {
+            case ParseNodeType.TypeAnnotation:
+                this.parseTypeAnnotation(node);
+                break;
+            case ParseNodeType.Name:
+                this.parseNode(node);
+                break;
+            // default:
+            //     this.pushType(node);
+            //     break;
+        }
+    }
+
+    parseTypeAnnotation(node: TypeAnnotationNode) {
+        this.pushType(node.typeAnnotation);
+        this.parseNode(node.valueExpression);
     }
 }
 
