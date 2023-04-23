@@ -333,7 +333,6 @@ export class PyrightServer extends LanguageServerBase {
     protected async provideSemanticTokens(params: SemanticTokensParams) {
         const filePath = this._uriParser.decodeTextDocumentUri(params.textDocument.uri);
         const workspace = await this.getWorkspaceForFile(filePath);
-        this._semanticTokensProvider.provideSemanticTokens(filePath, workspace);
-
+        return await this._semanticTokensProvider.provideSemanticTokensFull(filePath, workspace);
     }
 }
