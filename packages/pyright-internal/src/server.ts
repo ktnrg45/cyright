@@ -79,8 +79,12 @@ export class PyrightServer extends LanguageServerBase {
         this._controller = new CommandController(this);
 
         this._semanticTokensProvider = new CythonSemanticTokenProvider(this);
+    }
+
+    override setupConnection(supportedCommands: string[], supportedCodeActions: string[]): void {
+        super.setupConnection(supportedCommands, supportedCodeActions);
         this._connection.onRequest('textDocument/semanticTokens/full',
-            async (params) => this.provideSemanticTokens(params)
+            async (params, token) => this.provideSemanticTokens(params, token)
         );
     }
 
@@ -330,9 +334,9 @@ export class PyrightServer extends LanguageServerBase {
         };
     }
 
-    protected async provideSemanticTokens(params: SemanticTokensParams) {
+    protected async provideSemanticTokens(params: SemanticTokensParams, token: CancellationToken) {
         const filePath = this._uriParser.decodeTextDocumentUri(params.textDocument.uri);
         const workspace = await this.getWorkspaceForFile(filePath);
-        return await this._semanticTokensProvider.provideSemanticTokensFull(filePath, workspace);
+        return await this._semanticTokensProvider.provideSemanticTokensFull(filePath, workspace, token);
     }
 }

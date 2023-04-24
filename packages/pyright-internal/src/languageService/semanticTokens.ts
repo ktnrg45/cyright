@@ -1,4 +1,4 @@
-import { SemanticTokensBuilder } from "vscode-languageserver"
+import { CancellationToken, SemanticTokensBuilder } from "vscode-languageserver"
 import { PyrightServer } from "../server";
 import { WorkspaceServiceInstance } from "../languageServerBase";
 import {
@@ -9,6 +9,11 @@ import {
     ImportNode,
     ImportFromNode,
     ModuleNameNode,
+    FunctionNode,
+    SuiteNode,
+    StatementNode,
+    NameNode,
+    isExpressionNode,
 } from "../parser/parseNodes";
 import { ParseResults } from "../parser/parser";
 import { AnalyzerFileInfo } from "../analyzer/analyzerFileInfo";
@@ -19,11 +24,11 @@ import { TypeCategory } from "../analyzer/types";
 
 
 export const tokenTypesLegend = [
-    'class', 'variable', 'namespace',
+    'class', 'variable', 'namespace', 'function', 'parameter',
     //
     'comment', 'string', 'keyword', 'number', 'regexp', 'operator',
-    'type', 'struct', 'interface', 'enum', 'typeParameter', 'function',
-    'method', 'decorator', 'macro', 'parameter', 'property', 'label'
+    'type', 'struct', 'interface', 'enum', 'typeParameter',
+    'method', 'decorator', 'macro', 'property', 'label'
 ];
 
 export const tokenModifiersLegend = [
@@ -40,11 +45,11 @@ export class CythonSemanticTokenProvider {
         this._ls = ls;
     }
 
-    async provideSemanticTokensFull(filePath: string, workspace: WorkspaceServiceInstance) {
+    async provideSemanticTokensFull(filePath: string, workspace: WorkspaceServiceInstance, token: CancellationToken) {
         const results = workspace.serviceInstance.getParseResult(filePath);
         if (results) {
             const fileInfo: AnalyzerFileInfo = getFileInfo(results.parseTree);
-            let builder = new CythonSemanticTokensBuilder(workspace.serviceInstance, fileInfo, results);
+            let builder = new CythonSemanticTokensBuilder(workspace.serviceInstance, fileInfo, results, token);
             builder.parseResults();
             return builder.build();
         }
@@ -77,23 +82,35 @@ function encodeModifiers(tokenModifiers?: string | readonly string[]) {
     return result;
 }
 
+function annotationBeforeName(name?: ExpressionNode, typeAnnotation?: ExpressionNode) {
+    if (typeAnnotation && name && typeAnnotation.start < name.start) {
+        return true;
+    }
+    return false;
+}
+
 
 class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
     private _service: AnalyzerService;
     private _results: ParseResults | undefined;
     private _fileInfo: AnalyzerFileInfo;
+    private _token: CancellationToken;
+    private _finished: boolean;
 
-    constructor(service: AnalyzerService, fileInfo: AnalyzerFileInfo, results: ParseResults) {
+    constructor(service: AnalyzerService, fileInfo: AnalyzerFileInfo, results: ParseResults, token: CancellationToken) {
         super();
         this._service = service;
         this._results = results
         this._fileInfo = fileInfo;
+        this._token = token;
+        this._finished = false;
     }
 
     public parseResults() {
         this._results?.parseTree.statements.forEach(node => {
             this.parseNode(node);
         });
+        this._finished = true;
     }
 
     getPosition(node: ParseNode) {
@@ -102,6 +119,10 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
 
     getType(node: ExpressionNode) {
         return this._service.getEvaluator()?.getType(node);
+    }
+
+    getTypeOfFunction(node: FunctionNode) {
+        return this._service.getEvaluator()?.getTypeOfFunction(node);
     }
 
     pushNode(node: ParseNode, typeName?: string, modifierName?: string | readonly string[]) {
@@ -117,7 +138,10 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
         );
     }
 
-    pushType(node: ExpressionNode) {
+    pushType(node?: ExpressionNode) {
+        if (!node) {
+            return;
+        }
         if (node.nodeType === ParseNodeType.MemberAccess) {
             this.pushType(node.leftExpression);
             this.pushType(node.memberName);
@@ -132,12 +156,14 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                 case TypeCategory.Module:
                     this.pushModule(node);
                     break;
+                case TypeCategory.Function:
+                    this.pushNode(node, "function");
             }
         }
     }
 
-    pushVar(node: ParseNode) {
-        this.pushNode(node, "variable", "declaration");
+    pushVar(node: ParseNode, tokenType = "variable") {
+        this.pushNode(node, tokenType, "declaration");
     }
 
     pushModule(node: ModuleNameNode | ExpressionNode) {
@@ -150,22 +176,85 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
         }
     }
 
+    pushNameAndAnnotation(name?: ExpressionNode, typeAnnotation?: ExpressionNode, nameTokenType = "variable") {
+        if (typeAnnotation && name) {
+            // We have to build tokens in order.
+            // If annotation before name, this is a cython declaration:
+            // `cdef type name`
+            if (annotationBeforeName(name, typeAnnotation)) {
+                this.pushType(typeAnnotation);
+                this.pushVar(name, nameTokenType);
+            } else {
+                this.pushVar(name, nameTokenType);
+                this.pushType(typeAnnotation);
+            }
+        } else if (name) {
+            this.parseExpression(name);
+        }
+    }
+
     parseNode(node: ParseNode) {
+        if (this._token.isCancellationRequested) {
+            return;
+        }
+        if (node.nodeType === ParseNodeType.Assignment) {
+            // Not sure of impact of adding this to `isExpressionNode()`
+            this.parseExpression(node);
+            return;
+        }
+        if (isExpressionNode(node)) {
+            this.parseExpression(node);
+            return;
+        }
+
         switch (node.nodeType) {
             case ParseNodeType.Import:
             case ParseNodeType.ImportFrom:
                 this.parseImport(node);
                 break;
             case ParseNodeType.StatementList:
-                node.statements.forEach(item => {
-                    this.parseNode(item);
-                });
-                break;
-            case ParseNodeType.Name:
-                this.pushVar(node);
+                this.parseStatements(node.statements);
                 break;
             case ParseNodeType.Class:
                 this.pushType(node.name);
+                this.parseSuite(node.suite);
+                break;
+            case ParseNodeType.TypeAlias:
+                this.pushType(node.expression);
+                this.pushType(node.name);
+                break;
+            case ParseNodeType.Function:
+                this.parseFunction(node);
+                break;
+            case ParseNodeType.Return:
+                this.parseExpression(node.returnExpression);
+                break;
+            default:
+                console.log(node);
+                break;
+        }
+    }
+
+    parseStatements(statements: StatementNode[] | ParseNode[]) {
+        statements.forEach(item => {
+            this.parseNode(item);
+        });
+    }
+
+    parseSuite(node: SuiteNode) {
+        this.parseStatements(node.statements);
+    }
+
+    parseExpression(node?: ExpressionNode) {
+        if (!node) {
+            return;
+        }
+        switch (node.nodeType) {
+            case ParseNodeType.UnaryOperation:
+                break;
+            case ParseNodeType.BinaryOperation:
+                this.parseExpression(node.leftExpression);
+                this.parseExpression(node.rightExpression);
                 break;
             case ParseNodeType.Assignment:
                 this.parseExpression(node.leftExpression);
@@ -178,30 +267,56 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
             case ParseNodeType.TypeAnnotation:
                 this.parseTypeAnnotation(node);
                 break;
-            case ParseNodeType.TypeAlias:
-                this.pushType(node.expression);
-                this.pushType(node.name);
+            case ParseNodeType.Await:
                 break;
-            default:
-                console.log(node);
+            case ParseNodeType.Ternary:
                 break;
-        }
-    }
-
-    parseExpression(node: ExpressionNode) {
-        switch (node.nodeType) {
-            case ParseNodeType.TypeAnnotation:
-                this.parseTypeAnnotation(node);
+            case ParseNodeType.Unpack:
+                break;
+            case ParseNodeType.Tuple:
+                break;
+            case ParseNodeType.Call:
+                break;
+            case ParseNodeType.ListComprehension:
+                break;
+            case ParseNodeType.Index:
+                break;
+            case ParseNodeType.Slice:
+                break;
+            case ParseNodeType.Yield:
+                break;
+            case ParseNodeType.YieldFrom:
+                break;
+            case ParseNodeType.MemberAccess:
+                break;
+            case ParseNodeType.Lambda:
                 break;
             case ParseNodeType.Name:
-                this.parseNode(node);
+                this.pushVar(node);
+                break;
+            case ParseNodeType.Constant:
+                break;
+            case ParseNodeType.Ellipsis:
+                break;
+            case ParseNodeType.Number:
+                break;
+            case ParseNodeType.String:
+                break;
+            case ParseNodeType.FormatString:
+                break;
+            case ParseNodeType.StringList:
+                break;
+            case ParseNodeType.Dictionary:
+                break;
+            case ParseNodeType.List:
+                break;
+            case ParseNodeType.Set:
                 break;
         }
     }
 
     parseTypeAnnotation(node: TypeAnnotationNode) {
-        this.pushType(node.typeAnnotation);
-        this.parseNode(node.valueExpression);
+        this.pushNameAndAnnotation(node.valueExpression, node.typeAnnotation);
     }
 
     parseImport(node: ImportNode | ImportFromNode) {
@@ -224,6 +339,23 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                 });
                 break;
         }
+    }
+
+    parseFunction(node: FunctionNode) {
+        const returnTypeBefore = annotationBeforeName(node.name, node.returnTypeAnnotation);
+
+        if (returnTypeBefore) {
+            // cdef type func()
+            this.pushType(node.returnTypeAnnotation);
+        }
+        this.pushNode(node.name, "function", "declaration");
+        node.parameters.forEach(item => this.pushNameAndAnnotation(item.name, item.typeAnnotation, "parameter"));
+
+        if (!returnTypeBefore) {
+            this.pushType(node.returnTypeAnnotation);
+        }
+
+        this.parseSuite(node.suite);
     }
 }
 
