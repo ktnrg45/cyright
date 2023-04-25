@@ -20,7 +20,8 @@ import { AnalyzerFileInfo } from "../analyzer/analyzerFileInfo";
 import { getFileInfo } from "../analyzer/analyzerNodeInfo";
 import { convertOffsetToPosition } from "../common/positionUtils";
 import { AnalyzerService } from "../analyzer/service";
-import { TypeCategory } from "../analyzer/types";
+import { TypeCategory, isClass, isFunction, isModule } from "../analyzer/types";
+import { DeclarationType } from "../analyzer/declaration";
 
 
 export const tokenTypesLegend = [
@@ -107,9 +108,7 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
     }
 
     public parseResults() {
-        this._results?.parseTree.statements.forEach(node => {
-            this.parseNode(node);
-        });
+        this._results?.parseTree.statements.forEach(node => this.parseNode(node));
         this._finished = true;
     }
 
@@ -123,6 +122,49 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
 
     getTypeOfFunction(node: FunctionNode) {
         return this._service.getEvaluator()?.getTypeOfFunction(node);
+    }
+
+    getTokenTypeForName(node: NameNode) {
+        let tokenType = "variable";
+        let evaluator = this._service.getEvaluator()
+        const declarations = evaluator?.getDeclarationsForNameNode(node);
+        const type = this.getType(node);
+        if (declarations && declarations.length > 0) {
+            // In most cases, it's best to treat the first declaration as the
+            // "primary". This works well for properties that have setters
+            // which often have doc strings on the getter but not the setter.
+            // The one case where using the first declaration doesn't work as
+            // well is the case where an import statement within an __init__.py
+            // file uses the form "from .A import A". In this case, if we use
+            // the first declaration, it will show up as a module rather than
+            // the imported symbol type.
+            let primaryDeclaration = declarations[0];
+
+            if (primaryDeclaration.type === DeclarationType.Alias && declarations.length > 1) {
+                primaryDeclaration = declarations[1];
+            }
+            const resolvedDecl = evaluator?.resolveAliasDeclaration(primaryDeclaration, /* resolveLocalNames */ true);
+            switch (resolvedDecl?.type) {
+                case DeclarationType.Class:
+                    tokenType = "class";
+                    break;
+                case DeclarationType.Function:
+                    tokenType = "function";
+                    break;
+                case DeclarationType.TypeAlias:
+                    if (type && isClass(type)) {
+                        tokenType = "class";
+                    } else if (type && isFunction(type)) {
+                        tokenType = "function";
+                    }
+                    break;
+            }
+        } else {
+            if (type && isModule(type)) {
+                tokenType = "namespace";
+            }
+        }
+        return tokenType;
     }
 
     pushNode(node: ParseNode, typeName?: string, modifierName?: string | readonly string[]) {
@@ -251,6 +293,7 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
         }
         switch (node.nodeType) {
             case ParseNodeType.UnaryOperation:
+                this.parseExpression(node.expression);
                 break;
             case ParseNodeType.BinaryOperation:
                 this.parseExpression(node.leftExpression);
@@ -268,14 +311,25 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                 this.parseTypeAnnotation(node);
                 break;
             case ParseNodeType.Await:
+                this.parseExpression(node.expression);
                 break;
             case ParseNodeType.Ternary:
+                this.parseExpression(node.ifExpression);
+                this.parseExpression(node.testExpression);
+                this.parseExpression(node.elseExpression);
                 break;
             case ParseNodeType.Unpack:
+                // TODO: verify
+                this.parseExpression(node.expression);
                 break;
             case ParseNodeType.Tuple:
+                // TODO: verify
+                node.expressions.forEach(item => this.parseExpression(item));
                 break;
             case ParseNodeType.Call:
+                // TODO: verify
+                this.parseExpression(node.leftExpression);
+                node.arguments.forEach(item => this.parseNode(item));
                 break;
             case ParseNodeType.ListComprehension:
                 break;
@@ -292,7 +346,7 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
             case ParseNodeType.Lambda:
                 break;
             case ParseNodeType.Name:
-                this.pushVar(node);
+                this.pushVar(node, this.getTokenTypeForName(node));
                 break;
             case ParseNodeType.Constant:
                 break;
