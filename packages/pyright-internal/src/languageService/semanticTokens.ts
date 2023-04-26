@@ -231,8 +231,8 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
         if (this._token.isCancellationRequested) {
             return;
         }
-        if (node.nodeType === ParseNodeType.Assignment) {
-            // Not sure of impact of adding this to `isExpressionNode()`
+        if (node.nodeType === ParseNodeType.Assignment || node.nodeType === ParseNodeType.AugmentedAssignment) {
+            // These don't return true for `isExpressionNode()`
             this.parseExpression(node);
             return;
         }
@@ -333,6 +333,12 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                 break;
             case ParseNodeType.AssignmentExpression:
                 this.parseExpression(node.name);
+                this.parseExpression(node.rightExpression);
+                break;
+            case ParseNodeType.AugmentedAssignment:
+                // TODO: Is dest before or after left?
+                this.parseExpression(node.destExpression);
+                this.parseExpression(node.leftExpression);
                 this.parseExpression(node.rightExpression);
                 break;
             case ParseNodeType.TypeAnnotation:
