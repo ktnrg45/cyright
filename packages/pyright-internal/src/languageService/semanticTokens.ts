@@ -23,7 +23,7 @@ import { convertOffsetToPosition } from "../common/positionUtils";
 import { AnalyzerService } from "../analyzer/service";
 import { TypeCategory, isClass, isFunction, isModule } from "../analyzer/types";
 import { DeclarationType, FunctionDeclaration } from "../analyzer/declaration";
-import { boolean } from "yargs";
+import { Token } from "../parser/tokenizerTypes";
 
 
 export const tokenTypesLegend = [
@@ -115,8 +115,8 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
         this._finished = true;
     }
 
-    getPosition(node: ParseNode) {
-        return convertOffsetToPosition(node.start, this._fileInfo.lines);
+    getPosition(item: ParseNode | Token) {
+        return convertOffsetToPosition(item.start, this._fileInfo.lines);
     }
 
     getType(node: ExpressionNode) {
@@ -215,6 +215,22 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
         } else {
             this.pushNode(node, "namespace");
         }
+    }
+
+    pushToken(token: Token | undefined, tokenType: string, tokenModifiers?: string | string[]) {
+        if (!token) {
+            return;
+        }
+        const pos = this.getPosition(token);
+        const type = encodeType(tokenType);
+        const modifiers = encodeModifiers(tokenModifiers)
+        this.push(
+            pos.line,
+            pos.character,
+            token.length,
+            type,
+            modifiers,
+        );
     }
 
     pushNameAndAnnotation(name?: ExpressionNode, typeAnnotation?: ExpressionNode, nameTokenType = "variable") {
@@ -366,8 +382,10 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                 node.expressions.forEach(item => this.parseExpression(item));
                 break;
             case ParseNodeType.Call:
+                this.pushToken(node.castOpenToken, "operator");
                 this.parseExpression(node.leftExpression);
                 node.arguments.forEach(item => this.parseNode(item));
+                this.pushToken(node.castCloseToken, "operator");
                 break;
             case ParseNodeType.ListComprehension:
                 this.parseNode(node.expression);

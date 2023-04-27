@@ -6099,6 +6099,8 @@ export class Parser {
             const expr = this._parseTestExpression(false);
             const node = CallNode.create(varType.typeAnnotation, [ArgumentNode.create(startToken, expr, ArgumentCategory.Simple)], false);
             node.isCast = true;
+            node.castOpenToken = castOpen;
+            node.castCloseToken = castClose;
             extendRange(node, castOpen);
             return node;
         }

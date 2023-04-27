@@ -1250,6 +1250,8 @@ export interface CallNode extends ParseNodeBase {
     trailingComma: boolean;
     // Cython
     isCast?: boolean;
+    castOpenToken?: Token;
+    castCloseToken?: Token;
 }
 
 export namespace CallNode {
