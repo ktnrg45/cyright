@@ -41,7 +41,7 @@ export const tokenModifiersLegend = [
     'modification', 'async'
 ];
 
-const _regexCppOperator = /^operator[\+\-\*\/\=\!\>\<]|(\+\+|\-\-|\>\=|\<\=|\=\=|\!\=|\[\]|\s+bool)$/;
+const _regexCppOperator = /^operator[\+\-\*\/\=\!\>\<]|(\+\+|\-\-|\>\=|\<\=|\=\=|\!\=|\[\]|bool)$/;
 
 export class CythonSemanticTokenProvider {
     private _ls: PyrightServer;
@@ -343,17 +343,6 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
             return;
         }
         switch (node.nodeType) {
-            case ParseNodeType.UnaryOperation:
-                this.parseExpression(node.expression);
-                break;
-            case ParseNodeType.BinaryOperation:
-                this.parseExpression(node.leftExpression);
-                this.parseExpression(node.rightExpression);
-                break;
-            case ParseNodeType.Assignment:
-                this.parseExpression(node.leftExpression);
-                this.parseExpression(node.rightExpression);
-                break;
             case ParseNodeType.AssignmentExpression:
                 this.parseExpression(node.name);
                 this.parseExpression(node.rightExpression);
@@ -367,19 +356,10 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
             case ParseNodeType.TypeAnnotation:
                 this.parseTypeAnnotation(node);
                 break;
-            case ParseNodeType.Await:
-                this.parseExpression(node.expression);
-                break;
             case ParseNodeType.Ternary:
                 this.parseExpression(node.ifExpression);
                 this.parseExpression(node.testExpression);
                 this.parseExpression(node.elseExpression);
-                break;
-            case ParseNodeType.Unpack:
-                this.parseExpression(node.expression);
-                break;
-            case ParseNodeType.Tuple:
-                node.expressions.forEach(item => this.parseExpression(item));
                 break;
             case ParseNodeType.Call:
                 this.pushToken(node.castOpenToken, "operator");
@@ -400,12 +380,6 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                 this.parseExpression(node.endValue);
                 this.parseExpression(node.stepValue);
                 break;
-            case ParseNodeType.Yield:
-                this.parseExpression(node.expression);
-                break;
-            case ParseNodeType.YieldFrom:
-                this.parseExpression(node.expression);
-                break;
             case ParseNodeType.MemberAccess:
                 this.parseExpression(node.leftExpression);
                 this.parseExpression(node.memberName);
@@ -417,24 +391,39 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
             case ParseNodeType.Name:
                 this.pushVar(node, this.getTokenTypeForName(node));
                 break;
-            case ParseNodeType.Dictionary:
-                node.entries.forEach(item => this.parseNode(item));
-                break;
-            case ParseNodeType.List:
-                node.entries.forEach(item => this.parseExpression(item));
-                break;
-            case ParseNodeType.Set:
-                node.entries.forEach(item => this.parseExpression(item));
-                break;
             case ParseNodeType.StringList:
                 node.strings.forEach(item => this.parseExpression(item));
                 this.parseExpression(node.typeAnnotation);
                 break;
+            case ParseNodeType.Dictionary:
+                node.entries.forEach(item => this.parseNode(item));
+                break;
+
             case ParseNodeType.FormatString:
+            case ParseNodeType.Tuple:
                 node.expressions.forEach(item => this.parseExpression(item));
                 break;
-            case ParseNodeType.Constant:
+
+            case ParseNodeType.List:
+            case ParseNodeType.Set:
+                node.entries.forEach(item => this.parseExpression(item));
                 break;
+
+            case ParseNodeType.UnaryOperation:
+            case ParseNodeType.Await:
+            case ParseNodeType.Yield:
+            case ParseNodeType.YieldFrom:
+            case ParseNodeType.Unpack:
+                this.parseExpression(node.expression);
+                break;
+
+            case ParseNodeType.BinaryOperation:
+            case ParseNodeType.Assignment:
+                this.parseExpression(node.leftExpression);
+                this.parseExpression(node.rightExpression);
+                break;
+
+            case ParseNodeType.Constant:
             case ParseNodeType.Ellipsis:
             case ParseNodeType.Number:
             case ParseNodeType.String:
