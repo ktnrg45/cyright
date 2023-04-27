@@ -26,7 +26,7 @@ import { DeclarationType } from "../analyzer/declaration";
 
 
 export const tokenTypesLegend = [
-    'class', 'variable', 'namespace', 'function', 'parameter',
+    'class', 'variable', 'namespace', 'function', 'parameter', 'enumMember',
     //
     'comment', 'string', 'keyword', 'number', 'regexp', 'operator',
     'type', 'struct', 'interface', 'enum', 'typeParameter',
@@ -159,7 +159,11 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
         return tokenType;
     }
 
-    pushNode(node: ParseNode, typeName?: string, modifierName?: string | readonly string[]) {
+    pushNode(node: ParseNode, typeName?: string, modifierName?: string | string[]) {
+        if (node.nodeType === ParseNodeType.Name && node.value === "NULL") {
+            // TODO: implement as a KeywordToken
+            return;
+        }
         const pos = this.getPosition(node);
         const type = encodeType(typeName);
         const modifiers = encodeModifiers(modifierName);
