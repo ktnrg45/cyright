@@ -22,7 +22,8 @@ import { getFileInfo } from "../analyzer/analyzerNodeInfo";
 import { convertOffsetToPosition } from "../common/positionUtils";
 import { AnalyzerService } from "../analyzer/service";
 import { TypeCategory, isClass, isFunction, isModule } from "../analyzer/types";
-import { DeclarationType } from "../analyzer/declaration";
+import { DeclarationType, FunctionDeclaration } from "../analyzer/declaration";
+import { boolean } from "yargs";
 
 
 export const tokenTypesLegend = [
@@ -39,6 +40,8 @@ export const tokenModifiersLegend = [
     'documentation', 'static', 'abstract', 'deprecated',
     'modification', 'async'
 ];
+
+const _regexCppOperator = /^operator[\+\-\*\/\=\!\>\<]|(\+\+|\-\-|\>\=|\<\=|\=\=|\!\=|\[\]|\s+bool)$/;
 
 export class CythonSemanticTokenProvider {
     private _ls: PyrightServer;
@@ -457,6 +460,22 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
         }
     }
 
+    checkCppOperator(node: FunctionNode): boolean{
+        if (node.name.value.startsWith("operator")) {
+            const declarations = this._service.getEvaluator()?.getDeclarationsForNameNode(node.name);
+            if (declarations && declarations.length > 0) {
+                const decl = declarations[0];
+                if (decl.type === DeclarationType.Function && (decl as FunctionDeclaration).isMethod) {
+                    if (node.name.value.match(_regexCppOperator)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+
+    }
+
     parseFunction(node: FunctionNode) {
         const returnTypeBefore = annotationBeforeName(node.name, node.returnTypeAnnotation);
 
@@ -464,7 +483,11 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
             // cdef type func()
             this.pushType(node.returnTypeAnnotation);
         }
-        this.pushNode(node.name, "function", "declaration");
+        if (this.checkCppOperator(node)) {
+            this.pushNode(node.name, "macro", "declaration");
+        } else {
+            this.pushNode(node.name, "function", "declaration");
+        }
         node.parameters.forEach(item => this.parseParameter(item));
 
         if (!returnTypeBefore) {
