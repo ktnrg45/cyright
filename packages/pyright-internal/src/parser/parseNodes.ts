@@ -514,6 +514,7 @@ export interface ClassNode extends ParseNodeBase {
     typeParameters?: TypeParameterListNode;
     arguments: ArgumentNode[];
     suite: SuiteNode;
+    token?: Token;
     cythonType?: CythonClassType | undefined;
 }
 
@@ -535,7 +536,7 @@ export namespace ClassNode {
             arguments: [],
             suite,
         };
-
+        node.token = classToken;
         name.parent = node;
         suite.parent = node;
 

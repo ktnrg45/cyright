@@ -15,6 +15,7 @@ import {
     NameNode,
     isExpressionNode,
     ParameterNode,
+    CythonClassType,
 } from "../parser/parseNodes";
 import { ParseResults } from "../parser/parser";
 import { AnalyzerFileInfo } from "../analyzer/analyzerFileInfo";
@@ -300,6 +301,18 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                 this.parseSuite(node.elseSuite);
                 break;
             case ParseNodeType.Class:
+                const modifier = "declaration";
+                switch (node.cythonType) {
+                    case CythonClassType.Struct:
+                        this.pushToken(node.token, "struct", modifier);
+                        break;
+                    case CythonClassType.Union:
+                        this.pushToken(node.token, "union", modifier);
+                        break;
+                    case CythonClassType.Enum:
+                        this.pushToken(node.token, "enum", modifier);
+                        break;
+                }
                 this.pushType(node.name);
                 this.parseSuite(node.suite);
                 break;
