@@ -16,6 +16,10 @@ import {
     isExpressionNode,
     ParameterNode,
     CythonClassType,
+    AssignmentNode,
+    ArgumentNode,
+    IndexNode,
+    ListNode,
 } from "../parser/parseNodes";
 import { ParseResults } from "../parser/parser";
 import { AnalyzerFileInfo } from "../analyzer/analyzerFileInfo";
@@ -317,8 +321,12 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                 this.parseSuite(node.suite);
                 break;
             case ParseNodeType.TypeAlias:
-                this.pushType(node.expression);
-                this.pushType(node.name);
+                if (node.expression.nodeType !== ParseNodeType.Index ||
+                    !this.parsePossibleCallback(node.name, node.expression)
+                ) {
+                    this.pushType(node.expression);
+                    this.pushType(node.name);
+                }
                 break;
             case ParseNodeType.Function:
                 this.parseFunction(node);
@@ -431,9 +439,11 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                 break;
 
             case ParseNodeType.BinaryOperation:
-            case ParseNodeType.Assignment:
                 this.parseExpression(node.leftExpression);
                 this.parseExpression(node.rightExpression);
+                break;
+            case ParseNodeType.Assignment:
+                this.parseAssignment(node);
                 break;
 
             case ParseNodeType.Constant:
@@ -520,6 +530,49 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
     parseParameter(node: ParameterNode) {
         this.pushNameAndAnnotation(node.name, node.typeAnnotation, "parameter")
         this.parseExpression(node.defaultValue);
+    }
+
+    parseAssignment(node: AssignmentNode) {
+        if (node.leftExpression.nodeType !== ParseNodeType.TypeAnnotation ||
+            node.leftExpression.valueExpression.nodeType !== ParseNodeType.Name ||
+            node.leftExpression.typeAnnotation.nodeType !== ParseNodeType.Index ||
+            !this.parsePossibleCallback(node.leftExpression.valueExpression, node.leftExpression.typeAnnotation)
+        ) {
+            this.parseExpression(node.leftExpression);
+            this.parseExpression(node.rightExpression);
+        }
+    }
+
+    parsePossibleCallback(name: NameNode, node: IndexNode): boolean {
+        let isCallback = false;
+        let args: ListNode | undefined = undefined;
+        let returnType: NameNode | undefined = undefined;
+
+        if (node.isCython &&
+            node.baseExpression.nodeType === ParseNodeType.Name &&
+            node.baseExpression.value === "__CYTHON_CALLABLE__"
+        ) {
+            isCallback = true;
+            if (node.items.length === 2) {
+                if (node.items[0].valueExpression.nodeType === ParseNodeType.List) {
+                    args = node.items[0].valueExpression;
+                }
+                if (node.items[1].valueExpression.nodeType === ParseNodeType.Name) {
+                    returnType = node.items[1].valueExpression;
+                }
+            }
+        }
+
+        if (isCallback) {
+            this.pushType(returnType);
+            if (name) {
+                this.pushVar(name);
+            }
+            if (args) {
+                args.entries.forEach(item => this.pushType(item));
+            }
+        }
+        return isCallback;
     }
 }
 
