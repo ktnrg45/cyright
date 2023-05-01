@@ -197,6 +197,8 @@ export const softKeywords = [
     KeywordType.Long,
     KeywordType.Operator,
     KeywordType.Packed,
+    KeywordType.Nogil,
+    KeywordType.Gil,
 ];
 
 export const enum StringTokenFlags {
