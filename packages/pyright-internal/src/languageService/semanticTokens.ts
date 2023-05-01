@@ -528,6 +528,7 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
     }
 
     parseParameter(node: ParameterNode) {
+        node.modifiers.forEach(mod => this.pushToken(mod, "macro", "modification"));
         this.pushNameAndAnnotation(node.name, node.typeAnnotation, "parameter")
         this.parseExpression(node.defaultValue);
     }

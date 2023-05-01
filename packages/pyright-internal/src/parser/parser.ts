@@ -5912,6 +5912,12 @@ export class Parser {
         let typeAnnotation: ExpressionNode | undefined = typedVarNode.typeAnnotation;
 
         let paramNode = ParameterNode.create(typedVarNode.startToken, ParameterCategory.Simple);
+        if (typedVarNode.modifier) {
+            paramNode.modifiers.push(typedVarNode.modifier);
+        }
+        if (typedVarNode.numericModifiers) {
+            typedVarNode.numericModifiers.forEach(mod => paramNode.modifiers.push(mod));
+        }
         if (name.value === '' && typeAnnotation.nodeType === ParseNodeType.Name) {
             // This is either just the param name or just the param type.
             paramNode.unknownNameOrType = true;

@@ -491,6 +491,7 @@ export interface ParameterNode extends ParseNodeBase {
     typeAnnotationComment?: ExpressionNode | undefined;
     defaultValue?: ExpressionNode | undefined;
     unknownNameOrType?: boolean | undefined;
+    modifiers: Token[];
 }
 
 export namespace ParameterNode {
@@ -501,6 +502,7 @@ export namespace ParameterNode {
             nodeType: ParseNodeType.Parameter,
             id: _nextNodeId++,
             category: paramCategory,
+            modifiers: [],
         };
 
         return node;
