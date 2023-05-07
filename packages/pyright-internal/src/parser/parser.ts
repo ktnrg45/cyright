@@ -7025,11 +7025,13 @@ export class Parser {
         const firstToken = this._peekToken();
         let cDefType: KeywordType | undefined = undefined;
         if (firstToken.type === TokenType.Keyword) {
-            cDefType = (firstToken as KeywordToken).keywordType;
-            if (cDefType === KeywordType.Cdef || cDefType === KeywordType.Cpdef || cDefType === KeywordType.Ctypedef || cDefType === KeywordType.Def) {
+            const keyword = (firstToken as KeywordToken).keywordType;
+            if ([KeywordType.Cdef, KeywordType.Cpdef, KeywordType.Ctypedef, KeywordType.Def].includes(keyword)) {
+                cDefType = keyword;
                 this._getNextToken();
             }
-        } else {
+        }
+        if (!cDefType){
             // Assume that this is "cdef". Valid in certain statements such as "extern" statement
             cDefType = KeywordType.Cdef;
         }
