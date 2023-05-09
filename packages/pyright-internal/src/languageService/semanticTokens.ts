@@ -204,6 +204,11 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                     break;
                 case TypeCategory.Function:
                     this.pushNode(node, "function");
+                case TypeCategory.Union:
+                    // fused type
+                    if (type.isCython) {
+                        this.pushNode(node, "class", "declaration");
+                    }
             }
         }
     }
@@ -534,11 +539,23 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
     }
 
     parseAssignment(node: AssignmentNode) {
-        if (node.leftExpression.nodeType !== ParseNodeType.TypeAnnotation ||
-            node.leftExpression.valueExpression.nodeType !== ParseNodeType.Name ||
-            node.leftExpression.typeAnnotation.nodeType !== ParseNodeType.Index ||
-            !this.parsePossibleCallback(node.leftExpression.valueExpression, node.leftExpression.typeAnnotation)
+        let didParse = false;
+        if (node.leftExpression.nodeType === ParseNodeType.TypeAnnotation &&
+            node.leftExpression.valueExpression.nodeType === ParseNodeType.Name &&
+            node.leftExpression.typeAnnotation.nodeType === ParseNodeType.Index
         ) {
+            didParse = this.parsePossibleCallback(node.leftExpression.valueExpression, node.leftExpression.typeAnnotation);
+        } else if (node.leftExpression.nodeType === ParseNodeType.Name &&
+                   node.rightExpression.nodeType === ParseNodeType.Index &&
+                   node.rightExpression.baseExpression.nodeType === ParseNodeType.Name &&
+                   node.rightExpression.baseExpression.value === "__CYTHON_FUSED__"
+        ) {
+            this.pushType(node.leftExpression);
+            node.rightExpression.items.forEach(item => this.parseNode(item));
+            didParse = true;
+        }
+
+        if (!didParse) {
             this.parseExpression(node.leftExpression);
             this.parseExpression(node.rightExpression);
         }

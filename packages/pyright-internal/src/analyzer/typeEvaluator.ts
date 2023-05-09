@@ -697,6 +697,10 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             }
             type.suffixMaps.set(node.id, node.suffixMap);
         }
+        if (node.nodeType === ParseNodeType.Name && type.category === TypeCategory.Union && node.isCython) {
+            // cython fused
+            type.isCython = true;
+        }
         if (isIncomplete) {
             if (incompleteTypeCache) {
                 incompleteTypeCache.set(node.id, type);

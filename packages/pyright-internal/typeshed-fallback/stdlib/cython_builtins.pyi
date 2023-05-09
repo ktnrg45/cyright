@@ -1,6 +1,6 @@
 """Cython Built In Types. Only used in Cython files."""
 
-from typing import TypeVar, Any, Callable
+from typing import TypeVar, Any, Callable, Union
 from dataclasses import dataclass
 
 _T = TypeVar("_T")
@@ -9,6 +9,7 @@ _B = TypeVar("_B", bound=bool|int)
 _I = TypeVar("_I", bound=bool|int|float)
 
 __CYTHON_CALLABLE__ = Callable
+__CYTHON_FUSED__ = Union
 
 class NULL(_N):
     """Cython Type. Represents null."""
@@ -79,6 +80,11 @@ class union(_T):
 
 class enum(_T):
     """Cython Type. Represents a enum."""
+    ...
+
+
+class fused(_T):
+    """Cython Type. Represents a fused type."""
     ...
 
 

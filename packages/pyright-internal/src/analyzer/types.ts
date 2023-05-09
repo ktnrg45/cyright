@@ -133,6 +133,7 @@ interface TypeBase {
     isAmbiguous?: boolean;
 
     suffixMaps?: Map<number, PrefixSuffixMap> | undefined;
+    isCython?: boolean;
 }
 
 export namespace TypeBase {

@@ -125,6 +125,7 @@ import {
     CythonClassType,
     TypeBracketSuffixCategory,
     TypeBracketSuffixNode,
+    isExpressionNode,
 } from './parseNodes';
 import * as StringTokenUtils from './stringTokenUtils';
 import { Tokenizer, TokenizerOutput } from './tokenizer';
@@ -5627,11 +5628,12 @@ export class Parser {
         return TypeParameterNode.create(name, typeParamCategory, NameNode.create(boundExpression));
     }
 
-    // Handle struct, union, enum declaration. "struct name:", "enum name:", "union name:"
+    // Handle struct, union, enum, fused declaration. "struct name:", "enum name:", "union name:", "fused name:"
     // class module.classname [type structname, ...]:
     private _parseStructure(): StatementNode | undefined {
         let skip = 0;
-        if (this._peekKeywordType() === KeywordType.Cdef || this._peekKeywordType() === KeywordType.Ctypedef) {
+        const keyword = this._peekKeywordType();
+        if (keyword === KeywordType.Cdef || keyword === KeywordType.Ctypedef) {
             skip++
         }
         const packedToken = this._peekKeywordType(skip) === KeywordType.Packed ? this._peekToken(skip) : undefined;
@@ -5641,7 +5643,8 @@ export class Parser {
 
         let dataType: CythonClassType | undefined = undefined;
         const structToken = this._peekToken(skip);
-        switch (this._getRangeText(structToken)) {
+        const structName = this._getRangeText(structToken);
+        switch (structName) {
             case 'struct':
                 dataType = CythonClassType.Struct;
                 break;
@@ -5653,6 +5656,9 @@ export class Parser {
                 break;
             case 'class':
                 dataType = CythonClassType.Class;
+                break;
+            case 'fused':
+                dataType = CythonClassType.Fused;
                 break;
         }
         if (dataType === undefined) {
@@ -5719,7 +5725,7 @@ export class Parser {
             this._consumeTokensUntilType([TokenType.Colon]);
         }
 
-        if (!className && (dataType === CythonClassType.Struct || dataType === CythonClassType.Union || dataType === CythonClassType.Class)) {
+        if (!className && [CythonClassType.Struct, CythonClassType.Union, CythonClassType.Class, CythonClassType.Fused].includes(dataType)) {
             this._addError(Localizer.Diagnostic.expectedVarName(), possibleName);
             this._consumeTokensUntilType([TokenType.NewLine]);
             return undefined;
@@ -5737,10 +5743,33 @@ export class Parser {
             if (dataType === CythonClassType.Enum) {
                 statements = this._parseEnum(nextToken, structToken);
             } else {
-                statements = this._parseSuiteCython();
+                statements = this._parseSuiteCython(dataType === CythonClassType.Fused);
             }
 
             const argList: ArgumentNode[] = [];
+
+            if (dataType === CythonClassType.Fused) {
+                if (className && statements && statements.statements.length > 0) {
+                    const dummyName = "__CYTHON_FUSED__";  // (typing.Union) included in typeshed cython_builtins, so it is always available
+                    const dummyFused = this._createDummyName(Token.create(TokenType.Identifier, 0, dummyName.length, undefined), dummyName);
+                    for (let index = 0; index < statements.statements.length; index++) {
+                        const arg = statements.statements[index];
+                        if (isExpressionNode(arg)) {
+                            argList.push(ArgumentNode.create(undefined, arg, ArgumentCategory.Simple));
+                        }
+                    }
+                    className.isCython = true;
+                    const startToken = Token.create(TokenType.Identifier, statements.start, 0, undefined)
+                    const endToken = Token.create(TokenType.Identifier, statements.start + statements.length, 0, undefined)
+                    const rightExpr = IndexNode.create(dummyFused, argList, false, endToken);
+                    const expr = AssignmentNode.create(className, rightExpr);
+                    const fused = StatementListNode.create(startToken)
+                    StatementListNode.addNode(fused, NameNode.create(IdentifierToken.create(structToken.start, structToken.length, structName, undefined)));
+                    StatementListNode.addNode(fused, expr);
+                    return fused;
+                }
+            }
+
             if ([CythonClassType.Struct, CythonClassType.Union].includes(dataType)) {
                 const name = dataType === CythonClassType.Struct ? "struct" : "union";
                 const identifier = IdentifierToken.create(structToken.start, name.length, name, undefined);
@@ -6522,7 +6551,7 @@ export class Parser {
     }
 
     // Multi Line cdef
-    private _parseSuiteCython(): StatementListNode | undefined {
+    private _parseSuiteCython(fused = false): StatementListNode | undefined {
         this._consumeTokenIfType(TokenType.Colon);
         if (!this._consumeTokenIfType(TokenType.NewLine)) {
             this._addError(Localizer.Diagnostic.expectedNewline(), this._getNextToken());
@@ -6585,13 +6614,23 @@ export class Parser {
                     continue;
                 }
             }
-            const count = statements.statements.length;
-            statements = this._parseTypedStatement(statements);
-            const newCount = statements.statements.length;
-            if (count === newCount) {
-                this._consumeTokensUntilType([TokenType.NewLine]);
-            } else if (newCount > 0 && statements.statements[newCount - 1].nodeType === ParseNodeType.Error) {
-                this._getNextToken();
+            if (fused && this._peekTokenIfIdentifier()) {
+                let simple_stmt = this._parseSimpleStatement();
+                if (simple_stmt) {
+                    simple_stmt.statements.forEach(item => {
+                        StatementListNode.addNode(statements, item);
+                    });
+                }
+            }
+            if (!fused) {
+                const count = statements.statements.length;
+                statements = this._parseTypedStatement(statements);
+                const newCount = statements.statements.length;
+                if (count === newCount) {
+                    this._consumeTokensUntilType([TokenType.NewLine]);
+                } else if (newCount > 0 && statements.statements[newCount - 1].nodeType === ParseNodeType.Error) {
+                    this._getNextToken();
+                }
             }
             this._consumeTokenIfType(TokenType.NewLine);
             if (this._peekTokenType() === TokenType.EndOfStream) {

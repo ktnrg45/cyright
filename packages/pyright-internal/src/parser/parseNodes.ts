@@ -2548,6 +2548,7 @@ export const enum CythonClassType {
     Union,
     Class,
     CppClass,
+    Fused,
 }
 
 export type PatternAtomNode =
