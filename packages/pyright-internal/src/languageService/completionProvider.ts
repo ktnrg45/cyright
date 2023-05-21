@@ -149,6 +149,35 @@ namespace Keywords {
         'type',
         'while',
         'with',
+
+        // Cython
+        'cimport',
+        'cdef',
+        'cpdef',
+        'ctypedef',
+        'extern',
+        'gil',
+        'nogil',
+        'include',
+        'inline',
+        'const',
+        'readonly',
+        'public',
+        'signed',
+        'unsigned',
+        'long',
+        'noexcept',
+        'packed',
+        // Macros
+        'DEF',
+        'IF',
+        'ELIF',
+        'ELSE',
+        // CPP
+        'namespace',
+        'cppclass',
+        'operator',
+        'new',
     ];
 
     const python3_5: string[] = [...base, 'async', 'await'];
