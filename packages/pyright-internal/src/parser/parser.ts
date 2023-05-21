@@ -2626,6 +2626,7 @@ export class Parser {
 
             importNode.list.push(importAsNode);
             importAsNode.parent = importNode;
+            importAsNode.isCython = importToken.keywordType === KeywordType.Cimport;
 
             this._importedModules.push({
                 nameNode: importAsNode.module,

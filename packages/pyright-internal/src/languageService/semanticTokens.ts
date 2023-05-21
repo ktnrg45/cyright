@@ -125,7 +125,16 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
     }
 
     getType(node: ExpressionNode) {
-        return this._service.getEvaluator()?.getType(node);
+        let type = this._service.getEvaluator()?.getType(node);
+        if (
+            type?.category === TypeCategory.Union &&
+            type.subtypes.length > 0 &&
+            type.subtypes.every(sub => sub.category === TypeCategory.Module
+        )) {
+            // CYTHON: Experimental: Allow imports of same name for python and cython
+            type = type.subtypes[0];
+        }
+        return type
     }
 
     getTypeOfFunction(node: FunctionNode) {
