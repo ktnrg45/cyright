@@ -154,6 +154,11 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                     break;
                 case DeclarationType.Function:
                     tokenType = "function";
+                    if (primaryDeclaration.node.nodeType === ParseNodeType.Function) {
+                        if (this.isProperty(primaryDeclaration.node)) {
+                            tokenType = "variable";
+                        }
+                    }
                     break;
                 case DeclarationType.TypeAlias:
                     if (type && isClass(type)) {
@@ -165,6 +170,20 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
             }
         }
         return tokenType;
+    }
+
+    isProperty(node: FunctionNode): boolean {
+        let isProp = false;
+        for (const dec of node.decorators) {
+            const type = this.getType(dec.expression);
+            if (type?.category === TypeCategory.Class) {
+                if (type.details.fullName === "builtins.property") {
+                    isProp = true;
+                    break;
+                }
+            }
+        }
+        return isProp;
     }
 
     pushNode(node: ParseNode, typeName?: string, modifierName?: string | string[]) {
@@ -521,7 +540,8 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
         if (this.checkCppOperator(node)) {
             this.pushNode(node.name, "macro", "declaration");
         } else {
-            this.pushNode(node.name, "function", "declaration");
+            const typeName = (this.isProperty(node)) ? "variable" : "function";
+            this.pushNode(node.name, typeName, "declaration");
         }
         node.parameters.forEach(item => this.parseParameter(item));
 
