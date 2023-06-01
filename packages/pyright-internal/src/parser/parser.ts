@@ -5926,6 +5926,7 @@ export class Parser {
             const param = this._parseParameter(allowAnnotations, allowOptionalArg);
             if (param.name) {
                 param.name.isPrototype = allowPrototype;
+                param.name.parent = param; // For some reason this isn't set
             }
             return param;
         }
