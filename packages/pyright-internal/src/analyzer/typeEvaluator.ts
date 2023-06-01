@@ -2938,14 +2938,14 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                     diagAddendum = expectedTypeDiagAddendum;
                 }
 
-                // Cython. Ignore error if 'struct' or 'union' is initialized with sequence
+                // Cython: Ignore error if 'struct' or 'union' is initialized with sequence
                 let ignore = false;
                 const assignTypes = ['builtins.list', 'builtins.tuple'];
                 const ignoreTypes = ['cython_builtins.struct', 'cython_builtins.union']
                 if (declaredType.category === TypeCategory.Class && type.category === TypeCategory.Class) {
                     if (assignTypes.includes(type.details.fullName)) {
                         for (const base of declaredType.details.mro) {
-                            if (ignoreTypes.includes((base as ClassType).details.fullName)) {
+                            if (base.category === TypeCategory.Class && ignoreTypes.includes(base.details.fullName)) {
                                 ignore = true;
                                 break;
                             }
