@@ -86,6 +86,7 @@ import { TextRangeCollection } from '../common/textRangeCollection';
 import { Duration } from '../common/timing';
 import {
     ArgumentCategory,
+    CythonClassType,
     DecoratorNode,
     DictionaryKeyEntryNode,
     DictionaryNode,
@@ -2497,9 +2498,27 @@ export class CompletionProvider {
             // If there are no declarations or the symbol is not
             // exported from this scope, don't include it in the
             // suggestion list unless we are in the same file.
-            const hidden =
+            let hidden =
                 symbol.isExternallyHidden() &&
                 !symbol.getDeclarations().some((d) => isDefinedInFile(d, this._filePath));
+
+            if (!hidden) {
+                // Cython: Don't add constructors for cppclass
+                // Constructors are functions with same name as class
+                hidden = symbol.getDeclarations().some((d) => {
+                    const node = d.node;
+                    if (node.nodeType === ParseNodeType.Function) {
+                        const classNode = ParseTreeUtils.getEnclosingClass(node);
+                        if (classNode && classNode.cythonType === CythonClassType.CppClass) {
+                            if (classNode.name.value === node.name.value) {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                });
+            }
+
             if (!hidden && includeSymbolCallback(symbol, name)) {
                 // Don't add a symbol more than once. It may have already been
                 // added from an inner scope's symbol table.
