@@ -18583,17 +18583,15 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                     // Since we are in a type annotation and the annotation matches the class name
                     // Originally, the module scope would be used instead
                     symbolWithScope = classScope?.lookUpSymbolRecursive(name);
-                }
-                // TODO: Cython: Fix nested cpp classes; infinite recursion
-                /*
                 } else if (topNode.cythonType === CythonClassType.CppClass) {
+                    // Cython: Allow type references to nested cppclass
                     // Nested cpp classes are allowed to share the same namespace as the parent class members
                     // So they do not have to use a 'fully qualified name'
-                    if (node.nodeType === ParseNodeType.Name) {
-                        symbolWithScope = classScope?.lookUpSymbolRecursive(node.value);
+                    const nextClass = ParseTreeUtils.getEnclosingClass(topNode);
+                    if (nextClass && nextClass.cythonType === CythonClassType.CppClass) {
+                        symbolWithScope = classScope?.lookUpSymbolRecursive(name);
                     }
                 }
-                */
             }
         }
         const scopeType = scope?.type ?? ScopeType.Module;
