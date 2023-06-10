@@ -5406,7 +5406,6 @@ export class Parser {
     // Brackets after type
     private _parseTypeBracketSuffix(typedVarCategory = TypedVarCategory.Variable): TypeBracketSuffixNode {
         const tokens: Token[] = [];
-        const stopTokens = [TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream];
         const sliceNodes: SliceNode[] = [];
         const maybeOpenBracket = this._peekToken();
         const openBracketIndex = this._tokenIndex;
@@ -5416,60 +5415,55 @@ export class Parser {
             return bracketNode;
         }
         tokens.push(maybeOpenBracket);
-        while (!stopTokens.includes(this._peekToken().type)) {
-            let index = this._tokenIndex;
-            const nodeStart = this._peekToken();
-            var node: ParseNode | BufferOptionsNode;
-            const errorsWereSuppressed = this._areErrorsSuppressed;
-            this._areErrorsSuppressed = true;
-            node = this._parsePossibleSlice();
-            this._areErrorsSuppressed = errorsWereSuppressed;
-            if (node.nodeType === ParseNodeType.Slice) {
-                // View "[::1] or [:] or [::] or [:, :]"
-                bracketCategory = TypeBracketSuffixCategory.View;
-                sliceNodes.push(node);
-                if (node.startValue || node.endValue) {
-                    this._addError(Localizer.Diagnostic.viewInvalidAxis(), nodeStart);
+
+        let index = this._tokenIndex;
+        const nodeStart = this._peekToken();
+        var node: ParseNode | BufferOptionsNode;
+        const errorsWereSuppressed = this._areErrorsSuppressed;
+        this._areErrorsSuppressed = true;
+        node = this._parsePossibleSlice();
+        this._areErrorsSuppressed = errorsWereSuppressed;
+
+        if (node.nodeType === ParseNodeType.Slice) {
+            // View "[::1] or [:] or [::] or [:, :]"
+            bracketCategory = TypeBracketSuffixCategory.View;
+            sliceNodes.push(node);
+            if (node.startValue || node.endValue) {
+                this._addError(Localizer.Diagnostic.viewInvalidAxis(), nodeStart);
+            }
+        } else {
+            if (!sliceNodes.length) {
+                if (node.nodeType === ParseNodeType.Number) {
+                    // Sized Array
+                    bracketCategory = TypeBracketSuffixCategory.Array;
+                } else {
+                    this._tokenIndex = index;
+                    const count = this._peekUntilType([TokenType.Operator, TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream]);
+                    const tokenAt = this._peekToken(count);
+                    if (tokenAt.type === TokenType.Operator && (tokenAt as OperatorToken).operatorType === OperatorType.Assign) {
+                        node = this._parseBufferOptions();
+                        bracketNode = node;
+                        bracketCategory = TypeBracketSuffixCategory.BufferOptions;
+                    } else {
+                        this._tokenIndex = openBracketIndex;
+                        node = this._parseTemplateParameterList()
+                        bracketCategory = TypeBracketSuffixCategory.Template;
+                    }
                 }
             } else {
-                if (!sliceNodes.length) {
-                    if (node.nodeType === ParseNodeType.Number) {
-                        // Sized Array
-                        bracketCategory = TypeBracketSuffixCategory.Array;
-                    } else {
-                        this._tokenIndex = index;
-                        const count = this._peekUntilType([TokenType.Operator, TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream]);
-                        const tokenAt = this._peekToken(count);
-                        if (tokenAt.type === TokenType.Operator && (tokenAt as OperatorToken).operatorType === OperatorType.Assign) {
-                            node = this._parseBufferOptions();
-                            bracketNode = node;
-                            bracketCategory = TypeBracketSuffixCategory.BufferOptions;
-                        } else {
-                            this._tokenIndex = openBracketIndex;
-                            node = this._parseTemplateParameterList()
-                            bracketCategory = TypeBracketSuffixCategory.Template;
-                        }
-                    }
-                } else {
-                    // Empty brackets "[]"
-                    bracketCategory = TypeBracketSuffixCategory.Array;
-                    break;
-                }
+                // Empty brackets "[]"
+                bracketCategory = TypeBracketSuffixCategory.Array;
             }
-            const end = node.start + node.length;
-            while (index < this._tokenizerOutput!.tokens.count) {
-                const nextToken = this._tokenizerOutput!.tokens.getItemAt(index);
-                if (nextToken.start >= end) {
-                    break;
-                }
-                tokens.push(nextToken);
-                index++;
-            }
-            const maybeComma = this._peekToken();
-            if (!this._consumeTokenIfType(TokenType.Comma)) {
+        }
+
+        const end = node.start + node.length;
+        while (index < this._tokenizerOutput!.tokens.count) {
+            const nextToken = this._tokenizerOutput!.tokens.getItemAt(index);
+            if (nextToken.start >= end) {
                 break;
             }
-            tokens.push(maybeComma);
+            tokens.push(nextToken);
+            index++;
         }
 
         if (bracketCategory !== TypeBracketSuffixCategory.Template) {
