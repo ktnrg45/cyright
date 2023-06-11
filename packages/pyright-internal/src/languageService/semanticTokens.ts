@@ -34,9 +34,10 @@ import { Token } from "../parser/tokenizerTypes";
 
 export const tokenTypesLegend = [
     'class', 'variable', 'namespace', 'function', 'parameter', 'enumMember',
+    'typeParameter',
     //
     'comment', 'string', 'keyword', 'number', 'regexp', 'operator',
-    'type', 'struct', 'interface', 'enum', 'typeParameter',
+    'type', 'struct', 'interface', 'enum',
     'method', 'decorator', 'macro', 'property', 'label'
 ];
 
@@ -179,6 +180,10 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                     break;
                 case DeclarationType.Variable:
                     tokenType = "variable";
+                    break;
+                case DeclarationType.TypeParameter:
+                case DeclarationType.Parameter:
+                    tokenType = "typeParameter";
                     break;
             }
         }
