@@ -20,6 +20,7 @@ import {
     ArgumentNode,
     IndexNode,
     ListNode,
+    DelNode,
 } from "../parser/parseNodes";
 import { ParseResults } from "../parser/parser";
 import { AnalyzerFileInfo } from "../analyzer/analyzerFileInfo";
@@ -142,7 +143,7 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
     }
 
     getTokenTypeForName(node: NameNode) {
-        let tokenType = "variable";
+        let tokenType = "";
         let evaluator = this._service.getEvaluator()
         const declarations = evaluator?.getDeclarationsForNameNode(node);
         const type = this.getType(node);
@@ -176,6 +177,9 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                         tokenType = "function";
                     }
                     break;
+                case DeclarationType.Variable:
+                    tokenType = "variable";
+                    break;
             }
         }
         return tokenType;
@@ -198,6 +202,9 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
     pushNode(node: ParseNode, typeName?: string, modifierName?: string | string[]) {
         if (node.nodeType === ParseNodeType.Name && node.value === "NULL") {
             // TODO: implement as a KeywordToken
+            return;
+        }
+        if (node.length === 0) {
             return;
         }
         const pos = this.getPosition(node);
@@ -277,11 +284,11 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
             // If annotation before name, this is a cython declaration:
             // `cdef type name`
             if (annotationBeforeName(name, typeAnnotation)) {
-                this.pushType(typeAnnotation);
+                this.parseExpression(typeAnnotation);
                 this.pushVar(name, nameTokenType);
             } else {
                 this.pushVar(name, nameTokenType);
-                this.pushType(typeAnnotation);
+                this.parseExpression(typeAnnotation);
             }
         } else if (name) {
             this.parseExpression(name);
@@ -350,7 +357,16 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                         this.pushToken(node.token, "enum", modifier);
                         break;
                 }
+                node.decorators.forEach(item => {
+                    this.parseNode(item);
+                });
                 this.pushType(node.name);
+                if (node.typeParameters) {
+                    this.parseNode(node.typeParameters);
+                }
+                node.arguments.forEach(item => {
+                    this.parseNode(item);
+                });
                 this.parseSuite(node.suite);
                 break;
             case ParseNodeType.TypeAlias:
@@ -380,12 +396,92 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
             case ParseNodeType.Parameter:
                 this.parseParameter(node);
                 break;
+            case ParseNodeType.TypeParameterList:
+                node.parameters.forEach(item => {
+                    this.parseNode(item);
+                });
+                break;
+            case ParseNodeType.TypeParameter:
+                this.parseExpression(node.name);
+                break;
             case ParseNodeType.DictionaryExpandEntry:
                 this.parseExpression(node.expandExpression);
                 break;
             case ParseNodeType.DictionaryKeyEntry:
                 this.parseExpression(node.keyExpression);
                 this.parseExpression(node.valueExpression);
+                break;
+            case ParseNodeType.Argument:
+                this.pushNameAndAnnotation(node.name, node.valueExpression);
+                break;
+            case ParseNodeType.Decorator:
+                this.parseExpression(node.expression);
+                break;
+            case ParseNodeType.Assert:
+                this.parseExpression(node.testExpression);
+                if (node.exceptionExpression) {
+                    this.parseExpression(node.exceptionExpression);
+                }
+                break;
+            case ParseNodeType.Except:
+                if (node.typeExpression) {
+                    this.parseExpression(node.typeExpression);
+                }
+                if (node.name) {
+                    this.parseExpression(node.name);
+                }
+                this.parseNode(node.exceptSuite);
+                break;
+            case ParseNodeType.Nonlocal:
+            case ParseNodeType.Global:
+                node.nameList.forEach(item => {
+                    this.parseExpression(item);
+                });
+                break;
+            case ParseNodeType.Raise:
+                this.parseExpression(node.typeExpression);
+                if (node.valueExpression) {
+                    this.parseExpression(node.valueExpression);
+                }
+                if (node.tracebackExpression) {
+                    this.parseExpression(node.tracebackExpression);
+                }
+                break;
+            case ParseNodeType.Del:
+                node.expressions.forEach(item => {
+                    this.parseNode(item);
+                });
+                break;
+            case ParseNodeType.Try:
+                this.parseNode(node.trySuite);
+                node.exceptClauses.forEach(item => {
+                    this.parseNode(item);
+                });
+                if (node.elseSuite) {
+                    this.parseNode(node.elseSuite);
+                }
+                if (node.finallySuite) {
+                    this.parseNode(node.finallySuite);
+                }
+                break;
+            case ParseNodeType.WithItem:
+                this.parseExpression(node.expression);
+                if (node.target) {
+                    this.parseExpression(node.target);
+                }
+                break;
+            case ParseNodeType.Match:
+                this.parseExpression(node.subjectExpression);
+                node.cases.forEach(item => {
+                   this.parseNode(item);
+                });
+                break;
+            case ParseNodeType.Case:
+                this.parseExpression(node.guardExpression);
+                this.parseNode(node.suite);
+                break;
+            case ParseNodeType.Suite:
+                this.parseSuite(node);
                 break;
             default:
                 break;
