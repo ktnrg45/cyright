@@ -5798,7 +5798,7 @@ export class Parser {
         return undefined;
     }
 
-    private _getAnnotationForTemplatedDecl(node: TypeParameterListNode, typeAnnotation: ExpressionNode): IndexNode {
+    private _getAnnotationForTemplatedDecl(node: TypeParameterListNode, typeAnnotation: ExpressionNode, name?: NameNode): IndexNode {
         const params: ArgumentNode[] = []
         for (const param of node.parameters) {
             let expr: ExpressionNode = param.name;
@@ -5814,6 +5814,10 @@ export class Parser {
         }
         const bracketToken = Token.create(TokenType.CloseBracket, node.start + node.length - 1, 1, undefined);
         const indexNode = IndexNode.create(typeAnnotation, params, false, bracketToken);
+        if (name && name.suffixMap) {
+            // We don't need the suffixes since this will be a normal type annotation
+            name.suffixMap.suffix = undefined;
+        }
         return indexNode
     }
 
@@ -5875,11 +5879,7 @@ export class Parser {
         const varName = typedVarNode.name;
         let varType = typedVarNode.typeAnnotation;
         if (typedVarNode.varTypeNode.templateNode) {
-          varType = this._getAnnotationForTemplatedDecl(typedVarNode.varTypeNode.templateNode, varType);
-          if (varName.suffixMap) {
-            // We don't need the suffixes since this will be a normal type annotation
-            varName.suffixMap.suffix = undefined;
-          }
+            varType = this._getAnnotationForTemplatedDecl(typedVarNode.varTypeNode.templateNode, varType, varName);
         }
 
         // Example expression: double name
@@ -7132,6 +7132,9 @@ export class Parser {
             }
             returnType = (typedVarNode.typeAnnotation.length > 0) ? typedVarNode.typeAnnotation : undefined;
             nameNode = typedVarNode.name;
+            if (returnType && typedVarNode.varTypeNode.templateNode) {
+                returnType = this._getAnnotationForTemplatedDecl(typedVarNode.varTypeNode.templateNode, returnType, nameNode);
+            }
         }
 
         if (this._peekTokenType() === TokenType.OpenBracket) {
