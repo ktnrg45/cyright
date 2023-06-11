@@ -957,6 +957,7 @@ export interface TypeParameterNode extends ParseNodeBase {
     name: NameNode;
     typeParamCategory: TypeParameterCategory;
     boundExpression?: ExpressionNode;
+    varTypeNode?: VarTypeNode;
 }
 
 export namespace TypeParameterNode {
@@ -2443,6 +2444,7 @@ export interface VarTypeNode extends ParseNodeBase {
     modifier?: Token | undefined;
     numericModifiers?: IdentifierToken[] | undefined;
     viewTokens?: Token[] | undefined;
+    templateNode?: TypeParameterListNode | undefined;
 }
 
 export namespace VarTypeNode {
@@ -2480,6 +2482,7 @@ export interface TypedVarNode extends VarTypeNode {
     typeAnnotationComment?: ExpressionNode | undefined;
     defaultValue?: ExpressionNode | undefined;
     callbackFunc?: FunctionNode | undefined;
+    varTypeNode: VarTypeNode;
 }
 
 export namespace TypedVarNode {
@@ -2496,6 +2499,7 @@ export namespace TypedVarNode {
             modifier: varTypeNode.modifier,
             numericModifiers: varTypeNode.numericModifiers,
             viewTokens: varTypeNode.viewTokens,
+            varTypeNode: varTypeNode,
         };
         return node;
     }
@@ -2505,6 +2509,7 @@ export interface TypeBracketSuffixNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.TypeBracketSuffix;
     category: TypeBracketSuffixCategory;
     tokens: Token[];
+    templateNode?: TypeParameterListNode;
 }
 
 export namespace TypeBracketSuffixNode {

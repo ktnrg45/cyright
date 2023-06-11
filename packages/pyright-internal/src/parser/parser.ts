@@ -5448,6 +5448,7 @@ export class Parser {
                         this._tokenIndex = openBracketIndex;
                         node = this._parseTemplateParameterList()
                         bracketCategory = TypeBracketSuffixCategory.Template;
+                        bracketNode.templateNode = node;
                     }
                 }
             } else {
@@ -5797,6 +5798,25 @@ export class Parser {
         return undefined;
     }
 
+    private _getAnnotationForTemplatedDecl(node: TypeParameterListNode, typeAnnotation: ExpressionNode): IndexNode {
+        const params: ArgumentNode[] = []
+        for (const param of node.parameters) {
+            let expr: ExpressionNode = param.name;
+            if (param.varTypeNode?.typeAnnotation && param.varTypeNode.templateNode) {
+                expr = this._getAnnotationForTemplatedDecl(param.varTypeNode.templateNode, param.varTypeNode.typeAnnotation);
+            }
+            const arg = ArgumentNode.create(
+                Token.create(TokenType.Identifier, param.name.start, param.name.length, undefined),
+                expr,
+                ArgumentCategory.Simple,
+            );
+            params.push(arg);
+        }
+        const bracketToken = Token.create(TokenType.CloseBracket, node.start + node.length - 1, 1, undefined);
+        const indexNode = IndexNode.create(typeAnnotation, params, false, bracketToken);
+        return indexNode
+    }
+
     private _parseTypedStatement(statements?: StatementListNode | undefined, fallback = false): StatementListNode {
         if (!statements) {
             statements = StatementListNode.create(this._peekToken());
@@ -5853,7 +5873,14 @@ export class Parser {
         }
 
         const varName = typedVarNode.name;
-        const varType = typedVarNode.typeAnnotation;
+        let varType = typedVarNode.typeAnnotation;
+        if (typedVarNode.varTypeNode.templateNode) {
+          varType = this._getAnnotationForTemplatedDecl(typedVarNode.varTypeNode.templateNode, varType);
+          if (varName.suffixMap) {
+            // We don't need the suffixes since this will be a normal type annotation
+            varName.suffixMap.suffix = undefined;
+          }
+        }
 
         // Example expression: double name
         // To the parser, this should be equivalent to "name: double = double()"
@@ -6447,11 +6474,14 @@ export class Parser {
             varType = this._parseVarTypeTuple();
         }
 
+        let templateNode: TypeParameterListNode | undefined = undefined;
+
         if (!skipView) {
             // View is associated with type
             const bracketNode = this._parseTypeBracketSuffix(typedVarCategory);
             viewTokens.push(...bracketNode.tokens);
             if (varType && bracketNode.category === TypeBracketSuffixCategory.Template) {
+                templateNode = bracketNode.templateNode;
                 // Templates can also have members
                 while (this._consumeTokenIfType(TokenType.Dot)) {
                     const maybeMember = this._getTokenIfIdentifier();
@@ -6475,6 +6505,7 @@ export class Parser {
         varTypeNode.modifier = varModifierToken;
         varTypeNode.numericModifiers = numModifiers.map((modToken) => modToken as IdentifierToken);
         varTypeNode.viewTokens = viewTokens;
+        varTypeNode.templateNode = templateNode;
         return varTypeNode;
     }
 
@@ -6914,6 +6945,7 @@ export class Parser {
         }
 
         const param = TypeParameterNode.create(varTypeNode.typeAnnotation, typeParamCategory, undefined);
+        param.varTypeNode = varTypeNode;
         const equals = this._peekToken() as OperatorToken;
         if (equals.operatorType === OperatorType.Assign) {
             extendRange(param, equals);
