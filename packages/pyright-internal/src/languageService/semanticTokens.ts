@@ -144,7 +144,7 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
     }
 
     getTokenTypeForName(node: NameNode) {
-        let tokenType = "";
+        let tokenType = "variable";
         let evaluator = this._service.getEvaluator()
         const declarations = evaluator?.getDeclarationsForNameNode(node);
         const type = this.getType(node);
@@ -179,13 +179,15 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
                     }
                     break;
                 case DeclarationType.Variable:
+                case DeclarationType.Parameter:
                     tokenType = "variable";
                     break;
                 case DeclarationType.TypeParameter:
-                case DeclarationType.Parameter:
                     tokenType = "typeParameter";
                     break;
             }
+        } else {
+            tokenType = "";
         }
         return tokenType;
     }
