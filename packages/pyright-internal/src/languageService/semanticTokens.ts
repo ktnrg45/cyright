@@ -239,6 +239,7 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
         if (type) {
             switch (type.category) {
                 case TypeCategory.Class:
+                case TypeCategory.TypeVar:
                     this.pushNode(node, "class", "declaration");
                     break;
                 case TypeCategory.Module:
