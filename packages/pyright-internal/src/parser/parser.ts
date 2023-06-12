@@ -5799,14 +5799,20 @@ export class Parser {
     }
 
     private _getAnnotationForTemplatedDecl(node: TypeParameterListNode, typeAnnotation: ExpressionNode, name?: NameNode): IndexNode {
+        // Convert TypeParameterListNode to IndexNode
         const params: ArgumentNode[] = []
         for (const param of node.parameters) {
             let expr: ExpressionNode = param.name;
             if (param.varTypeNode?.typeAnnotation && param.varTypeNode.templateNode) {
                 expr = this._getAnnotationForTemplatedDecl(param.varTypeNode.templateNode, param.varTypeNode.typeAnnotation);
             }
+            if (param.member) {
+                // Re-parent the name to member node
+                param.member.memberName.parent = param.member;
+                expr = param.member;
+            }
             const arg = ArgumentNode.create(
-                Token.create(TokenType.Identifier, param.name.start, param.name.length, undefined),
+                Token.create(TokenType.Identifier, expr.start, expr.length, undefined),
                 expr,
                 ArgumentCategory.Simple,
             );
@@ -6938,14 +6944,23 @@ export class Parser {
     private _parseTemplateParameter(): TypeParameterNode | undefined {
         let typeParamCategory = TypeParameterCategory.TypeVar;
 
+        let name: NameNode | undefined = undefined;
+        let member: MemberAccessNode | undefined = undefined;
         const varTypeNode = this._parseVarType(TypedVarCategory.Variable);
-        if (varTypeNode.typeAnnotation?.nodeType !== ParseNodeType.Name) {
+        if (varTypeNode.typeAnnotation?.nodeType === ParseNodeType.MemberAccess) {
+            name = varTypeNode.typeAnnotation.memberName;
+            member = varTypeNode.typeAnnotation;
+        } else if (varTypeNode.typeAnnotation?.nodeType === ParseNodeType.Name) {
+            name = varTypeNode.typeAnnotation;
+        }
+        if (!name) {
             this._addError(Localizer.Diagnostic.expectedTypeParameterName(), this._peekToken());
             return undefined;
         }
 
-        const param = TypeParameterNode.create(varTypeNode.typeAnnotation, typeParamCategory, undefined);
+        const param = TypeParameterNode.create(name, typeParamCategory, undefined);
         param.varTypeNode = varTypeNode;
+        param.member = member;
         const equals = this._peekToken() as OperatorToken;
         if (equals.operatorType === OperatorType.Assign) {
             extendRange(param, equals);

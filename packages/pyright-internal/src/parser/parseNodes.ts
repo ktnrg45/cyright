@@ -957,6 +957,7 @@ export interface TypeParameterNode extends ParseNodeBase {
     name: NameNode;
     typeParamCategory: TypeParameterCategory;
     boundExpression?: ExpressionNode;
+    member?: MemberAccessNode;
     varTypeNode?: VarTypeNode;
 }
 
