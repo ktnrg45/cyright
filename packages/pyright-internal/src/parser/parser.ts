@@ -2561,12 +2561,26 @@ export class Parser {
             }
         }
 
+        let isCython: boolean | undefined = undefined
+        switch ((possibleInputToken as KeywordToken).keywordType) {
+            case KeywordType.Cimport:
+                isCython = true;
+                break;
+            case KeywordType.Import:
+                isCython = false;
+                break;
+            default:
+                // If undefined, this means that import type is not known
+                isCython = undefined;
+                break;
+        }
+
         this._importedModules.push({
             nameNode: importFromNode.module,
             leadingDots: importFromNode.module.leadingDots,
             nameParts: importFromNode.module.nameParts.map((p) => p.value),
             importedSymbols: importFromNode.imports.map((imp) => imp.name.value),
-            isCython: (possibleInputToken as KeywordToken).keywordType === KeywordType.Cimport,
+            isCython: isCython,
         });
 
         let isTypingImport = false;

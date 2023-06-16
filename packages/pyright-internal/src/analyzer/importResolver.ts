@@ -993,7 +993,9 @@ export class ImportResolver {
                     importFailureInfo.push(`Resolved import with file '${pyFilePath}'`);
                     resolvedPaths.push(pyFilePath);
                 }
-            } else {
+            }
+
+            if (moduleDescriptor.isCython || moduleDescriptor.isCython === undefined) {
                 if (!moduleDescriptor.cythonExt && this.fileExistsCached(pxdFilePath)) {
                     importFailureInfo.push(`Resolved import with file '${pxdFilePath}'`);
                     resolvedPaths.push(pxdFilePath);
@@ -1002,16 +1004,19 @@ export class ImportResolver {
                     resolvedPaths.push(cythonFilePath);
                 }
             }
+
             if (resolvedPaths.length === 0) {
                 importFailureInfo.push(`Partially resolved import with directory '${dirPath}'`);
                 resolvedPaths.push('');
                 isNamespacePackage = true;
             }
-            let paths = [pyFilePath, pyiFilePath]; 
+            let paths = [pyFilePath, pyiFilePath];
             if (moduleDescriptor.isCython) {
                 paths = (moduleDescriptor.cythonExt) ? [cythonFilePath] : [pxdFilePath];
+            } else if (moduleDescriptor.isCython === undefined) {
+                paths.push(pxdFilePath);
             }
-            
+
             implicitImports = this._findImplicitImports(importName, dirPath, paths);
         } else {
             for (let i = 0; i < moduleDescriptor.nameParts.length; i++) {
@@ -1053,7 +1058,9 @@ export class ImportResolver {
                             resolvedPaths.push(pyFilePath);
                             foundInit = true;
                         }
-                    } else {
+                    }
+
+                    if (moduleDescriptor.isCython || moduleDescriptor.isCython === undefined) {
                         if (this.fileExistsCached(pyxFilePath)) {
                             importFailureInfo.push(`Resolved import with file '${pyxFilePath}'`);
                             resolvedPaths.push(pyxFilePath);
@@ -1087,7 +1094,12 @@ export class ImportResolver {
                     }
 
                     if (foundInit) {
-                        const paths = (moduleDescriptor.isCython) ? [pxdFilePath, pxiFilePath, pyxFilePath] : [pyFilePath, pyiFilePath]; 
+                        let paths = [pyFilePath, pyiFilePath];
+                        if (moduleDescriptor.isCython) {
+                            paths = [pxdFilePath, pxiFilePath, pyxFilePath];
+                        } else if (moduleDescriptor.isCython === undefined) {
+                            paths.push(...[pxdFilePath, pxiFilePath, pyxFilePath]);
+                        }
                         implicitImports = this._findImplicitImports(moduleDescriptor.nameParts.join('.'), dirPath, paths);
                         break;
                     }
@@ -1116,7 +1128,8 @@ export class ImportResolver {
                         importFailureInfo.push(`Resolved import with file '${pyFilePath}'`);
                         resolvedPaths.push(pyFilePath);
                     }
-                } else {
+                }
+                if (moduleDescriptor.isCython || moduleDescriptor.isCython === undefined) {
                     if (!moduleDescriptor.cythonExt && this.fileExistsCached(pxdFilePath)) {
                         importFailureInfo.push(`Resolved import with file '${pxdFilePath}'`);
                         resolvedPaths.push(pxdFilePath);
@@ -1152,6 +1165,8 @@ export class ImportResolver {
                             let paths = [pyFilePath, pyiFilePath];
                             if (moduleDescriptor.isCython) {
                                 paths = (moduleDescriptor.cythonExt) ? [cythonFilePath] : [pxdFilePath];
+                            } else if (moduleDescriptor.isCython === undefined) {
+                                paths.push(pxdFilePath);
                             }
                             implicitImports = this._findImplicitImports(importName, dirPath, paths);
                             isNamespacePackage = true;
