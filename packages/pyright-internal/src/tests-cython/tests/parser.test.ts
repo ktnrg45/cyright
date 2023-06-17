@@ -40,5 +40,5 @@ test('TemplateDeclaration ', () => {
     const parseInfo = TestUtils.parseSampleFile(sampleFile("templateDeclaration"), diagSink);
 
     assert.equal(diagSink.fetchAndClear().length, 0);
-    // assert.equal(parseInfo.parseResults.parseTree.statements.length, 5);
+    assert.equal(parseInfo.parseResults.parseTree.statements.length, 6);
 });
