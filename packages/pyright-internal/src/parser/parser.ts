@@ -5420,7 +5420,6 @@ export class Parser {
     // Brackets after type
     private _parseTypeBracketSuffix(typedVarCategory = TypedVarCategory.Variable): TypeBracketSuffixNode {
         const tokens: Token[] = [];
-        const sliceNodes: SliceNode[] = [];
         const maybeOpenBracket = this._peekToken();
         const openBracketIndex = this._tokenIndex;
         let bracketNode = TypeBracketSuffixNode.create(maybeOpenBracket);
@@ -5441,42 +5440,43 @@ export class Parser {
         if (node.nodeType === ParseNodeType.Slice) {
             // View "[::1] or [:] or [::] or [:, :]"
             bracketCategory = TypeBracketSuffixCategory.View;
-            sliceNodes.push(node);
             if (node.startValue || node.endValue) {
                 this._addError(Localizer.Diagnostic.viewInvalidAxis(), nodeStart);
-            }
-        } else {
-            if (!sliceNodes.length) {
-                if (node.nodeType === ParseNodeType.Number) {
-                    // Sized Array
-                    bracketCategory = TypeBracketSuffixCategory.Array;
-                } else {
-                    this._tokenIndex = index;
-                    const count = this._peekUntilType([TokenType.Operator, TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream]);
-                    const tokenAt = this._peekToken(count);
-                    if (tokenAt.type === TokenType.Operator && (tokenAt as OperatorToken).operatorType === OperatorType.Assign) {
-                        node = this._parseBufferOptions();
-                        bracketNode = node;
-                        bracketCategory = TypeBracketSuffixCategory.BufferOptions;
-                    } else {
-                        this._tokenIndex = openBracketIndex;
-                        node = this._parseTemplateParameterList()
-                        bracketCategory = TypeBracketSuffixCategory.Template;
-                        bracketNode.templateNode = node;
+            } else if (this._peekToken(-1).type === TokenType.Colon) {
+                // Dimensions [:, :, :, ...]
+                while (this._consumeTokenIfType(TokenType.Comma)) {
+                    if (!this._consumeTokenIfType(TokenType.Colon)) {
+                        break;
                     }
                 }
-            } else {
+            }
+        } else {
+            if (node.nodeType === ParseNodeType.Number) {
+                // Sized Array
+                bracketCategory = TypeBracketSuffixCategory.Array;
+            } else if (node.nodeType === ParseNodeType.Error && this._peekToken().type === TokenType.CloseBracket) {
                 // Empty brackets "[]"
                 bracketCategory = TypeBracketSuffixCategory.Array;
+            } else {
+                this._tokenIndex = index;
+                const count = this._peekUntilType([TokenType.Operator, TokenType.CloseBracket, TokenType.NewLine, TokenType.EndOfStream]);
+                const tokenAt = this._peekToken(count);
+                if (tokenAt.type === TokenType.Operator && (tokenAt as OperatorToken).operatorType === OperatorType.Assign) {
+                    node = this._parseBufferOptions();
+                    bracketNode = node;
+                    bracketCategory = TypeBracketSuffixCategory.BufferOptions;
+                } else {
+                    this._tokenIndex = openBracketIndex;
+                    node = this._parseTemplateParameterList()
+                    bracketCategory = TypeBracketSuffixCategory.Template;
+                    bracketNode.templateNode = node;
+                }
             }
         }
 
-        const end = node.start + node.length;
-        while (index < this._tokenizerOutput!.tokens.count) {
+        const end = this._tokenIndex;
+        while (index < end && index < this._tokenizerOutput!.tokens.count) {
             const nextToken = this._tokenizerOutput!.tokens.getItemAt(index);
-            if (nextToken.start >= end) {
-                break;
-            }
             tokens.push(nextToken);
             index++;
         }
