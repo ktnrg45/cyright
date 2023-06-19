@@ -19,6 +19,15 @@ test('Declaration', () => {
     assert.equal(parseInfo.parseResults.parseTree.statements.length, 17);
 });
 
+test('ChainedDeclaration', () => {
+    const diagSink = new DiagnosticSink();
+    const parseInfo = TestUtils.parseSampleFile(sampleFile("chainedDeclaration"), diagSink);
+    let total = 0;
+
+    assert.equal(diagSink.fetchAndClear().length, 0);
+    assert.equal(parseInfo.parseResults.parseTree.statements.length, 8);
+});
+
 test('Function', () => {
     const diagSink = new DiagnosticSink();
     const parseInfo = TestUtils.parseSampleFile(sampleFile("function"), diagSink);

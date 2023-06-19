@@ -5872,13 +5872,18 @@ export class Parser {
 
         this._consumeTokenIfKeyword(KeywordType.Cdef);
         if (this._peekTokenIfIdentifier()) {
-            // Handle simple assignment: "cdef name = 1"
+            // Handle simple assignment (untyped): "cdef name = 1"
             let equals = this._peekToken(1);
             if (equals.type === TokenType.Operator && (equals as OperatorToken).operatorType === OperatorType.Assign) {
                 let leftExpr = NameNode.create(this._getNextToken() as IdentifierToken);
                 this._getNextToken();
                 let expr = AssignmentNode.create(leftExpr, this._parseTestExpression(false));
                 StatementListNode.addNode(statements, expr);
+                if (this._consumeTokenIfType(TokenType.Comma)) {
+                    // Handle chained declarations
+                    this._parseTypedStatement(statements, /*fallback*/ false);
+                    this._consumeTokenIfType(TokenType.NewLine);
+                }
                 return statements;
             }
         }
@@ -5925,7 +5930,7 @@ export class Parser {
                     const assignExpr = AssignmentExpressionNode.create(lastName, rightExpr);
                     StatementListNode.addNode(statements, assignExpr);
                 }
-                break;
+                continue;
             }
 
             // Chained declaration: "type name, name2"
