@@ -11,6 +11,11 @@ _I = TypeVar("_I", bound=bool|int|float)
 __CYTHON_CALLABLE__ = Callable
 __CYTHON_FUSED__ = Union
 
+
+unicode = str
+basestring = str
+
+
 class NULL(_N):
     """Cython Type. Represents null."""
     ...
