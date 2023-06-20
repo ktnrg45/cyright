@@ -604,6 +604,7 @@ export interface WithNode extends ParseNodeBase {
     withItems: WithItemNode[];
     suite: SuiteNode;
     typeComment?: StringToken;
+    gilToken?: KeywordToken;
 }
 
 export namespace WithNode {

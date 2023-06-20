@@ -2193,32 +2193,25 @@ export class Parser {
             }
         }
 
-        // Handle gil keyword: "with nogil:"
-        const tokenType = this._peekKeywordType();
-        if (tokenType === KeywordType.Gil || tokenType === KeywordType.Nogil) {
-            this._getNextToken();
-            let typeComment: StringToken | undefined;
-            const withSuite = this._parseSuite(this._isInFunction, /* skipBody */ false, () => {
-                const comment = this._getTypeAnnotationCommentText();
-                if (comment) {
-                    typeComment = comment;
-                }
-            });
-            const withNode = WithNode.create(withToken, withSuite);
-            if (asyncToken) {
-                withNode.isAsync = true;
-                withNode.asyncToken = asyncToken;
-                extendRange(withNode, asyncToken);
-            }
-
-            if (typeComment) {
-                withNode.typeComment = typeComment;
-            }
-            return withNode;
-        }
-
+        let maybeGilToken: KeywordToken | undefined = undefined;
         while (true) {
-            withItemList.push(this._parseWithItem());
+            const maybeGil = this._peekKeywordType();
+
+            if (maybeGil === KeywordType.Gil || maybeGil === KeywordType.Nogil) {
+                // Gil Keywords are allowed in any position, but Cython will complain in most cases
+                // For most cases, the gil keyword needs to be by itself.
+                // However in some cases, ex: `cython.parallel.parallel`,
+                //      the `nogil` keyword can be used in front of it.
+                // We will defer diagnostics since we need to compare the types
+                const token = this._getNextToken() as KeywordToken;
+                if (maybeGilToken?.keywordType === token.keywordType) {
+                    this._addSameGilStateChangeError(token);
+                }
+                maybeGilToken = token;
+
+            } else {
+                withItemList.push(this._parseWithItem());
+            }
 
             if (!this._consumeTokenIfType(TokenType.Comma)) {
                 break;
@@ -2251,6 +2244,10 @@ export class Parser {
 
         if (typeComment) {
             withNode.typeComment = typeComment;
+        }
+
+        if (maybeGilToken) {
+            withNode.gilToken = maybeGilToken;
         }
 
         withNode.withItems = withItemList;
@@ -7250,4 +7247,14 @@ export class Parser {
 
         return functionNode;
     }
+
+    private _addSameGilStateChangeError(token: KeywordToken) {
+        assert([KeywordType.Gil, KeywordType.Nogil].includes(token.keywordType));
+        if (token.keywordType === KeywordType.Gil) {
+            this._addError(Localizer.Diagnostic.gilChangeToGil(), token);
+        } else {
+            this._addError(Localizer.Diagnostic.noGilChangeToNoGil(), token);
+        }
+    }
 }
+
