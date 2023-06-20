@@ -7128,6 +7128,24 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             return functionArg;
         });
 
+        if (node.arguments.length === 1 && (node.arguments[0].isCType || node.arguments[0].valueExpression.nodeType === ParseNodeType.Index)) {
+            // Cython: Check if this is sizeof function
+            if (baseTypeResult.type.category === TypeCategory.Function) {
+                if (baseTypeResult.type.details.fullName !== "cython_builtins.sizeof") {
+                    if (node.arguments[0].isCType) {
+                        addError(Localizer.Diagnostic.expectedExpr(), node.arguments[0], node.arguments[0]);
+                    }
+                } else if (node.arguments[0].valueExpression.nodeType === ParseNodeType.Index){
+                    //TODO: Check if slice is valid
+                    if (node.arguments[0].valueExpression.items.length !== 1) {
+                        addError(Localizer.Diagnostic.expectedExpr(), node.arguments[0], node.arguments[0]);
+                    }
+                }
+            } else if (node.arguments[0].isCType) {
+                addError(Localizer.Diagnostic.expectedExpr(), node.arguments[0], node.arguments[0]);
+            }
+        }
+
         let typeResult: TypeResult = { type: UnknownType.create() };
 
         if (!isTypeAliasPlaceholder(baseTypeResult.type)) {

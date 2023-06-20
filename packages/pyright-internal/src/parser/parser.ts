@@ -3842,6 +3842,31 @@ export class Parser {
             argType = ArgumentCategory.UnpackedDictionary;
         }
 
+        const index = this._tokenIndex;
+        const varType = this._parseVarType(TypedVarCategory.Variable, /* skipView */ true);
+        if (varType.typeAnnotation && varType.typeAnnotation.nodeType === ParseNodeType.Name) {
+            // Cython: Argument may be a ctype for the sizeof function, which has one argument
+            // We have to defer any diagnostics in the case that this is not the sizeof function
+            const ptrTokens = this._getTokenPointers();
+            const maybeOpenBracket = this._peekToken();
+            if (maybeOpenBracket.type === TokenType.OpenBracket) {
+                this._parsePossibleSlice();
+            }
+            if (ptrTokens.length > 0) {
+                let lookAhead = 0;
+                if (this._peekToken().type === TokenType.Comma) {
+                    lookAhead++;
+                }
+                if (this._peekToken(lookAhead).type === TokenType.CloseParenthesis) {
+                    // This should be a single argument with pointers
+                    const arg = ArgumentNode.create(firstToken, varType.typeAnnotation, ArgumentCategory.Simple);
+                    arg.isCType = true;
+                    return arg;
+                }
+            }
+            this._tokenIndex = index; // Parse normally
+        }
+
         let valueExpr = this._parseTestExpression(/* allowAssignmentExpression */ true);
         let nameIdentifier: IdentifierToken | undefined;
 

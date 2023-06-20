@@ -1762,6 +1762,7 @@ export interface ArgumentNode extends ParseNodeBase {
     argumentCategory: ArgumentCategory;
     name?: NameNode | undefined;
     valueExpression: ExpressionNode;
+    isCType?: boolean; // Only used to check the sizeof function
 }
 
 export namespace ArgumentNode {
