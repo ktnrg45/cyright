@@ -2194,6 +2194,7 @@ export class Parser {
         }
 
         let maybeGilToken: KeywordToken | undefined = undefined;
+        const gilTokens: KeywordToken[] = [];
         while (true) {
             const maybeGil = this._peekKeywordType();
 
@@ -2208,7 +2209,7 @@ export class Parser {
                     this._addSameGilStateChangeError(token);
                 }
                 maybeGilToken = token;
-
+                gilTokens.push(token);
             } else {
                 withItemList.push(this._parseWithItem());
             }
@@ -2246,8 +2247,8 @@ export class Parser {
             withNode.typeComment = typeComment;
         }
 
-        if (maybeGilToken) {
-            withNode.gilToken = maybeGilToken;
+        if (gilTokens.length > 0) {
+            withNode.gilTokens = gilTokens;
         }
 
         withNode.withItems = withItemList;

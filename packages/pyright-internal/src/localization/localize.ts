@@ -1013,6 +1013,8 @@ export namespace Localizer {
             new ParameterizedString<{ name: string, expected: string }>(getRawString('Diagnostic.bufferOptionValueInvalid'));
         export const noGilChangeToNoGil = () => getRawString('Diagnostic.noGilChangeToNoGil');
         export const gilChangeToGil = () => getRawString('Diagnostic.gilChangeToGil');
+        export const invalidExprAfterWithGil = () => getRawString('Diagnostic.invalidExprAfterWithGil');
+        export const invalidExprAfterWithNoGil = () => getRawString('Diagnostic.invalidExprAfterWithNoGil');
     }
 
     export namespace DiagnosticAddendum {

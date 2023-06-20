@@ -535,7 +535,9 @@
         "bufferOptionInvalid": "\"{name}\" is not a valid buffer option",
         "bufferOptionValueInvalid": "Invalid value for buffer option \"{name}\". Expected {expected}",
         "noGilChangeToNoGil": "Trying to release GIL when it is already released",
-        "gilChangeToGil": "Trying to acquire GIL when it is already held"
+        "gilChangeToGil": "Trying to acquire GIL when it is already held",
+        "invalidExprAfterWithGil": "Invalid expression after \"with gil\"",
+        "invalidExprAfterWithNoGil": "Invalid expression after \"with nogil\""
     },
     "DiagnosticAddendum": {
         "argParam": "Argument corresponds to parameter \"{paramName}\"",

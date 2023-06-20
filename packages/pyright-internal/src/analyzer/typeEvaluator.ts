@@ -17166,6 +17166,23 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             assignTypeToExpression(node.target, scopedType, !!exprTypeResult.isIncomplete, node.target);
         }
 
+        if (node.parent?.nodeType === ParseNodeType.With && node.parent.gilTokens && node.parent.gilTokens.length > 0) {
+            for (let i = node.parent.gilTokens.length - 1; i >= 0; i--) {
+                const gilToken = node.parent.gilTokens[i];
+                if (gilToken.start + gilToken.length < node.start) {
+                    // Cython: Check if expression is valid for gil/nogil context
+                    const gilType = gilToken.keywordType;
+                    if (gilType === KeywordType.Nogil) {
+                        if (exprType.category !== TypeCategory.Class || exprType.details.fullName !== "cython.parallel.parallel") {
+                            addError(Localizer.Diagnostic.invalidExprAfterWithNoGil(), node, node);
+                        }
+                    } else {
+                        addError(Localizer.Diagnostic.invalidExprAfterWithGil(), node, node);
+                    }
+                }
+            }
+        }
+
         writeTypeCache(node, scopedType, EvaluatorFlags.None, !!exprTypeResult.isIncomplete);
     }
 
