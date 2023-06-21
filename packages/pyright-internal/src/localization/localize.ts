@@ -1015,6 +1015,8 @@ export namespace Localizer {
         export const gilChangeToGil = () => getRawString('Diagnostic.gilChangeToGil');
         export const invalidExprAfterWithGil = () => getRawString('Diagnostic.invalidExprAfterWithGil');
         export const invalidExprAfterWithNoGil = () => getRawString('Diagnostic.invalidExprAfterWithNoGil');
+        export const multipleViewContig = () => getRawString('Diagnostic.multipleViewContig');
+        export const invalidViewContigPosition = () => getRawString('Diagnostic.invalidViewContigPosition');
     }
 
     export namespace DiagnosticAddendum {

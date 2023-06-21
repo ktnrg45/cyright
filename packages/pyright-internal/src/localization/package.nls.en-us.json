@@ -537,7 +537,9 @@
         "noGilChangeToNoGil": "Trying to release GIL when it is already released",
         "gilChangeToGil": "Trying to acquire GIL when it is already held",
         "invalidExprAfterWithGil": "Invalid expression after \"with gil\"",
-        "invalidExprAfterWithNoGil": "Invalid expression after \"with nogil\""
+        "invalidExprAfterWithNoGil": "Invalid expression after \"with nogil\"",
+        "multipleViewContig": "View cannot have multiple \"::1\" (C contig / F contig) tokens",
+        "invalidViewContigPosition": "View contig token \"::1\" must be the first or last item"
     },
     "DiagnosticAddendum": {
         "argParam": "Argument corresponds to parameter \"{paramName}\"",

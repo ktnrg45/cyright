@@ -5461,18 +5461,48 @@ export class Parser {
         this._areErrorsSuppressed = errorsWereSuppressed;
 
         if (node.nodeType === ParseNodeType.Slice) {
-            // View "[::1] or [:] or [::] or [:, :]"
+            // C contig / F contig = `::1`
+            // Can only have 1 contig symbol
+            // Contig symbol must be at the beginning or end
+            // Dimensions tokens must be comma separated
+            // Dimensions = `:`, `::`
             bracketCategory = TypeBracketSuffixCategory.View;
+            let foundContig = false;
             if (node.startValue || node.endValue) {
                 this._addError(Localizer.Diagnostic.viewInvalidAxis(), nodeStart);
-            } else if (this._peekToken(-1).type === TokenType.Colon) {
-                // Dimensions [:, :, :, ...]
-                while (this._consumeTokenIfType(TokenType.Comma)) {
-                    if (!this._consumeTokenIfType(TokenType.Colon)) {
+            } else if (node.stepValue) {
+                foundContig = true;
+            }
+
+            while (this._consumeTokenIfType(TokenType.Comma)) {
+                let colonCount = 0;
+                if (this._peekTokenType() !== TokenType.Colon) {
+                    break;
+                }
+                const startToken = this._peekToken();
+                const range = TextRange.create(startToken.start, startToken.length);
+                while (this._consumeTokenIfType(TokenType.Colon)) {
+                    colonCount++;
+                    range.length++;
+                    if (colonCount === 2) {
+                        if (this._consumeTokenIfType(TokenType.Number)) {
+                            range.length++;
+                            if (foundContig) {
+                                this._addError(Localizer.Diagnostic.multipleViewContig(), range);
+                            } else {
+                                foundContig = true;
+                            }
+                            if (this._peekTokenType() === TokenType.Comma) {
+                                this._addError(Localizer.Diagnostic.invalidViewContigPosition(), range);
+                            }
+                        }
+                    } else if (colonCount > 2) {
+                        this._addError(Localizer.Diagnostic.expectedCloseBracket(), this._peekToken(-1));
                         break;
                     }
                 }
             }
+
         } else {
             if (node.nodeType === ParseNodeType.Number) {
                 // Sized Array

@@ -16,6 +16,12 @@ cdef signed long long int v11
 cdef int[:] m0
 cdef int[::] m1
 cdef int[::1] m2
+cdef int[:, ::1] c_contiguous
+cdef int[::1, :] f_contiguous
+cdef int[:, ::, ::, :, ::1] m3
+cdef int[::1, ::, :, ::, :, ::] m4
+cdef int[:, :, :, :, :] m5
+cdef int[:, ::, ::, ::, :] m6
 
 cdef int a0[2]
 
