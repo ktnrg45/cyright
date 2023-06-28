@@ -239,6 +239,7 @@ export class Parser {
     private _typingSymbolAliases: Map<string, string> = new Map<string, string>();
 
     private _isCpp = false;
+    private _isInExtern = false;
 
     parseSourceFile(fileContents: string, parseOptions: ParseOptions, diagSink: DiagnosticSink): ParseResults {
         timingStats.tokenizeFileTime.timeOperation(() => {
@@ -6785,9 +6786,12 @@ export class Parser {
             this._addError(Localizer.Diagnostic.expectedColon(), this._getNextToken());
             return undefined;
         }
+        const wasInExtern = this._isInExtern;
         this._isCpp = isCpp;
+        this._isInExtern = true;
         const statements = this._parseSuiteCython();
         this._isCpp = false;
+        this._isInExtern = wasInExtern;
         return statements;
     }
 
@@ -7164,8 +7168,9 @@ export class Parser {
                 }
             }
         } else if (trailingKeyword === KeywordType.Except) {
+            // `except -1`, `except? -1`, `except +`, `except *`
             this._getNextToken();
-            if (!this._consumeTokenIfOperator(OperatorType.Add)) {
+            if (!this._consumeTokenIfOperator(OperatorType.Add) && !this._consumeTokenIfOperator(OperatorType.Multiply)) {
                 this._consumeTokenIfType(TokenType.QuestionMark);
                 this._parseTestExpression(/* allowAssignment */ false);
             }
