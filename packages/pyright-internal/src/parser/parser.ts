@@ -3506,7 +3506,9 @@ export class Parser {
                 const wasParsingTypeAnnotation = this._isParsingTypeAnnotation;
                 this._isParsingTypeAnnotation = false;
 
-                const argListResult = this._parseArgList();
+                // Cython parse args for size of
+                let argListResult: ArgListResult | undefined = this._parsePossibleSizeOfArg();
+                argListResult = (argListResult) ? argListResult : this._parseArgList();
                 const callNode = CallNode.create(atomExpression, argListResult.args, argListResult.trailingComma);
 
                 if (argListResult.args.length > 1 || argListResult.trailingComma) {
@@ -3842,32 +3844,6 @@ export class Parser {
         } else if (this._consumeTokenIfOperator(OperatorType.Power)) {
             argType = ArgumentCategory.UnpackedDictionary;
         }
-
-        // TODO: Cython fix sizeof pointer argument
-        // const index = this._tokenIndex;
-        // const varType = this._parseVarType(TypedVarCategory.Variable, /* skipView */ true);
-        // if (varType.typeAnnotation && varType.typeAnnotation.nodeType === ParseNodeType.Name) {
-        //     // Cython: Argument may be a ctype for the sizeof function, which has one argument
-        //     // We have to defer any diagnostics in the case that this is not the sizeof function
-        //     const ptrTokens = this._getTokenPointers();
-        //     const maybeOpenBracket = this._peekToken();
-        //     if (maybeOpenBracket.type === TokenType.OpenBracket) {
-        //         this._parsePossibleSlice();
-        //     }
-        //     if (ptrTokens.length > 0) {
-        //         let lookAhead = 0;
-        //         if (this._peekToken().type === TokenType.Comma) {
-        //             lookAhead++;
-        //         }
-        //         if (this._peekToken(lookAhead).type === TokenType.CloseParenthesis) {
-        //             // This should be a single argument with pointers
-        //             const arg = ArgumentNode.create(firstToken, varType.typeAnnotation, ArgumentCategory.Simple);
-        //             arg.isCType = true;
-        //             return arg;
-        //         }
-        //     }
-        //     this._tokenIndex = index; // Parse normally
-        // }
 
         let valueExpr = this._parseTestExpression(/* allowAssignmentExpression */ true);
         let nameIdentifier: IdentifierToken | undefined;
@@ -7317,6 +7293,63 @@ export class Parser {
         } else {
             this._addError(Localizer.Diagnostic.noGilChangeToNoGil(), token);
         }
+    }
+
+    // Unfortunate hack to determine if 'sizeof' argument is valid
+    // TODO: sizeof function cannot be assigned so we may be able to simply check the call name first
+    private _parsePossibleSizeOfArg(): ArgListResult | undefined {
+        const index = this._tokenIndex;
+        const firstToken = this._peekToken();
+
+        const errorsWereSuppressed = this._areErrorsSuppressed;
+        this._areErrorsSuppressed = true;
+        const argList = this._parseArgList();
+        this._areErrorsSuppressed = errorsWereSuppressed;
+
+        const nextToken = this._peekToken();
+        let newArgList: ArgListResult | undefined;
+
+        if (nextToken.type === TokenType.NewLine && argList.args.length === 1) {
+            // If we're at a new line we can assume that there was an error
+            const expr = argList.args[0].valueExpression;
+            if (expr.nodeType === ParseNodeType.BinaryOperation && expr.rightExpression.nodeType === ParseNodeType.Error) {
+                const stop = this._tokenIndex;
+                this._tokenIndex = index;
+                while (this._tokenIndex < stop) {
+                    const token = this._getNextToken();
+                    if (token.start + token.length + 1 >= expr.rightExpression.start) {
+                        const ptrs = this._getTokenPointers();
+                        const newArg = ArgumentNode.create(firstToken, expr.leftExpression, ArgumentCategory.Simple);
+                        if (ptrs.length > 0) {
+                            newArg.isCType = true; // Defer error handling to ensure that the call is on 'sizeof'
+                            extendRange(newArg, ptrs[ptrs.length-1]);
+                        }
+                        newArgList = {args: [newArg], trailingComma: !!(this._getTokenIfType(TokenType.Comma))};
+                        break;
+                    }
+                }
+                if (newArgList && !newArgList.trailingComma) {
+                    // Only 1 arg should be present
+                    while (true) {
+                        const nextTokenType = this._peekTokenType();
+                        if (
+                            nextTokenType === TokenType.CloseParenthesis ||
+                            nextTokenType === TokenType.NewLine ||
+                            nextTokenType === TokenType.EndOfStream
+                        ) {
+                            break;
+                        } else {
+                            this._addError(Localizer.Diagnostic.expectedCloseParen(), this._peekToken());
+                        }
+                        this._getNextToken();
+                    }
+                    return newArgList;
+                }
+            }
+
+        }
+        this._tokenIndex = index; // Parse normally
+        return undefined;
     }
 }
 
