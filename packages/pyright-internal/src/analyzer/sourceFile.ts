@@ -28,7 +28,7 @@ import { TextEditAction } from '../common/editAction';
 import { FileSystem } from '../common/fileSystem';
 import { LogTracker } from '../common/logTracker';
 import { fromLSPAny } from '../common/lspUtils';
-import { getFileName, normalizeSlashes, stripFileExtension } from '../common/pathUtils';
+import { changeAnyExtension, combinePaths, getBaseFileName, getDirectoryPath, getFileName, normalizeSlashes, stripFileExtension } from '../common/pathUtils';
 import { convertOffsetsToRange } from '../common/positionUtils';
 import * as StringUtils from '../common/stringUtils';
 import { DocumentRange, getEmptyRange, Position, Range, TextRange } from '../common/textRange';
@@ -63,6 +63,7 @@ import { SourceMapper } from './sourceMapper';
 import { SymbolTable } from './symbol';
 import { TestWalker } from './testWalker';
 import { TypeEvaluator } from './typeEvaluatorTypes';
+import { basename } from 'path';
 
 // Limit the number of import cycles tracked per source file.
 const _maxImportCyclesPerFile = 4;
@@ -815,9 +816,24 @@ export class SourceFile {
                 // If matching 'pxd' file exists create an import node for it
                 let declImportNode: StatementListNode | undefined = undefined;
                 if (this._filePath.endsWith('pyx')) {
-                    const pxdPath = this._filePath.slice(0, this._filePath.length - 3) + 'pxd';
-                    if (this.fileSystem.existsSync(pxdPath)) {
-                        declImportNode = parser.getMatchingDeclarationImport(this.getModuleName())
+                    // Prioritize this file's directory first then check each includePath
+                    const includePaths = [getDirectoryPath(this._filePath)];
+                    const baseName = changeAnyExtension(getBaseFileName(this._filePath), '.pxd');
+                    if (!baseName.startsWith('__init__') && !baseName.startsWith('__main__')) {
+                        // Only try find matching .pxd files from config include paths
+                        // If filename is not '__main__' or '__init__' (common filenames)
+                        // to reduce chance of accidentally importing an unwanted file
+                        if (configOptions.includePaths) {
+                            includePaths.push(...configOptions.includePaths);
+                        }
+                    }
+                    for (let index = 0; index < includePaths.length; index++) {
+                        const includePath = includePaths[index];
+                        const pxdPath = combinePaths(includePath, baseName);
+                        if (this.fileSystem.existsSync(pxdPath)) {
+                            declImportNode = parser.getMatchingDeclarationImport(this.getModuleName());
+                            break;
+                        }
                     }
                 }
 

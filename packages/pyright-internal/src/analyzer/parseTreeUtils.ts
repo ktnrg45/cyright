@@ -91,6 +91,11 @@ export function findNodeByOffset(node: ParseNode, offset: number): ParseNode | u
         return undefined;
     }
 
+    // Cython: Ignore dummy nodes
+    if (node.start === 0 && node.length === 0) {
+        return undefined;
+    }
+
     const parseTreeWalker = new ParseTreeWalker();
 
     // The range is found within this node. See if we can localize it
