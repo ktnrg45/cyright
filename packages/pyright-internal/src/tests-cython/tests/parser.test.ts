@@ -59,3 +59,11 @@ test('SizeofCall', () => {
     assert.equal(diagSink.fetchAndClear().length, 0);
     assert.equal(parseInfo.parseResults.parseTree.statements.length, 2);
 });
+
+test('ExternDeclarations', () => {
+    const diagSink = new DiagnosticSink();
+    const parseInfo = TestUtils.parseSampleFile(sampleFile("extern"), diagSink);
+
+    assert.equal(diagSink.fetchAndClear().length, 0);
+    assert.equal(parseInfo.parseResults.parseTree.statements.length, 9);
+});

@@ -6725,11 +6725,10 @@ export class Parser {
 
     private _parseExtern(): StatementListNode | undefined {
         this._getKeywordToken(KeywordType.Extern);
-        const fromToken = this._getTokenIfType(TokenType.Keyword);
         let isCpp = false;
-        if (!fromToken) {
-            this._addError(Localizer.Diagnostic.expectedExternFrom(), this._getNextToken());
-            return undefined;
+        if (!this._consumeTokenIfKeyword(KeywordType.From)) {
+            // Single-line cdef extern
+            return this._parseTypedStatement(undefined, true);
         }
         if (!this._consumeTokenIfOperator(OperatorType.Multiply)) {
             if (!this._getTokenIfType(TokenType.String)) {
