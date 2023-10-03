@@ -529,6 +529,7 @@
         "expectedFileName": "Expected file name after \"include\"",
         "expectedWith": "Expected \"with\"",
         "expectedNoGil": "Expected \"nogil\"",
+        "noexceptWithGil": "Expected \"nogil\" following \"noexcept\"",
         "expectedCastClose": "Expected cast close: \">\"",
         "deprecatedPropertyCython": "Property declaration is deprecated. Use \"@property\" decorator",
         "deprecatedForFromLoop": "\"For From\" loop is deprecated. Use normal Python for loop",
