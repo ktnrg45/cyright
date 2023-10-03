@@ -1003,7 +1003,7 @@ export namespace Localizer {
         export const expectedNamespace = () => getRawString('Diagnostic.expectedNamespace');
         export const expectedFileName = () => getRawString('Diagnostic.expectedFileName');
         export const expectedWith = () => getRawString('Diagnostic.expectedWith');
-        export const expectedNoGil = () => getRawString('Diagnostic.expectedNoGil');
+        export const noexceptWithoutNogil = () => getRawString('Diagnostic.noexceptWithoutNogil');
         export const noexceptWithGil = () => getRawString('Diagnostic.noexceptWithGil');
         export const expectedCastClose = () => getRawString('Diagnostic.expectedCastClose');
         export const deprecatedPropertyCython = () => getRawString('Diagnostic.deprecatedPropertyCython');
