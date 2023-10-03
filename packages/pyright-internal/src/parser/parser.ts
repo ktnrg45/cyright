@@ -7124,8 +7124,11 @@ export class Parser {
             return;
         }
         let withToken: KeywordToken | undefined = undefined;
+        let nogilToken: KeywordToken | undefined = undefined;
         if (this._peekKeywordType() === KeywordType.With) {
             withToken = this._getNextToken() as KeywordToken;
+        } else if (this._peekKeywordType() == KeywordType.Noexcept){
+            nogilToken = this._getNextToken() as KeywordToken;
         }
         if (withToken && keywordType !== KeywordType.Cdef && keywordType !== KeywordType.Ctypedef) {
             this._addError(Localizer.Diagnostic.expectedColon(), withToken);
@@ -7136,7 +7139,11 @@ export class Parser {
             if (keywordType !== KeywordType.Cdef && keywordType !== KeywordType.Ctypedef) {
                 this._addError(Localizer.Diagnostic.invalidTrailingGilFunction(), gilToken);
             } else {
-                if (!withToken && gilToken.keywordType === KeywordType.Gil) {
+                // Check 'noexcept' first since user may try to use it with Gil
+                if (nogilToken && gilToken.keywordType !== KeywordType.Nogil) {
+                    // "noexcept" must be followed by nothing or "nogil"
+                    this._addError(Localizer.Diagnostic.noexceptWithoutNogil(), nogilToken);
+                } else if (!withToken && gilToken.keywordType === KeywordType.Gil) {
                     // "gil" must be preceeded by "with"
                     this._addError(Localizer.Diagnostic.expectedWith(), gilToken);
                 } else if (withToken && gilToken.keywordType === KeywordType.Nogil) {
