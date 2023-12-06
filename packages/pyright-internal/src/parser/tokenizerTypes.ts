@@ -37,6 +37,9 @@ export const enum TokenType {
     Dot,
     Arrow,
     Backtick,
+
+    // ! Cython
+    QuestionMark,
 }
 
 export const enum NewLineType {
@@ -95,6 +98,9 @@ export const enum OperatorType {
     IsNot,
     In,
     NotIn,
+
+    // ! Cython
+    Negate, // Only used in cpp operators: "!"
 }
 
 export const enum OperatorFlags {
@@ -145,9 +151,65 @@ export const enum KeywordType {
     While,
     With,
     Yield,
+
+    // ! Cython
+    Cimport,
+    Cdef,
+    Cpdef,
+    Ctypedef,
+    Extern,
+    Gil,
+    Nogil,
+    Include,
+    Inline,
+    Const,
+    Readonly,
+    Public,
+    Signed,
+    Unsigned,
+    Long,
+    Noexcept,
+    Packed, // Only used for struct
+    // Macros
+    DEF,
+    IF,
+    ELIF,
+    ELSE,
+    // CPP
+    Namespace,
+    Cppclass,
+    Operator,
+    New,
 }
 
-export const softKeywords = [KeywordType.Debug, KeywordType.Match, KeywordType.Case, KeywordType.Type];
+// ! Cython
+export const varModifiers = [
+    KeywordType.Const,
+    KeywordType.Readonly,
+    KeywordType.Inline,
+    KeywordType.Public,
+];
+
+// ! Cython
+export const numericModifiers = [
+    KeywordType.Signed,
+    KeywordType.Unsigned,
+    KeywordType.Long,
+];
+
+export const softKeywords = [
+    KeywordType.Debug,
+    KeywordType.Match,
+    KeywordType.Case,
+    KeywordType.Type,
+
+    // ! Cython
+    KeywordType.Long,
+    KeywordType.Operator,
+    KeywordType.Packed,
+    KeywordType.Nogil,
+    KeywordType.Gil,
+];
 
 export const enum StringTokenFlags {
     None = 0,

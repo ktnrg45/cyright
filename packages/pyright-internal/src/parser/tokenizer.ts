@@ -87,6 +87,35 @@ const _keywords: Map<string, KeywordType> = new Map([
     ['False', KeywordType.False],
     ['None', KeywordType.None],
     ['True', KeywordType.True],
+
+    // ! Cython
+    ['cimport', KeywordType.Cimport],
+    ['cdef', KeywordType.Cdef],
+    ['cpdef', KeywordType.Cpdef],
+    ['ctypedef', KeywordType.Ctypedef],
+    ['extern', KeywordType.Extern],
+    ['gil', KeywordType.Gil],
+    ['nogil', KeywordType.Nogil],
+    ['include', KeywordType.Include],
+    ['inline', KeywordType.Inline],
+    ['const', KeywordType.Const],
+    ['readonly', KeywordType.Readonly],
+    ['public', KeywordType.Public],
+    ['signed', KeywordType.Signed],
+    ['unsigned', KeywordType.Unsigned],
+    ['long', KeywordType.Long],
+    ['noexcept', KeywordType.Noexcept],
+    ['packed', KeywordType.Packed],
+    // Macros
+    ['DEF', KeywordType.DEF],
+    ['IF', KeywordType.IF],
+    ['ELIF', KeywordType.ELIF],
+    ['ELSE', KeywordType.ELSE],
+    // CPP
+    ['namespace', KeywordType.Namespace],
+    ['cppclass', KeywordType.Cppclass],
+    ['operator', KeywordType.Operator],
+    ['new', KeywordType.New],
 ]);
 
 const _operatorInfo: { [key: number]: OperatorFlags } = {
@@ -489,6 +518,12 @@ export class Tokenizer {
                     break;
                 }
                 this._tokens.push(Token.create(TokenType.Colon, this._cs.position, 1, this._getComments()));
+                break;
+            }
+
+            // ! Cython
+            case Char.QuestionMark: {
+                this._tokens.push(Token.create(TokenType.QuestionMark, this._cs.position, 1, this._getComments()));
                 break;
             }
 
@@ -932,11 +967,15 @@ export class Tokenizer {
                 break;
 
             case Char.ExclamationMark:
-                if (nextChar !== Char.Equal) {
-                    return false;
-                }
-                length = 2;
-                operatorType = OperatorType.NotEquals;
+                // if (nextChar !== Char.Equal) {
+                //     return false;
+                // }
+                // length = 2;
+                // operatorType = OperatorType.NotEquals;
+
+                // ! Cython
+                length = nextChar === Char.Equal ? 2 : 1;
+                operatorType = length === 2 ? OperatorType.NotEquals : OperatorType.Negate;
                 break;
 
             case Char.Percent:
