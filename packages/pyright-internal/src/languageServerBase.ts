@@ -141,6 +141,7 @@ export interface ServerSettings {
     fileSpecs?: string[];
     excludeFileSpecs?: string[];
     ignoreFileSpecs?: string[];
+    includePaths?: string[];
 }
 
 export enum WellKnownWorkspaceKinds {

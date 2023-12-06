@@ -58,7 +58,8 @@ export class PyrightServer extends LanguageServerBase {
 
         super(
             {
-                productName: 'Pyright',
+                // productName: 'Pyright',
+                productName: 'Cython',
                 rootDirectory,
                 version,
                 workspaceMap,
@@ -88,6 +89,7 @@ export class PyrightServer extends LanguageServerBase {
             diagnosticSeverityOverrides: {},
             logLevel: LogLevel.Info,
             autoImportCompletions: true,
+            includePaths: [],
         };
 
         try {
@@ -201,6 +203,23 @@ export class PyrightServer extends LanguageServerBase {
                 const typeCheckingMode = pyrightSection.typeCheckingMode;
                 if (typeCheckingMode && isString(typeCheckingMode)) {
                     serverSettings.typeCheckingMode = typeCheckingMode;
+                }
+            }
+
+            const cythonSection = await this.getConfiguration(workspace.uri, 'cython');
+            if (cythonSection) {
+                const cythonIncludes: string[] = cythonSection.includePaths;
+                const cythonPaths: string[] = [];
+                if (Array.isArray(cythonIncludes)) {
+                    cythonIncludes.forEach(cythonPath => {
+                        let resolvedPath = resolvePaths(
+                            workspace.rootPath,
+                            expandPathVariables(workspace.rootPath, cythonPath)
+                        );
+                        this.console.info("Cython Included Path: " + resolvedPath);
+                        cythonPaths.push(resolvedPath);
+                    });
+                    serverSettings.includePaths = cythonPaths;
                 }
             }
         } catch (error) {

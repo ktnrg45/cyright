@@ -1,3 +1,9 @@
+# Cyright
+# Static type checker for Cython
+This is the static type checker/language server for the VS Code [Cython extension](https://github.com/ktnrg45/vs-code-cython).
+<br><br><br>
+
+#
 ![Pyright](/docs/img/PyrightLarge.png)
 
 # Static type checker for Python
@@ -91,7 +97,7 @@ Once installed, you can run the tool from the command line as follows:
 `pyright <options>`
 
 
-Alternatively, you can install the command-line version of Pyright directly from npm, which is part of node. If you don't have a recent version of node on your system, install that first from [nodejs.org](https://nodejs.org). 
+Alternatively, you can install the command-line version of Pyright directly from npm, which is part of node. If you don't have a recent version of node on your system, install that first from [nodejs.org](https://nodejs.org).
 
 To install pyright globally:
 `npm install -g pyright`
@@ -133,9 +139,9 @@ If you would like to report a bug or request an enhancement, file a new issue in
 
 
 ## FAQ
-**Q:** What is the difference between Pyright and [Pylance](https://github.com/microsoft/pylance-release)? 
+**Q:** What is the difference between Pyright and [Pylance](https://github.com/microsoft/pylance-release)?
 
-**A:** Pyright is an open-source Python type checker and language server. Pylance leverages Pyright’s functionality with additional features, some of which are not open-sourced. 
+**A:** Pyright is an open-source Python type checker and language server. Pylance leverages Pyright’s functionality with additional features, some of which are not open-sourced.
 
 **Q:** What is the long-term plan for Pyright?
 

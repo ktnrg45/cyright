@@ -8,9 +8,9 @@
  */
 
 export const enum Commands {
-    createTypeStub = 'pyright.createtypestub',
-    restartServer = 'pyright.restartserver',
-    orderImports = 'pyright.organizeimports',
-    addMissingOptionalToParam = 'pyright.addoptionalforparam',
-    unusedImport = 'pyright.unusedImport',
+    createTypeStub = 'cython.createtypestub',
+    restartServer = 'cython.restartserver',
+    orderImports = 'cython.organizeimports',
+    addMissingOptionalToParam = 'cython.addoptionalforparam',
+    unusedImport = 'cython.unusedImport',
 }
