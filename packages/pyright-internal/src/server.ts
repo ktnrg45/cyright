@@ -212,7 +212,7 @@ export class PyrightServer extends LanguageServerBase {
                 const cythonPaths: string[] = [];
                 if (Array.isArray(cythonIncludes)) {
                     cythonIncludes.forEach(cythonPath => {
-                        let resolvedPath = resolvePaths(
+                        const resolvedPath = resolvePaths(
                             workspace.rootPath,
                             expandPathVariables(workspace.rootPath, cythonPath)
                         );

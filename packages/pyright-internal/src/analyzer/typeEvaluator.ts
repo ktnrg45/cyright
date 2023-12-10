@@ -1124,6 +1124,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 break;
             }
 
+            // ! Cython
+            case ParseNodeType.CType:
+                // TODO
+                typeResult = { type: UnknownType.create() };
+                break;
+
             default:
                 assertNever(node);
         }

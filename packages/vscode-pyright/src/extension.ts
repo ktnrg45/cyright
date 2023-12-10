@@ -20,7 +20,6 @@ import {
     TextEditor,
     TextEditorEdit,
     Uri,
-    window,
 } from 'vscode';
 import {
     CancellationToken,

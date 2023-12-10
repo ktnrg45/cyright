@@ -1304,4 +1304,11 @@ export namespace Localizer {
                 getRawString('Refactoring.moveFileDescription')
             );
     }
+
+    // ! Cython
+    export namespace DiagnosticCython {
+        export const referenceNotAllowed = () => getRawString('DiagnosticCython.referenceNotAllowed');
+        export const modifierNotAllowed = () =>
+            new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.modifierNotAllowed'));
+    }
 }

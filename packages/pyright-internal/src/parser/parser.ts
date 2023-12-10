@@ -39,6 +39,8 @@ import {
     ClassNode,
     ConstantNode,
     ContinueNode,
+    CTypeDefNode,
+    CTypeNode,
     DecoratorNode,
     DelNode,
     DictionaryEntryNode,
@@ -135,6 +137,8 @@ import {
     Token,
     TokenType,
 } from './tokenizerTypes';
+// ! Cython
+import { numericModifiers, varModifiers } from './tokenizerTypes';
 
 interface ListResult<T> {
     list: T[];
@@ -423,6 +427,12 @@ export class Parser {
 
         if (this._peekOperatorType() === OperatorType.MatrixMultiply) {
             return this._parseDecorated();
+        }
+
+        // ! Cython
+        switch (this._peekKeywordType()) {
+            case KeywordType.Ctypedef:
+                return this._parseCTypeDef();
         }
 
         return this._parseSimpleStatement();
@@ -5046,5 +5056,228 @@ export class Parser {
                 convertOffsetsToRange(range.start, range.start + range.length, this._tokenizerOutput!.lines)
             );
         }
+    }
+
+    // ! Cython
+
+    private _keywordToIdentifier(token: KeywordToken) {
+        const keywordText = this._fileContents!.substr(token.start, token.length);
+        return IdentifierToken.create(token.start, token.length, keywordText, token.comments);
+    }
+
+    private _rangeText(range: TextRange) {
+        return this._fileContents!.substr(range.start, range.length);
+    }
+
+    private _setCTypeFullValue(node: CTypeNode) {
+        const items: string[] = [];
+        node.varModifiers.forEach((mod) => {
+            items.push(this._rangeText(mod));
+        });
+        node.numModifiers.forEach((mod) => {
+            items.push(this._rangeText(mod));
+        });
+        items.push(node.name.value);
+        let value = items.join(' ');
+        node.operators.forEach((op) => {
+            value += this._rangeText(op);
+        });
+        node.fullValue = value;
+    }
+
+    // ctypedef type mytype
+    private _parseCTypeDef() {
+        const typeDefToken = this._getKeywordToken(KeywordType.Ctypedef);
+        let node = this._parseCType(/*allowReference*/ false);
+        if (node.nodeType === ParseNodeType.CType) {
+            const token = this._getTokenIfIdentifier();
+            if (token) {
+                const name = NameNode.create(token);
+                return CTypeDefNode.create(typeDefToken, node, name);
+            }
+            this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
+            node = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration, node);
+        }
+
+        const statements = StatementListNode.create(typeDefToken);
+        statements.statements.push(node);
+        extendRange(statements, node);
+        node.parent = statements;
+        return statements;
+    }
+
+    private _parseCType(allowReference = false, allowInline = false) {
+        // TODO: Templates, callback functions
+        const identifiers: IdentifierToken[] = [];
+        const modifiers: KeywordToken[] = [];
+        const numModifiers: IdentifierToken[] = [];
+        const operators: OperatorToken[] = [];
+        let longCount = 0;
+        const errorNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration);
+
+        const operatorsAllowed = [OperatorType.Multiply, OperatorType.Power, OperatorType.BitwiseAnd];
+        const stopTypes = [
+            TokenType.Dedent,
+            TokenType.Indent,
+            TokenType.Invalid,
+            TokenType.NewLine,
+            TokenType.EndOfStream,
+        ];
+
+        while (!stopTypes.includes(this._peekTokenType())) {
+            const token = this._getNextToken();
+            const kwToken = token as KeywordToken;
+            const idToken = token as IdentifierToken;
+            const opToken = token as OperatorToken;
+
+            switch (token.type) {
+                case TokenType.Keyword:
+                    // Look for VarModifiers then numerical modifiers
+                    if (varModifiers.includes(kwToken.keywordType)) {
+                        if (!allowInline && kwToken.keywordType === KeywordType.Inline) {
+                            this._addError(
+                                Localizer.DiagnosticCython.modifierNotAllowed().format({
+                                    name: this._rangeText(kwToken),
+                                }),
+                                kwToken
+                            );
+                            return errorNode;
+                        }
+                        if (numModifiers.length > 0 || operators.length > 0 || identifiers.length > 0) {
+                            // varModifier after numModifier, operator, identifier
+                            this._addError(Localizer.Diagnostic.expectedIdentifier(), kwToken);
+                            return errorNode;
+                        }
+                        if (modifiers.length >= 2) {
+                            // Only two modifiers max are allowed
+                            this._addError(Localizer.Diagnostic.expectedIdentifier(), kwToken);
+                            return errorNode;
+                        }
+                        if (modifiers.length === 1) {
+                            // Verify modifiers are correct and are in correct order
+                            if (modifiers[0].keywordType === kwToken.keywordType) {
+                                // Don't allow same modifier twice
+                                this._addError(
+                                    Localizer.DiagnosticCython.modifierNotAllowed().format({
+                                        name: this._rangeText(kwToken),
+                                    }),
+                                    kwToken
+                                );
+                                return errorNode;
+                            }
+                            if (kwToken.keywordType !== KeywordType.Const) {
+                                // `const` should be last modifier
+                                this._addError(Localizer.Diagnostic.expectedIdentifier(), kwToken);
+                                return errorNode;
+                            }
+                        }
+                        modifiers.push(kwToken);
+                    } else if (numericModifiers.includes(kwToken.keywordType)) {
+                        if (operators.length > 0 || identifiers.length > 0) {
+                            this._addError(
+                                Localizer.DiagnosticCython.modifierNotAllowed().format({
+                                    name: this._rangeText(kwToken),
+                                }),
+                                kwToken
+                            );
+                            return errorNode;
+                        }
+                        numModifiers.push(this._keywordToIdentifier(kwToken));
+                        if (kwToken.keywordType === KeywordType.Long) {
+                            longCount++;
+                            if (longCount > 2) {
+                                this._addError(Localizer.Diagnostic.expectedIdentifier(), kwToken);
+                                return errorNode;
+                            }
+                        }
+                    }
+                    break;
+                case TokenType.Identifier:
+                    identifiers.push(idToken);
+                    break;
+                case TokenType.Operator:
+                    if (operatorsAllowed.includes(opToken.operatorType)) {
+                        if (!allowReference && opToken.operatorType === OperatorType.BitwiseAnd) {
+                            this._addError(Localizer.DiagnosticCython.referenceNotAllowed(), opToken);
+                            return errorNode;
+                        }
+                        operators.push(opToken);
+                    }
+                    break;
+                // TODO: Template types
+                default:
+                    // TODO: unhandled error
+                    return errorNode;
+            }
+
+            // Determine if we need to break out of loop
+
+            const nextOp = this._peekOperatorType();
+            const nextToken = this._peekToken();
+            const nextId = nextToken.type === TokenType.Identifier ? (nextToken as IdentifierToken) : undefined;
+            const nextKeyword = this._peekKeywordType();
+
+            // Compound types
+            // I.e. `double complex` `float complex` `short int`
+            const compoundTypePrefixes = ['short', 'double', 'float'];
+            const compoundTypeSuffixes = ['int', 'complex'];
+            const longTypes = ['int', 'short', 'double', 'complex']; // Types that can be prefixed with long
+
+            if (nextKeyword && nextKeyword === KeywordType.Long) {
+                if (identifiers.length > 0) {
+                    // `long` cannot follow an identifier
+                    this._addError(Localizer.Diagnostic.expectedIdentifier(), this._getNextToken());
+                    return errorNode;
+                }
+                continue;
+            }
+
+            if (operators.length > 0 && !nextOp) {
+                // Seen an operator and next token is not an operator
+                break;
+            } else if (identifiers.length >= 2 && !nextOp) {
+                // Compound Type. Stop if not followed by operator
+                break;
+            }
+
+            if (kwToken.keywordType === KeywordType.Long) {
+                if (nextId && !longTypes.includes(nextId.value)) {
+                    // Probably a long type
+                    // I.e. `long` `long long`
+                    break;
+                }
+            }
+
+            if (identifiers.length === 1 && nextId) {
+                if (
+                    !compoundTypePrefixes.includes(identifiers[0].value) ||
+                    !compoundTypeSuffixes.includes(nextId.value)
+                ) {
+                    // Not a valid compound type stop here
+                    break;
+                }
+            }
+        }
+
+        if (identifiers.length === 0) {
+            if (longCount > 0) {
+                // Type ending with `long`
+                // Remove the last `long` from num modifiers
+                // Add to identifiers
+                identifiers.push(numModifiers.pop()!);
+            }
+        } else if (identifiers.length > 1) {
+            // Compound type. Remove the first identifier and append it to numModifiers
+            numModifiers.push(identifiers[0]);
+            identifiers.splice(0, 1);
+        }
+
+        if (identifiers.length > 0) {
+            const name = NameNode.create(identifiers[identifiers.length - 1]);
+            const node = CTypeNode.create(name, modifiers, numModifiers, operators);
+            this._setCTypeFullValue(node);
+            return node;
+        }
+        return errorNode;
     }
 }

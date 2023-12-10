@@ -21,6 +21,8 @@ import {
     ClassNode,
     ConstantNode,
     ContinueNode,
+    CTypeDefNode,
+    CTypeNode,
     DecoratorNode,
     DelNode,
     DictionaryExpandEntryNode,
@@ -372,6 +374,12 @@ export class ParseTreeWalker {
 
             case ParseNodeType.YieldFrom:
                 return this.visitYieldFrom(node) ? [node.expression] : [];
+
+            // ! Cython
+            case ParseNodeType.CTypeDef:
+                return this.visitCTypeDef(node) ? [node.name, node.typeNode] : [];
+            case ParseNodeType.CType:
+                return this.visitCType(node) ? [node.name] : [];
         }
     }
 
@@ -685,6 +693,15 @@ export class ParseTreeWalker {
     }
 
     visitYieldFrom(node: YieldFromNode) {
+        return true;
+    }
+
+    // ! Cython
+    visitCTypeDef(node: CTypeDefNode) {
+        return true;
+    }
+
+    visitCType(node: CTypeNode) {
         return true;
     }
 }

@@ -14,6 +14,7 @@ import {
     KeywordToken,
     KeywordType,
     NumberToken,
+    OperatorToken,
     OperatorType,
     StringToken,
     Token,
@@ -107,6 +108,10 @@ export const enum ParseNodeType {
     TypeParameter,
     TypeParameterList,
     TypeAlias,
+
+    // ! Cython
+    CTypeDef,
+    CType,
 }
 
 export const enum ErrorExpressionCategory {
@@ -125,6 +130,9 @@ export const enum ErrorExpressionCategory {
     MissingPatternSubject,
     MissingDictValue,
     MaxDepthExceeded,
+
+    // ! Cython
+    InvalidDeclaration,
 }
 
 export interface ParseNodeBase extends TextRange {
@@ -667,7 +675,10 @@ export type StatementNode =
     | StatementListNode
     | MatchNode
     | TypeAliasNode
-    | ErrorNode;
+    | ErrorNode
+
+    // ! Cython
+    | CTypeDefNode;
 
 export type SmallStatementNode =
     | ExpressionNode
@@ -707,7 +718,10 @@ export type ExpressionNode =
     | StringListNode
     | DictionaryNode
     | ListNode
-    | SetNode;
+    | SetNode
+
+    // ! Cython
+    | CTypeNode;
 
 export function isExpressionNode(node: ParseNode): node is ExpressionNode {
     switch (node.nodeType) {
@@ -739,6 +753,8 @@ export function isExpressionNode(node: ParseNode): node is ExpressionNode {
         case ParseNodeType.DictionaryExpandEntry:
         case ParseNodeType.List:
         case ParseNodeType.Set:
+            // // ! Cython
+            // case ParseNodeType.CType:
             return true;
 
         default:
@@ -2370,6 +2386,69 @@ export namespace PatternValueNode {
     }
 }
 
+// ! Cython
+
+export interface CTypeNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CType;
+    name: NameNode;
+    varModifiers: KeywordToken[];
+    numModifiers: IdentifierToken[];
+    operators: OperatorToken[]; // *(Pointer), &(Address Of)
+    fullValue: string;
+}
+
+export namespace CTypeNode {
+    export function create(
+        name: NameNode,
+        varModifiers: KeywordToken[],
+        numModifiers: IdentifierToken[],
+        operators: OperatorToken[]
+    ) {
+        const node: CTypeNode = {
+            start: name.start,
+            length: name.length,
+            nodeType: ParseNodeType.CType,
+            id: _nextNodeId++,
+            name: name,
+            varModifiers: varModifiers,
+            numModifiers: numModifiers,
+            operators: operators,
+            fullValue: '',
+        };
+        name.parent = node;
+        extendRange(node, name);
+        if (operators.length > 0) {
+            extendRange(node, operators[operators.length - 1]);
+        }
+        return node;
+    }
+}
+
+export interface CTypeDefNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CTypeDef;
+    typeNode: CTypeNode;
+    name: NameNode;
+}
+
+export namespace CTypeDefNode {
+    export function create(typeDefToken: KeywordToken, typeNode: CTypeNode, name: NameNode) {
+        const node: CTypeDefNode = {
+            start: typeDefToken.start,
+            length: typeDefToken.length,
+            nodeType: ParseNodeType.CTypeDef,
+            id: _nextNodeId++,
+            typeNode: typeNode,
+            name: name,
+        };
+        extendRange(node, name);
+        typeNode.parent = node;
+        name.parent = node;
+        return node;
+    }
+}
+
+// ! Cython End
+
 export type PatternAtomNode =
     | PatternSequenceNode
     | PatternLiteralNode
@@ -2458,7 +2537,11 @@ export type ParseNode =
     | WithNode
     | WithItemNode
     | YieldNode
-    | YieldFromNode;
+    | YieldFromNode
+
+    // ! Cython
+    | CTypeDefNode
+    | CTypeNode;
 
 export type EvaluationScopeNode = LambdaNode | FunctionNode | ModuleNode | ClassNode | ListComprehensionNode;
 export type ExecutionScopeNode = LambdaNode | FunctionNode | ModuleNode;
