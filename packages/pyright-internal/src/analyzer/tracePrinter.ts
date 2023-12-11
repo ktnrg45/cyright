@@ -148,6 +148,10 @@ export function createTracePrinter(roots: string[]): TracePrinter {
                 case DeclarationType.TypeAlias:
                     return `TypeAlias, ${printNode(decl.node)} (${printFileOrModuleName(decl.path)})`;
 
+                // ! Cython Declaration
+                case DeclarationType.CTypeDef:
+                    return `CTypeDef, ${printNode(decl.node)} (${printFileOrModuleName(decl.path)})`;
+
                 default:
                     assertNever(decl);
             }

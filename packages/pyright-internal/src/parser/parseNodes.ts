@@ -2426,24 +2426,36 @@ export namespace CTypeNode {
 
 export interface CTypeDefNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CTypeDef;
-    typeNode: CTypeNode;
+    typeDefToken: KeywordToken;
     name: NameNode;
+    typeNode: CTypeNode;
+    typeParameters?: TypeParameterListNode;
 }
 
 export namespace CTypeDefNode {
     export function create(typeDefToken: KeywordToken, typeNode: CTypeNode, name: NameNode) {
+        const aliasNode = TypeAliasNode.create(typeDefToken, { ...name }, { ...typeNode });
+
         const node: CTypeDefNode = {
             start: typeDefToken.start,
             length: typeDefToken.length,
             nodeType: ParseNodeType.CTypeDef,
             id: _nextNodeId++,
-            typeNode: typeNode,
+            typeDefToken: typeDefToken,
             name: name,
+            typeNode: typeNode,
         };
+        aliasNode.id = node.id;
         extendRange(node, name);
         typeNode.parent = node;
         name.parent = node;
         return node;
+    }
+    export function alias(node: CTypeDefNode) {
+        const aliasNode = TypeAliasNode.create(node.typeDefToken, { ...node.name }, { ...node.typeNode.name });
+        aliasNode.id = node.id;
+        aliasNode.parent = node.parent;
+        return aliasNode;
     }
 }
 
@@ -2545,4 +2557,4 @@ export type ParseNode =
 
 export type EvaluationScopeNode = LambdaNode | FunctionNode | ModuleNode | ClassNode | ListComprehensionNode;
 export type ExecutionScopeNode = LambdaNode | FunctionNode | ModuleNode;
-export type TypeParameterScopeNode = FunctionNode | ClassNode | TypeAliasNode;
+export type TypeParameterScopeNode = FunctionNode | ClassNode | TypeAliasNode | CTypeDefNode;

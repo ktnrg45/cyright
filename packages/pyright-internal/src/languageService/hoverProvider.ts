@@ -293,6 +293,14 @@ export class HoverProvider {
                 break;
             }
 
+            // ! Cython Declaration
+            case DeclarationType.CTypeDef: {
+                const typeText = node.value + this._getTypeText(node, evaluator, /* expandTypeAlias */ true);
+                this._addResultsPart(parts, `(ctypedef) ${typeText}`, /* python */ true);
+                this._addDocumentationPart(format, sourceMapper, parts, node, evaluator, resolvedDecl);
+                break;
+            }
+
             default:
                 assertNever(resolvedDecl);
         }

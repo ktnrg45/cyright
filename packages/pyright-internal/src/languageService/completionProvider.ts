@@ -2961,6 +2961,10 @@ export class CompletionProvider {
 
             case DeclarationType.Alias:
                 return CompletionItemKind.Module;
+
+            // ! Cython Declaration
+            case DeclarationType.CTypeDef:
+                return CompletionItemKind.Variable;
         }
     }
 

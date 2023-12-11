@@ -287,6 +287,10 @@ function isVisibleOutside(
                     return false;
                 }
 
+                // ! Cython Declaration
+                case DeclarationType.CTypeDef:
+                    return true;
+
                 default:
                     assertNever(decl);
             }

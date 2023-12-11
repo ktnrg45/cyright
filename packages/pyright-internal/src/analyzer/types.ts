@@ -8,7 +8,7 @@
  */
 
 import { assert } from '../common/debug';
-import { ExpressionNode, ParameterCategory } from '../parser/parseNodes';
+import { CTypeNode, ExpressionNode, ParameterCategory } from '../parser/parseNodes';
 import { FunctionDeclaration } from './declaration';
 import { Symbol, SymbolTable } from './symbol';
 
@@ -131,6 +131,9 @@ interface TypeBase {
     // with a TypeFlags because we don't want an ambiguous and unambiguous
     // type to be seen as distinct when comparing types.
     isAmbiguous?: boolean;
+
+    // ! Cython Type
+    cTypeNode?: CTypeNode;
 }
 
 export namespace TypeBase {

@@ -863,5 +863,10 @@ function _printNestedInstantiable(type: Type, textToWrap: string) {
         textToWrap = `Type[${textToWrap}]`;
     }
 
+    // ! Cython Type
+    // ? Is this the most appropriate place?
+    if (type.cTypeNode) {
+        textToWrap = type.cTypeNode.fullValue;
+    }
     return textToWrap;
 }

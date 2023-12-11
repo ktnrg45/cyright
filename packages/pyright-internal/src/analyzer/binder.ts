@@ -40,6 +40,7 @@ import {
     CaseNode,
     ClassNode,
     ContinueNode,
+    CTypeDefNode,
     DelNode,
     ExceptNode,
     ExpressionNode,
@@ -106,6 +107,7 @@ import {
 import {
     AliasDeclaration,
     ClassDeclaration,
+    CTypeDefDeclaration,
     DeclarationType,
     FunctionDeclaration,
     IntrinsicType,
@@ -2261,6 +2263,48 @@ export class Binder extends ParseTreeWalker {
 
         return true;
     }
+
+    // ! Cython
+    override visitCTypeDef(node: CTypeDefNode): boolean {
+        // Like visitTypeAlias() but use a CTypeDefDeclaration
+        this._bindNameToScope(this._currentScope, node.name);
+
+        this.walk(node.name);
+
+        if (node.typeParameters) {
+            this.walk(node.typeParameters);
+        }
+
+        const decl: CTypeDefDeclaration = {
+            type: DeclarationType.CTypeDef,
+            node: node,
+            path: this._fileInfo.filePath,
+            range: convertOffsetsToRange(node.name.start, TextRange.getEnd(node.name), this._fileInfo.lines),
+            moduleName: this._fileInfo.moduleName,
+            isInExceptSuite: this._isInExceptSuite,
+            cTypeNode: node.typeNode,
+        };
+
+        const symbol = this._bindNameToScope(this._currentScope, node.name);
+        if (symbol) {
+            symbol.addDeclaration(decl);
+        }
+
+        // Stash the declaration in the parse node for later access.
+        AnalyzerNodeInfo.setDeclaration(node, decl);
+
+        this._createAssignmentTargetFlowNodes(node.name, /* walkTargets */ true, /* unbound */ false);
+
+        this.walk(node.typeNode.name); // this.walk(node.expression);
+
+        if (node.typeParameters) {
+            this._removeActiveTypeParameters(node.typeParameters);
+        }
+
+        return false;
+    }
+
+    // ! Cython End
 
     private _removeActiveTypeParameters(node: TypeParameterListNode) {
         node.parameters.forEach((typeParamNode) => {

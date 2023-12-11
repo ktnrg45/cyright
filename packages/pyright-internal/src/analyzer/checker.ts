@@ -2947,6 +2947,7 @@ export class Checker extends ParseTreeWalker {
             case DeclarationType.TypeAlias:
             case DeclarationType.Variable:
             case DeclarationType.Parameter:
+            case DeclarationType.CTypeDef: // ! Cython Declaration
                 if (!isPrivate) {
                     return;
                 }

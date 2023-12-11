@@ -20,6 +20,7 @@ export function hasTypeForDeclaration(declaration: Declaration): boolean {
         case DeclarationType.Function:
         case DeclarationType.TypeParameter:
         case DeclarationType.TypeAlias:
+        case DeclarationType.CTypeDef: // ! Cython Declaration
             return true;
 
         case DeclarationType.Parameter: {

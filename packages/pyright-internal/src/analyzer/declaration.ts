@@ -12,6 +12,8 @@
 import { Range } from '../common/textRange';
 import {
     ClassNode,
+    CTypeDefNode,
+    CTypeNode,
     ExpressionNode,
     FunctionNode,
     ImportAsNode,
@@ -41,6 +43,8 @@ export const enum DeclarationType {
     Class,
     SpecialBuiltInClass,
     Alias,
+    // ! Cython
+    CTypeDef,
 }
 
 export type IntrinsicType = 'Any' | 'str' | 'str | None' | 'int' | 'Iterable[str]' | 'class' | 'Dict[str, Any]';
@@ -67,6 +71,9 @@ export interface DeclarationBase {
     // The declaration is within an except clause of a try
     // statement. We may want to ignore such declarations.
     isInExceptSuite: boolean;
+
+    // ! Cython Declaratiom
+    cTypeNode?: CTypeNode;
 }
 
 export interface IntrinsicDeclaration extends DeclarationBase {
@@ -228,6 +235,12 @@ export interface ModuleLoaderActions {
     implicitImports?: Map<string, ModuleLoaderActions>;
 }
 
+// ! Cython
+export interface CTypeDefDeclaration extends DeclarationBase {
+    type: DeclarationType.CTypeDef;
+    node: CTypeDefNode;
+}
+
 export type Declaration =
     | IntrinsicDeclaration
     | ClassDeclaration
@@ -237,7 +250,9 @@ export type Declaration =
     | TypeParameterDeclaration
     | TypeAliasDeclaration
     | VariableDeclaration
-    | AliasDeclaration;
+    | AliasDeclaration
+    // ! Cython
+    | CTypeDefDeclaration;
 
 export function isFunctionDeclaration(decl: Declaration): decl is FunctionDeclaration {
     return decl.type === DeclarationType.Function;
@@ -273,4 +288,10 @@ export function isSpecialBuiltInClassDeclaration(decl: Declaration): decl is Spe
 
 export function isIntrinsicDeclaration(decl: Declaration): decl is IntrinsicDeclaration {
     return decl.type === DeclarationType.Intrinsic;
+}
+
+// ! Cython Declaration
+
+export function isCTypeDefDeclaration(decl: Declaration): decl is CTypeDefDeclaration {
+    return decl.type === DeclarationType.CTypeDef;
 }

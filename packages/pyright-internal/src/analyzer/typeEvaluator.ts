@@ -37,6 +37,7 @@ import {
     CaseNode,
     ClassNode,
     ConstantNode,
+    CTypeDefNode,
     DecoratorNode,
     DictionaryNode,
     ExceptNode,
@@ -17334,6 +17335,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 // so there's nothing we can evaluate here.
                 return;
             }
+
+            // ! Cython
+            if (node.parent.nodeType === ParseNodeType.CTypeDef && node.parent.name === node) {
+                getTypeOfTypeAlias(CTypeDefNode.alias(node.parent));
+                return;
+            }
         }
 
         // If the expression is part of a type annotation, we need to evaluate
@@ -18995,6 +19002,13 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
             case DeclarationType.Alias: {
                 return undefined;
+            }
+
+            // ! Cython Declaration
+            case DeclarationType.CTypeDef: {
+                const type = getTypeOfTypeAlias(CTypeDefNode.alias(declaration.node));
+                type.cTypeNode = declaration.cTypeNode;
+                return type;
             }
         }
     }

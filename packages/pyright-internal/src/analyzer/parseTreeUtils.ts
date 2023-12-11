@@ -824,6 +824,11 @@ export function getTypeVarScopeNode(node: ParseNode): TypeParameterScopeNode {
             case ParseNodeType.TypeAlias: {
                 return curNode;
             }
+
+            // ! Cython
+            case ParseNodeType.CTypeDef: {
+                return curNode;
+            }
         }
 
         prevNode = curNode;
