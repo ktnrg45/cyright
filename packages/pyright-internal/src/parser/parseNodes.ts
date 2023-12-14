@@ -148,6 +148,8 @@ export interface ParseNodeBase extends TextRange {
     // to detect long chains of operations that can result in
     // stack overflows during evaluation.
     maxChildDepth?: number;
+
+    typeNode?: CTypeNode; // ! Cython
 }
 
 let _nextNodeId = 1;
@@ -2416,6 +2418,7 @@ export namespace CTypeNode {
             fullValue: '',
         };
         name.parent = node;
+        name.typeNode = node;
         extendRange(node, name);
         if (operators.length > 0) {
             extendRange(node, operators[operators.length - 1]);
@@ -2434,8 +2437,6 @@ export interface CTypeDefNode extends ParseNodeBase {
 
 export namespace CTypeDefNode {
     export function create(typeDefToken: KeywordToken, typeNode: CTypeNode, name: NameNode) {
-        const aliasNode = TypeAliasNode.create(typeDefToken, { ...name }, { ...typeNode });
-
         const node: CTypeDefNode = {
             start: typeDefToken.start,
             length: typeDefToken.length,
@@ -2445,7 +2446,6 @@ export namespace CTypeDefNode {
             name: name,
             typeNode: typeNode,
         };
-        aliasNode.id = node.id;
         extendRange(node, name);
         typeNode.parent = node;
         name.parent = node;

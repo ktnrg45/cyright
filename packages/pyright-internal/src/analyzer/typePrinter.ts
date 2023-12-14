@@ -248,7 +248,9 @@ export function printType(
 
             case TypeCategory.Class: {
                 if (TypeBase.isInstance(type)) {
-                    if (type.literalValue !== undefined) {
+                    // ! Cython
+                    // Don't Print literals for cython types
+                    if (!type.cTypeNode && type.literalValue !== undefined) {
                         return `Literal[${printLiteralValue(type)}]`;
                     }
 
@@ -584,7 +586,8 @@ export function printObjectTypeForClass(
     recursionTypes: Type[] = [],
     recursionCount = 0
 ): string {
-    let objName = type.aliasName || type.details.name;
+    // ! Cython
+    let objName = type.cTypeNode?.fullValue || type.aliasName || type.details.name;
 
     // If this is a pseudo-generic class, don't display the type arguments
     // or type parameters because it will confuse users.

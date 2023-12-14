@@ -690,6 +690,13 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         expectedType?: Type,
         allowSpeculativeCaching = false
     ) {
+        // ! Cython
+        // TODO: Right place for this?
+        if (node.typeNode) {
+            // Copy type and add typeNode
+            type = TypeBase.cloneType(type);
+            type.cTypeNode = node.typeNode;
+        }
         if (isIncomplete) {
             if (incompleteTypeCache) {
                 incompleteTypeCache.set(node.id, type);

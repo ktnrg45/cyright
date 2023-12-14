@@ -433,6 +433,8 @@ export class Parser {
         switch (this._peekKeywordType()) {
             case KeywordType.Ctypedef:
                 return this._parseCTypeDef();
+            case KeywordType.Cdef:
+                return this._parseCDef();
         }
 
         return this._parseSimpleStatement();
@@ -5060,6 +5062,12 @@ export class Parser {
 
     // ! Cython
 
+    private _pushStatements(statements: StatementListNode, node: ParseNode) {
+        statements.statements.push(node);
+        node.parent = statements;
+        extendRange(statements, node);
+    }
+
     private _keywordToIdentifier(token: KeywordToken) {
         const keywordText = this._fileContents!.substr(token.start, token.length);
         return IdentifierToken.create(token.start, token.length, keywordText, token.comments);
@@ -5103,6 +5111,34 @@ export class Parser {
         statements.statements.push(node);
         extendRange(statements, node);
         node.parent = statements;
+        return statements;
+    }
+
+    // parse cdef statement; line starting with `cdef`
+    private _parseCDef() {
+        const cdefToken = this._getKeywordToken(KeywordType.Cdef);
+
+        // TODO: parse structs, extern, cdef suite
+        const typeNode = this._parseCType();
+        let node: ExpressionNode = ErrorNode.create(cdefToken, ErrorExpressionCategory.InvalidDeclaration);
+
+        if (typeNode.nodeType !== ParseNodeType.Error) {
+            const ident = this._getTokenIfIdentifier();
+            const name = ident ? NameNode.create(ident) : undefined;
+            if (name) {
+                // TODO: parse type suffixes
+                // TODO: parse possible function decl
+                node = TypeAnnotationNode.create(name, typeNode.name);
+                if (this._consumeTokenIfOperator(OperatorType.Assign)) {
+                    node = this._parseChainAssignments(node);
+                }
+                name.typeNode = typeNode;
+            }
+        } else {
+            node = typeNode;
+        }
+        const statements = StatementListNode.create(cdefToken);
+        this._pushStatements(statements, node);
         return statements;
     }
 
