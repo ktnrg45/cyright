@@ -5090,18 +5090,24 @@ export class Parser {
         node.operators.forEach((op) => {
             value += this._rangeText(op);
         });
+        const trailers: string[] = [];
+        node.trailers.forEach((tr) => {
+            trailers.push(this._rangeText(tr));
+        });
+        if (trailers.length > 0) {
+            value += `[${trailers.join(', ')}]`
+        }
         node.fullValue = value;
     }
 
     // ctypedef type mytype
     private _parseCTypeDef() {
         const typeDefToken = this._getKeywordToken(KeywordType.Ctypedef);
-        let node = this._parseCType(/*allowReference*/ false);
+        let node = this._parseCType();
         if (node.nodeType === ParseNodeType.CType) {
-            const token = this._getTokenIfIdentifier();
-            if (token) {
-                const name = NameNode.create(token);
-                return CTypeDefNode.create(typeDefToken, node, name);
+            const nameOrError = this._parseCVarName(node, /*allowReference*/ false);
+            if (nameOrError.nodeType === ParseNodeType.Name) {
+                return CTypeDefNode.create(typeDefToken, node, nameOrError);
             }
             this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
             node = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration, node);
@@ -5123,16 +5129,15 @@ export class Parser {
         let node: ExpressionNode = ErrorNode.create(cdefToken, ErrorExpressionCategory.InvalidDeclaration);
 
         if (typeNode.nodeType !== ParseNodeType.Error) {
-            const ident = this._getTokenIfIdentifier();
-            const name = ident ? NameNode.create(ident) : undefined;
-            if (name) {
-                // TODO: parse type suffixes
-                // TODO: parse possible function decl
-                node = TypeAnnotationNode.create(name, typeNode.name);
+            const nameOrError = this._parseCVarName(typeNode, /*allowReference*/ true);
+            if (nameOrError.nodeType === ParseNodeType.Name) {
+                node = TypeAnnotationNode.create(nameOrError, typeNode.name);
                 if (this._consumeTokenIfOperator(OperatorType.Assign)) {
                     node = this._parseChainAssignments(node);
                 }
-                name.typeNode = typeNode;
+                nameOrError.typeNode = typeNode;
+            } else {
+                node = nameOrError;
             }
         } else {
             node = typeNode;
@@ -5142,16 +5147,119 @@ export class Parser {
         return statements;
     }
 
+    private _parseCVarTrailer(node: CTypeNode) {
+        const startOfTrailerToken = this._peekToken();
+        if (this._consumeTokenIfType(TokenType.OpenBracket)) {
+            // Is it an index operator?
+
+            // This is an unfortunate hack that's necessary to accommodate 'Literal'
+            // and 'Annotated' type annotations properly. We need to suspend treating
+            // strings as type annotations within a Literal or Annotated subscript.
+            const wasParsingIndexTrailer = this._isParsingIndexTrailer;
+            const wasParsingTypeAnnotation = this._isParsingTypeAnnotation;
+
+            // if (
+            //     this._isTypingAnnotation(atomExpression, 'Literal') ||
+            //     this._isTypingAnnotation(atomExpression, 'Annotated')
+            // ) {
+            //     this._isParsingTypeAnnotation = false;
+            // }
+
+            this._isParsingIndexTrailer = true;
+            const subscriptList = this._parseSubscriptList();
+            this._isParsingTypeAnnotation = wasParsingTypeAnnotation;
+            this._isParsingIndexTrailer = wasParsingIndexTrailer;
+
+            const closingToken = this._peekToken();
+            // TODO: add newnodetype
+            const indexNode = IndexNode.create(
+                node.name,
+                subscriptList.list,
+                subscriptList.trailingComma,
+                closingToken
+            );
+            extendRange(indexNode, indexNode);
+            node.trailers = indexNode.items;
+
+            if (!this._consumeTokenIfType(TokenType.CloseBracket)) {
+                // Handle the error case, but don't use the error node in this
+                // case because it creates problems for the completion provider.
+                this._handleExpressionParseError(
+                    ErrorExpressionCategory.MissingIndexCloseBracket,
+                    Localizer.Diagnostic.expectedCloseBracket(),
+                    startOfTrailerToken,
+                    indexNode
+                );
+            }
+
+            // atomExpression = indexNode;
+
+            // if (atomExpression.maxChildDepth !== undefined && atomExpression.maxChildDepth >= maxChildNodeDepth) {
+            //     atomExpression = ErrorNode.create(atomExpression, ErrorExpressionCategory.MaxDepthExceeded);
+            //     this._addError(Localizer.Diagnostic.maxParseDepthExceeded(), atomExpression);
+            // }
+        }
+    }
+
+    // parse from ptr or ref and name only; `**name`
+    private _parseCVarName(typeNode: CTypeNode, allowReference = false) {
+        const operators: OperatorToken[] = [];
+        const operatorsAllowed = [OperatorType.Multiply, OperatorType.Power, OperatorType.BitwiseAnd];
+        const errorNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration);
+        const stopTypes = [
+            TokenType.Dedent,
+            TokenType.Indent,
+            TokenType.Invalid,
+            TokenType.NewLine,
+            TokenType.EndOfStream,
+        ];
+        let name: NameNode | undefined = undefined;
+
+        while (!stopTypes.includes(this._peekTokenType()) && !name) {
+            const token = this._getNextToken();
+            const idToken = token as IdentifierToken;
+            const opToken = token as OperatorToken;
+
+            switch (token.type) {
+                case TokenType.Operator: {
+                    if (operatorsAllowed.includes(opToken.operatorType)) {
+                        if (!allowReference && opToken.operatorType === OperatorType.BitwiseAnd) {
+                            this._addError(Localizer.DiagnosticCython.referenceNotAllowed(), opToken);
+                            return errorNode;
+                        }
+                        operators.push(opToken);
+                    } else {
+                        this._addError(Localizer.Diagnostic.expectedIdentifier(), token);
+                        return errorNode;
+                    }
+                    break;
+                }
+                case TokenType.Identifier: {
+                    name = NameNode.create(idToken);
+                    break;
+                }
+            }
+        }
+
+        if (!name) {
+            this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
+            return errorNode;
+        }
+        typeNode.operators.push(...operators);
+        name.typeNode = typeNode;
+        this._parseCVarTrailer(name.typeNode);
+        this._setCTypeFullValue(name.typeNode);
+        return name;
+    }
+
     private _parseCType(allowReference = false, allowInline = false) {
         // TODO: Templates, callback functions
         const identifiers: IdentifierToken[] = [];
         const modifiers: KeywordToken[] = [];
         const numModifiers: IdentifierToken[] = [];
-        const operators: OperatorToken[] = [];
         let longCount = 0;
         const errorNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration);
 
-        const operatorsAllowed = [OperatorType.Multiply, OperatorType.Power, OperatorType.BitwiseAnd];
         const stopTypes = [
             TokenType.Dedent,
             TokenType.Indent,
@@ -5164,7 +5272,6 @@ export class Parser {
             const token = this._getNextToken();
             const kwToken = token as KeywordToken;
             const idToken = token as IdentifierToken;
-            const opToken = token as OperatorToken;
 
             switch (token.type) {
                 case TokenType.Keyword:
@@ -5179,8 +5286,8 @@ export class Parser {
                             );
                             return errorNode;
                         }
-                        if (numModifiers.length > 0 || operators.length > 0 || identifiers.length > 0) {
-                            // varModifier after numModifier, operator, identifier
+                        if (numModifiers.length > 0 || identifiers.length > 0) {
+                            // varModifier after numModifier, identifier
                             this._addError(Localizer.Diagnostic.expectedIdentifier(), kwToken);
                             return errorNode;
                         }
@@ -5209,15 +5316,6 @@ export class Parser {
                         }
                         modifiers.push(kwToken);
                     } else if (numericModifiers.includes(kwToken.keywordType)) {
-                        if (operators.length > 0 || identifiers.length > 0) {
-                            this._addError(
-                                Localizer.DiagnosticCython.modifierNotAllowed().format({
-                                    name: this._rangeText(kwToken),
-                                }),
-                                kwToken
-                            );
-                            return errorNode;
-                        }
                         numModifiers.push(this._keywordToIdentifier(kwToken));
                         if (kwToken.keywordType === KeywordType.Long) {
                             longCount++;
@@ -5231,16 +5329,7 @@ export class Parser {
                 case TokenType.Identifier:
                     identifiers.push(idToken);
                     break;
-                case TokenType.Operator:
-                    if (operatorsAllowed.includes(opToken.operatorType)) {
-                        if (!allowReference && opToken.operatorType === OperatorType.BitwiseAnd) {
-                            this._addError(Localizer.DiagnosticCython.referenceNotAllowed(), opToken);
-                            return errorNode;
-                        }
-                        operators.push(opToken);
-                    }
-                    break;
-                // TODO: Template types
+
                 default:
                     // TODO: unhandled error
                     return errorNode;
@@ -5259,6 +5348,9 @@ export class Parser {
             const compoundTypeSuffixes = ['int', 'complex'];
             const longTypes = ['int', 'short', 'double', 'complex']; // Types that can be prefixed with long
 
+            if (nextOp) {
+                break;
+            }
             if (nextKeyword && nextKeyword === KeywordType.Long) {
                 if (identifiers.length > 0) {
                     // `long` cannot follow an identifier
@@ -5268,11 +5360,8 @@ export class Parser {
                 continue;
             }
 
-            if (operators.length > 0 && !nextOp) {
-                // Seen an operator and next token is not an operator
-                break;
-            } else if (identifiers.length >= 2 && !nextOp) {
-                // Compound Type. Stop if not followed by operator
+            if (identifiers.length >= 2) {
+                // Compound Type
                 break;
             }
 
@@ -5310,8 +5399,8 @@ export class Parser {
 
         if (identifiers.length > 0) {
             const name = NameNode.create(identifiers[identifiers.length - 1]);
-            const node = CTypeNode.create(name, modifiers, numModifiers, operators);
-            this._setCTypeFullValue(node);
+            const node = CTypeNode.create(name, modifiers, numModifiers, []);
+            this._setCTypeFullValue(node); // TODO: Remove or keep?
             return node;
         }
         return errorNode;

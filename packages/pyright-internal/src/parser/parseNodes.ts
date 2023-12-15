@@ -2396,6 +2396,7 @@ export interface CTypeNode extends ParseNodeBase {
     varModifiers: KeywordToken[];
     numModifiers: IdentifierToken[];
     operators: OperatorToken[]; // *(Pointer), &(Address Of)
+    trailers: ParseNode[];
     fullValue: string;
 }
 
@@ -2404,7 +2405,8 @@ export namespace CTypeNode {
         name: NameNode,
         varModifiers: KeywordToken[],
         numModifiers: IdentifierToken[],
-        operators: OperatorToken[]
+        operators: OperatorToken[],
+        trailers: ParseNode[] = []
     ) {
         const node: CTypeNode = {
             start: name.start,
@@ -2415,6 +2417,7 @@ export namespace CTypeNode {
             varModifiers: varModifiers,
             numModifiers: numModifiers,
             operators: operators,
+            trailers: trailers,
             fullValue: '',
         };
         name.parent = node;
@@ -2422,6 +2425,9 @@ export namespace CTypeNode {
         extendRange(node, name);
         if (operators.length > 0) {
             extendRange(node, operators[operators.length - 1]);
+        }
+        if (trailers.length > 0) {
+            extendRange(node, trailers[trailers.length - 1]);
         }
         return node;
     }
