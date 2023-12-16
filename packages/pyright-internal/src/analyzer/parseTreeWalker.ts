@@ -23,6 +23,8 @@ import {
     ContinueNode,
     CTypeDefNode,
     CTypeNode,
+    CTypeTrailNode,
+    CVarTrailNode,
     DecoratorNode,
     DelNode,
     DictionaryExpandEntryNode,
@@ -380,6 +382,10 @@ export class ParseTreeWalker {
                 return this.visitCTypeDef(node) ? [node.name, node.typeNode] : [];
             case ParseNodeType.CType:
                 return this.visitCType(node) ? [node.name] : [];
+            case ParseNodeType.CVarTrail:
+                return this.visitCVarTrail(node) ? node.nodes : [];
+            case ParseNodeType.CTypeTrail:
+                return this.visitCTypeTrail(node) ? node.nodes : [];
         }
     }
 
@@ -702,6 +708,14 @@ export class ParseTreeWalker {
     }
 
     visitCType(node: CTypeNode) {
+        return true;
+    }
+
+    visitCVarTrail(node: CVarTrailNode) {
+        return true;
+    }
+
+    visitCTypeTrail(node: CTypeTrailNode) {
         return true;
     }
 }

@@ -1310,5 +1310,10 @@ export namespace Localizer {
         export const referenceNotAllowed = () => getRawString('DiagnosticCython.referenceNotAllowed');
         export const modifierNotAllowed = () =>
             new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.modifierNotAllowed'));
+        export const expectedIndexOrIdentifier = () => getRawString('DiagnosticCython.expectedIndexOrIdentifier');
+        export const trailingCommaNotAllowed = () => getRawString('DiagnosticCython.trailingCommaNotAllowed');
+        export const viewExpectedSlice = () => getRawString('DiagnosticCython.viewExpectedSlice');
+        export const viewSliceInvalid = () => getRawString('DiagnosticCython.viewSliceInvalid');
+        export const viewSliceStepInvalid = () => getRawString('DiagnosticCython.viewSliceStepInvalid');
     }
 }

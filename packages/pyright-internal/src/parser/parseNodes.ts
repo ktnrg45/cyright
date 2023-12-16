@@ -112,6 +112,8 @@ export const enum ParseNodeType {
     // ! Cython
     CTypeDef,
     CType,
+    CVarTrail,
+    CTypeTrail,
 }
 
 export const enum ErrorExpressionCategory {
@@ -2396,8 +2398,9 @@ export interface CTypeNode extends ParseNodeBase {
     varModifiers: KeywordToken[];
     numModifiers: IdentifierToken[];
     operators: OperatorToken[]; // *(Pointer), &(Address Of)
-    trailers: ParseNode[];
     fullValue: string;
+    typeTrailNode?: CTypeTrailNode;
+    varTrailNode?: CVarTrailNode;
 }
 
 export namespace CTypeNode {
@@ -2405,8 +2408,7 @@ export namespace CTypeNode {
         name: NameNode,
         varModifiers: KeywordToken[],
         numModifiers: IdentifierToken[],
-        operators: OperatorToken[],
-        trailers: ParseNode[] = []
+        operators: OperatorToken[]
     ) {
         const node: CTypeNode = {
             start: name.start,
@@ -2417,7 +2419,6 @@ export namespace CTypeNode {
             varModifiers: varModifiers,
             numModifiers: numModifiers,
             operators: operators,
-            trailers: trailers,
             fullValue: '',
         };
         name.parent = node;
@@ -2425,9 +2426,6 @@ export namespace CTypeNode {
         extendRange(node, name);
         if (operators.length > 0) {
             extendRange(node, operators[operators.length - 1]);
-        }
-        if (trailers.length > 0) {
-            extendRange(node, trailers[trailers.length - 1]);
         }
         return node;
     }
@@ -2462,6 +2460,87 @@ export namespace CTypeDefNode {
         aliasNode.id = node.id;
         aliasNode.parent = node.parent;
         return aliasNode;
+    }
+}
+
+export const enum CTrailType {
+    None,
+    Buffer,
+    View,
+    Template,
+}
+
+export interface CTypeTrailNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CTypeTrail;
+    nodes: ParseNode[];
+    startToken: Token;
+    endToken?: Token;
+    isValid: boolean;
+    trailType: CTrailType;
+}
+
+export namespace CTypeTrailNode {
+    export function create(
+        startToken: Token,
+        nodes: ParseNode[],
+        trailType: CTrailType,
+        isValid: boolean,
+        endToken?: Token
+    ) {
+        const node: CTypeTrailNode = {
+            start: startToken.start,
+            length: startToken.length,
+            nodeType: ParseNodeType.CTypeTrail,
+            id: _nextNodeId++,
+            nodes: nodes,
+            startToken: startToken,
+            endToken: endToken,
+            isValid: isValid,
+            trailType: trailType,
+        };
+        if (nodes.length > 0) {
+            extendRange(node, nodes[nodes.length - 1]);
+        }
+        if (endToken) {
+            extendRange(node, endToken);
+        }
+        nodes.forEach((n) => {
+            n.parent = node;
+        });
+        return node;
+    }
+}
+
+export interface CVarTrailNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CVarTrail;
+    nodes: ParseNode[];
+    startToken: Token;
+    endToken?: Token;
+    isValid: boolean;
+}
+
+export namespace CVarTrailNode {
+    export function create(startToken: Token, nodes: ParseNode[], isValid: boolean, endToken?: Token) {
+        const node: CVarTrailNode = {
+            start: startToken.start,
+            length: startToken.length,
+            nodeType: ParseNodeType.CVarTrail,
+            id: _nextNodeId++,
+            nodes: nodes,
+            startToken: startToken,
+            endToken: endToken,
+            isValid: isValid,
+        };
+        if (nodes.length > 0) {
+            extendRange(node, nodes[nodes.length - 1]);
+        }
+        if (endToken) {
+            extendRange(node, endToken);
+        }
+        nodes.forEach((n) => {
+            n.parent = node;
+        });
+        return node;
     }
 }
 
@@ -2559,6 +2638,8 @@ export type ParseNode =
 
     // ! Cython
     | CTypeDefNode
+    | CVarTrailNode
+    | CTypeTrailNode
     | CTypeNode;
 
 export type EvaluationScopeNode = LambdaNode | FunctionNode | ModuleNode | ClassNode | ListComprehensionNode;

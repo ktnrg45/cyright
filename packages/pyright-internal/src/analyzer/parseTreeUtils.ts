@@ -1911,6 +1911,10 @@ export function printParseNodeType(type: ParseNodeType) {
             return 'TypeDef';
         case ParseNodeType.CType:
             return 'CType';
+        case ParseNodeType.CVarTrail:
+            return 'CVarTrail';
+        case ParseNodeType.CTypeTrail:
+            return 'CTypeTrail';
     }
 
     assertNever(type);
