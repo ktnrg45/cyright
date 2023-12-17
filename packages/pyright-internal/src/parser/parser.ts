@@ -5076,6 +5076,17 @@ export class Parser {
         return IdentifierToken.create(token.start, token.length, keywordText, token.comments);
     }
 
+    private _softKeywordToIdentifier(token: Token) {
+        if (token.type === TokenType.Keyword) {
+            const keywordToken = token as KeywordToken;
+            const keywordType = keywordToken.keywordType;
+            if (softKeywords.find((type) => type === keywordType)) {
+                return this._keywordToIdentifier(keywordToken);
+            }
+        }
+        return undefined;
+    }
+
     private _rangeText(range: TextRange) {
         return this._fileContents!.substr(range.start, range.length);
     }
@@ -5297,13 +5308,15 @@ export class Parser {
         const operators: OperatorToken[] = [];
         const operatorsAllowed = [OperatorType.Multiply, OperatorType.Power, OperatorType.BitwiseAnd];
         const errorNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration);
-        const validTypes = [TokenType.Identifier, TokenType.Operator];
+        const validTypes = [TokenType.Identifier, TokenType.Operator, TokenType.Keyword];
         let name: NameNode | undefined = undefined;
 
         while (validTypes.includes(this._peekTokenType()) && !name) {
             const token = this._getNextToken();
             const idToken = token as IdentifierToken;
             const opToken = token as OperatorToken;
+
+            const softKeyword = this._softKeywordToIdentifier(token);
 
             switch (token.type) {
                 case TokenType.Operator: {
@@ -5322,6 +5335,12 @@ export class Parser {
                 case TokenType.Identifier: {
                     name = NameNode.create(idToken);
                     break;
+                }
+                case TokenType.Keyword: {
+                    if (softKeyword) {
+                        name = NameNode.create(softKeyword);
+                        break;
+                    }
                 }
             }
         }
@@ -5345,18 +5364,20 @@ export class Parser {
         let longCount = 0;
         const errorNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration);
 
-        const stopTypes = [
-            TokenType.Dedent,
-            TokenType.Indent,
-            TokenType.Invalid,
-            TokenType.NewLine,
-            TokenType.EndOfStream,
-        ];
+        // const stopTypes = [
+        //     TokenType.Dedent,
+        //     TokenType.Indent,
+        //     TokenType.Invalid,
+        //     TokenType.NewLine,
+        //     TokenType.EndOfStream,
+        // ];
+        const validTypes = [TokenType.Keyword, TokenType.Identifier];
 
-        while (!stopTypes.includes(this._peekTokenType())) {
+        while (validTypes.includes(this._peekTokenType())) {
             const token = this._getNextToken();
             const kwToken = token as KeywordToken;
             const idToken = token as IdentifierToken;
+            const softKeyword = this._softKeywordToIdentifier(token);
 
             switch (token.type) {
                 case TokenType.Keyword:
@@ -5371,44 +5392,14 @@ export class Parser {
                             );
                             return errorNode;
                         }
-                        if (numModifiers.length > 0 || identifiers.length > 0) {
-                            // varModifier after numModifier, identifier
-                            this._addError(Localizer.Diagnostic.expectedIdentifier(), kwToken);
-                            return errorNode;
-                        }
-                        if (modifiers.length >= 2) {
-                            // Only two modifiers max are allowed
-                            this._addError(Localizer.Diagnostic.expectedIdentifier(), kwToken);
-                            return errorNode;
-                        }
-                        if (modifiers.length === 1) {
-                            // Verify modifiers are correct and are in correct order
-                            if (modifiers[0].keywordType === kwToken.keywordType) {
-                                // Don't allow same modifier twice
-                                this._addError(
-                                    Localizer.DiagnosticCython.modifierNotAllowed().format({
-                                        name: this._rangeText(kwToken),
-                                    }),
-                                    kwToken
-                                );
-                                return errorNode;
-                            }
-                            if (kwToken.keywordType !== KeywordType.Const) {
-                                // `const` should be last modifier
-                                this._addError(Localizer.Diagnostic.expectedIdentifier(), kwToken);
-                                return errorNode;
-                            }
-                        }
                         modifiers.push(kwToken);
                     } else if (numericModifiers.includes(kwToken.keywordType)) {
                         numModifiers.push(this._keywordToIdentifier(kwToken));
                         if (kwToken.keywordType === KeywordType.Long) {
                             longCount++;
-                            if (longCount > 2) {
-                                this._addError(Localizer.Diagnostic.expectedIdentifier(), kwToken);
-                                return errorNode;
-                            }
                         }
+                    } else if (softKeyword) {
+                        identifiers.push(softKeyword);
                     }
                     break;
                 case TokenType.Identifier:
@@ -5436,13 +5427,40 @@ export class Parser {
             if (nextOp || nextToken.type === TokenType.OpenBracket) {
                 break;
             }
-            if (nextKeyword && nextKeyword === KeywordType.Long) {
-                if (identifiers.length > 0) {
-                    // `long` cannot follow an identifier
-                    this._addError(Localizer.Diagnostic.expectedIdentifier(), this._getNextToken());
-                    return errorNode;
+
+            if (nextKeyword) {
+                if (varModifiers.includes(nextKeyword)) {
+                    if (numModifiers.length > 0 || identifiers.length > 0) {
+                        // varModifier after numModifier, identifier
+                        break;
+                    }
+                    if (modifiers.length >= 2) {
+                        // Only two modifiers max are allowed
+                        break;
+                    }
+                    if (modifiers.length === 1) {
+                        // Verify modifiers are correct and are in correct order
+                        if (modifiers[0].keywordType === nextKeyword) {
+                            // Don't allow same modifier twice
+                            break;
+                        }
+                        if (nextKeyword !== KeywordType.Const) {
+                            // `const` should be last modifier
+                            break;
+                        }
+                    }
+                } else if (numericModifiers.includes(nextKeyword)) {
+                    if (identifiers.length > 0) {
+                        // numeric modifier cannot follow an identifier
+                        break;
+                    } else if (longCount >= 2) {
+                        // Only 2 'long' tokens are allowed
+                        break;
+                    }
+                    continue;
+                } else {
+                    break;
                 }
-                continue;
             }
 
             if (identifiers.length >= 2) {
