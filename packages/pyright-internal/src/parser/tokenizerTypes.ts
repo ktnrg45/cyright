@@ -170,6 +170,7 @@ export const enum KeywordType {
     Long,
     Noexcept,
     Packed, // Only used for struct
+    Volatile,
     // Macros
     DEF,
     IF,
@@ -188,14 +189,11 @@ export const varModifiers = [
     KeywordType.Readonly,
     KeywordType.Inline,
     KeywordType.Public,
+    KeywordType.Volatile,
 ];
 
 // ! Cython
-export const numericModifiers = [
-    KeywordType.Signed,
-    KeywordType.Unsigned,
-    KeywordType.Long,
-];
+export const numericModifiers = [KeywordType.Signed, KeywordType.Unsigned, KeywordType.Long];
 
 export const softKeywords = [
     KeywordType.Debug,
@@ -217,6 +215,7 @@ export const softKeywords = [
     KeywordType.Long,
     KeywordType.Noexcept,
     KeywordType.Packed,
+    KeywordType.Volatile,
     KeywordType.Namespace,
     KeywordType.Cppclass,
     KeywordType.Operator,
