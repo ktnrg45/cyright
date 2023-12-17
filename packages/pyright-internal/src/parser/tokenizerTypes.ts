@@ -204,11 +204,23 @@ export const softKeywords = [
     KeywordType.Type,
 
     // ! Cython
-    KeywordType.Long,
-    KeywordType.Operator,
-    KeywordType.Packed,
-    KeywordType.Nogil,
+    KeywordType.Extern,
     KeywordType.Gil,
+    KeywordType.Nogil,
+    KeywordType.Include,
+    KeywordType.Inline,
+    KeywordType.Const,
+    KeywordType.Readonly,
+    KeywordType.Public,
+    KeywordType.Signed,
+    KeywordType.Unsigned,
+    KeywordType.Long,
+    KeywordType.Noexcept,
+    KeywordType.Packed,
+    KeywordType.Namespace,
+    KeywordType.Cppclass,
+    KeywordType.Operator,
+    KeywordType.New,
 ];
 
 export const enum StringTokenFlags {
