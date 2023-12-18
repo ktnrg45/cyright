@@ -2429,6 +2429,14 @@ export namespace CTypeNode {
         }
         return node;
     }
+    export function cloneForShared(node: CTypeNode) {
+        node = { ...node };
+        node.operators = [];
+        node.varTrailNode = undefined;
+        node.id = _nextNodeId++;
+        node.fullValue = '';
+        return node;
+    }
 }
 
 export interface CTypeDefNode extends ParseNodeBase {

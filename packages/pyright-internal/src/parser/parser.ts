@@ -154,6 +154,12 @@ interface SubscriptListResult {
     trailingComma: boolean;
 }
 
+// ! Cython
+interface CDeclResult {
+    node: ParseNode;
+    pointers: boolean;
+}
+
 export class ParseOptions {
     constructor() {
         this.isStubFile = false;
@@ -5065,6 +5071,17 @@ export class Parser {
 
     // ! Cython
 
+    private _addWarning(message: string, range: TextRange) {
+        assert(range !== undefined);
+
+        if (!this._areErrorsSuppressed) {
+            this._diagSink.addWarning(
+                message,
+                convertOffsetsToRange(range.start, range.start + range.length, this._tokenizerOutput!.lines)
+            );
+        }
+    }
+
     private _pushStatements(statements: StatementListNode, node: ParseNode) {
         statements.statements.push(node);
         node.parent = statements;
@@ -5138,26 +5155,117 @@ export class Parser {
     private _parseCDef() {
         const cdefToken = this._getKeywordToken(KeywordType.Cdef);
 
-        // TODO: parse structs, extern, cdef suite
-        const typeNode = this._parseCType();
-        let node: ExpressionNode = ErrorNode.create(cdefToken, ErrorExpressionCategory.InvalidDeclaration);
-
-        if (typeNode.nodeType !== ParseNodeType.Error) {
-            const nameOrError = this._parseCVarName(typeNode, /*allowReference*/ true);
-            if (nameOrError.nodeType === ParseNodeType.Name) {
-                node = TypeAnnotationNode.create(nameOrError, typeNode.name);
-                if (this._consumeTokenIfOperator(OperatorType.Assign)) {
-                    node = this._parseChainAssignments(node);
+        const token = this._peekToken();
+        const kwToken = token as KeywordToken;
+        let node: ParseNode | undefined = undefined;
+        switch (token.type) {
+            case TokenType.Identifier:
+                node = this._parseCVarDecl();
+                break;
+            case TokenType.Keyword:
+                if (varModifiers.includes(kwToken.keywordType) || numericModifiers.includes(kwToken.keywordType)) {
+                    // Var modifier (var declaration)
+                    node = this._parseCVarDecl();
                 }
-                nameOrError.typeNode = typeNode;
-            } else {
-                node = nameOrError;
-            }
-        } else {
-            node = typeNode;
+                break;
+            case TokenType.Colon:
+                // TODO: Cdef suite
+                break;
+            case TokenType.OpenParenthesis:
+                // TODO: callback function / ctuple
+                break;
+            default:
+                break;
+        }
+        if (!node) {
+            node = ErrorNode.create(cdefToken, ErrorExpressionCategory.InvalidDeclaration);
+            // TODO: Is this the right error?
+            this._addError(Localizer.Diagnostic.expectedIdentifier(), token);
         }
         const statements = StatementListNode.create(cdefToken);
         this._pushStatements(statements, node);
+        return statements;
+    }
+
+    private _parseSharedDecl(typeNode: CTypeNode) {
+        let leftExpr: ExpressionNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration);
+        const nameOrError = this._parseCVarName(typeNode, /*allowReference*/ false);
+        const result: CDeclResult = { node: leftExpr, pointers: false };
+
+        if (nameOrError.nodeType === ParseNodeType.Name) {
+            leftExpr = TypeAnnotationNode.create(nameOrError, typeNode.name);
+            nameOrError.typeNode = typeNode;
+            result.pointers = typeNode.operators.length > 0;
+        } else {
+            leftExpr = nameOrError;
+        }
+        if (leftExpr.nodeType !== ParseNodeType.TypeAnnotation) {
+            result.node = leftExpr;
+            return result;
+        }
+
+        if (this._consumeTokenIfOperator(OperatorType.Assign)) {
+            const exprListResult = this._parseExpressionListGeneric(
+                /*parser*/ () => this._parseTestOrStarExpression(/*allowAssignmentExpression*/ false),
+                /*terminalCheck*/ () => this._isNextTokenNeverExpression(),
+                /*finalEntryCheck*/ () => true // ! Parse one item. Needed to ignore a comma/prevent list parse.
+            );
+            if (exprListResult.parseError) {
+                result.node = exprListResult.parseError;
+                return result;
+            }
+            const rightExpr = this._makeExpressionOrTuple(exprListResult, /* enclosedInParens */ false);
+
+            if (rightExpr.nodeType === ParseNodeType.Error) {
+                result.node = AssignmentNode.create(leftExpr, rightExpr);
+                return result;
+            }
+
+            const assignmentNode = AssignmentNode.create(leftExpr, rightExpr);
+
+            // Look for a type annotation comment at the end of the line.
+            const typeAnnotationComment = this._parseVariableTypeAnnotationComment();
+            if (typeAnnotationComment) {
+                assignmentNode.typeAnnotationComment = typeAnnotationComment;
+                assignmentNode.typeAnnotationComment.parent = assignmentNode;
+                extendRange(assignmentNode, assignmentNode.typeAnnotationComment);
+            }
+            result.node = assignmentNode;
+            return result;
+        }
+        result.node = leftExpr;
+        return result;
+    }
+
+    private _parseCVarDecl() {
+        const startToken = this._peekToken();
+        const typeNode = this._parseCType();
+        const nodes: ParseNode[] = [];
+        let hasPointers = false;
+
+        if (typeNode.nodeType !== ParseNodeType.Error) {
+            let result = this._parseSharedDecl(typeNode);
+            nodes.push(result.node);
+            if (result.pointers) {
+                hasPointers = true;
+            }
+            while (this._consumeTokenIfType(TokenType.Comma)) {
+                result = this._parseSharedDecl(CTypeNode.cloneForShared(typeNode));
+                nodes.push(result.node);
+                if (result.pointers) {
+                    hasPointers = true;
+                }
+            }
+        } else {
+            nodes.push(typeNode);
+        }
+        const statements = StatementListNode.create(startToken);
+        nodes.forEach((n) => {
+            this._pushStatements(statements, n);
+        });
+        if (nodes.length > 1 && hasPointers) {
+            this._addWarning(Localizer.DiagnosticCython.pointersInSharedDecl(), statements);
+        }
         return statements;
     }
 
@@ -5296,7 +5404,7 @@ export class Parser {
                 error = true;
             }
         }
-        if (!error) {
+        if (!error && openBracket.type === TokenType.OpenBracket) {
             const trailNode = CVarTrailNode.create(startOfTrailerToken, trailNodes, !error, closingToken);
             node.varTrailNode = trailNode;
             trailNode.parent = node;
@@ -5364,13 +5472,6 @@ export class Parser {
         let longCount = 0;
         const errorNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration);
 
-        // const stopTypes = [
-        //     TokenType.Dedent,
-        //     TokenType.Indent,
-        //     TokenType.Invalid,
-        //     TokenType.NewLine,
-        //     TokenType.EndOfStream,
-        // ];
         const validTypes = [TokenType.Keyword, TokenType.Identifier];
 
         while (validTypes.includes(this._peekTokenType())) {
