@@ -1316,5 +1316,6 @@ export namespace Localizer {
         export const viewSliceInvalid = () => getRawString('DiagnosticCython.viewSliceInvalid');
         export const viewSliceStepInvalid = () => getRawString('DiagnosticCython.viewSliceStepInvalid');
         export const pointersInSharedDecl = () => getRawString('DiagnosticCython.pointersInSharedDecl');
+        export const arrayDeclarationNotAllowed = () => getRawString('DiagnosticCython.arrayDeclarationNotAllowed');
     }
 }

@@ -5108,6 +5108,25 @@ export class Parser {
         return this._fileContents!.substr(range.start, range.length);
     }
 
+    private _expectNewLine() {
+        const nextToken = this._peekTokenType();
+        const valid = [TokenType.NewLine, TokenType.EndOfStream];
+        let error = false;
+        if (!valid.includes(nextToken)) {
+            if (this._consumeTokenIfType(TokenType.Semicolon)) {
+                if (!valid.includes(this._peekTokenType())) {
+                    error = true;
+                }
+            } else {
+                error = true;
+            }
+        }
+        if (error) {
+            this._addError(Localizer.Diagnostic.expectedNewline(), this._peekToken());
+            this._consumeTokensUntilType(valid);
+        }
+    }
+
     private _setCTypeFullValue(node: CTypeNode) {
         const items: string[] = [];
         node.varModifiers.forEach((mod) => {
@@ -5126,7 +5145,11 @@ export class Parser {
             value += this._rangeText(node.typeTrailNode);
         }
         if (node.varTrailNode?.isValid) {
-            value += this._rangeText(node.varTrailNode);
+            if (node.typeTrailNode && node.typeTrailNode.trailType !== CTrailType.Template) {
+                this._addError(Localizer.DiagnosticCython.arrayDeclarationNotAllowed(), node.varTrailNode);
+            } else {
+                value += this._rangeText(node.varTrailNode);
+            }
         }
         node.fullValue = value;
     }
@@ -5138,6 +5161,7 @@ export class Parser {
         if (node.nodeType === ParseNodeType.CType) {
             const nameOrError = this._parseCVarName(node, /*allowReference*/ false);
             if (nameOrError.nodeType === ParseNodeType.Name) {
+                this._expectNewLine();
                 return CTypeDefNode.create(typeDefToken, node, nameOrError);
             }
             this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
@@ -5266,6 +5290,7 @@ export class Parser {
         if (nodes.length > 1 && hasPointers) {
             this._addWarning(Localizer.DiagnosticCython.pointersInSharedDecl(), statements);
         }
+        this._expectNewLine();
         return statements;
     }
 

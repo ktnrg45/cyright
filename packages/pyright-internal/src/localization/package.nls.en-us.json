@@ -663,6 +663,7 @@
         "viewExpectedSlice": "Expected a slice argument for memory view",
         "viewSliceInvalid": "Axis specification only allowed in the \"step\" slot for memory view",
         "viewSliceStepInvalid": "Slice \"Step\" must be omitted, 1, or a valid specifier for memory view",
-        "pointersInSharedDecl": "Non-trivial type declarators in shared declaration (e.g. mix of pointers and values). Each pointer declaration should be on its own line."
+        "pointersInSharedDecl": "Non-trivial type declarators in shared declaration (e.g. mix of pointers and values). Each pointer declaration should be on its own line.",
+        "arrayDeclarationNotAllowed": "Array declaration not allowed in this context"
     }
 }
