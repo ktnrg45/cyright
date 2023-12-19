@@ -1917,6 +1917,8 @@ export function printParseNodeType(type: ParseNodeType) {
             return 'CTypeTrail';
         case ParseNodeType.CDefSuite:
             return 'CDefSuite';
+        case ParseNodeType.CExtern:
+            return 'CExtern';
     }
 
     assertNever(type);

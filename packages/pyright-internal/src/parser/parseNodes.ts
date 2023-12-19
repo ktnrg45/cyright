@@ -115,6 +115,7 @@ export const enum ParseNodeType {
     CVarTrail,
     CTypeTrail,
     CDefSuite,
+    CExtern,
 }
 
 export const enum ErrorExpressionCategory {
@@ -684,7 +685,8 @@ export type StatementNode =
 
     // ! Cython
     | CTypeDefNode
-    | CDefSuiteNode;
+    | CDefSuiteNode
+    | CExternNode;
 
 export type SmallStatementNode =
     | ExpressionNode
@@ -2561,7 +2563,7 @@ export interface CDefSuiteNode extends ParseNodeBase {
 }
 
 export namespace CDefSuiteNode {
-    export function create(startToken: Token, nogil?: boolean) {
+    export function create(startToken: Token) {
         const statements = StatementListNode.create(startToken);
         const node: CDefSuiteNode = {
             start: startToken.start,
@@ -2569,10 +2571,31 @@ export namespace CDefSuiteNode {
             nodeType: ParseNodeType.CDefSuite,
             id: _nextNodeId++,
             statements: statements,
-            nogil: nogil,
         };
         statements.parent = node;
 
+        return node;
+    }
+}
+
+export interface CExternNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CExtern;
+    suite: CDefSuiteNode;
+    fileNameToken?: StringToken | OperatorToken;
+    nameSpaceToken?: StringToken;
+}
+
+export namespace CExternNode {
+    export function create(startToken: Token, suite: CDefSuiteNode) {
+        const node: CExternNode = {
+            start: startToken.start,
+            length: startToken.length,
+            nodeType: ParseNodeType.CExtern,
+            id: _nextNodeId++,
+            suite: suite,
+        };
+        suite.parent = node;
+        extendRange(node, suite);
         return node;
     }
 }
@@ -2674,7 +2697,8 @@ export type ParseNode =
     | CVarTrailNode
     | CTypeTrailNode
     | CTypeNode
-    | CDefSuiteNode;
+    | CDefSuiteNode
+    | CExternNode;
 
 export type EvaluationScopeNode = LambdaNode | FunctionNode | ModuleNode | ClassNode | ListComprehensionNode;
 export type ExecutionScopeNode = LambdaNode | FunctionNode | ModuleNode;

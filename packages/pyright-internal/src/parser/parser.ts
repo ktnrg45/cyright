@@ -37,6 +37,7 @@ import {
     CallNode,
     CaseNode,
     CDefSuiteNode,
+    CExternNode,
     ClassNode,
     ConstantNode,
     ContinueNode,
@@ -5192,11 +5193,13 @@ export class Parser {
                     // Var modifier (var declaration)
                     node = this._parseCVarDecl();
                 } else if (kwToken.keywordType === KeywordType.Nogil) {
-                    return this._parseCDefSuite(cdefToken);
+                    return this._parseCDefSuite(cdefToken, /*nogil*/true);
+                } else if (kwToken.keywordType === KeywordType.Extern) {
+                    return this._parseExtern(cdefToken);
                 }
                 break;
             case TokenType.Colon:
-                return this._parseCDefSuite(cdefToken);
+                return this._parseCDefSuite(cdefToken, /*nogil*/true);
             case TokenType.OpenParenthesis:
                 // TODO: callback function / ctuple
                 break;
@@ -5638,9 +5641,9 @@ export class Parser {
         return errorNode;
     }
 
-    private _parseCDefSuite(token: Token, nogil?: boolean) {
-        const node = CDefSuiteNode.create(token, nogil);
-        if (this._consumeTokenIfKeyword(KeywordType.Nogil)) {
+    private _parseCDefSuite(token: Token, nogil?: boolean, isExtern?: boolean) {
+        const node = CDefSuiteNode.create(token);
+        if (nogil && this._consumeTokenIfKeyword(KeywordType.Nogil)) {
             node.nogil = true;
         }
         if (!this._consumeTokenIfType(TokenType.Colon)) {
@@ -5658,13 +5661,61 @@ export class Parser {
         }
         const stopTypes = [TokenType.Dedent, TokenType.Indent, TokenType.NewLine];
         while (!stopTypes.includes(this._peekTokenType())) {
-            const decl = this._parseCVarDecl();
-            this._pushStatements(node.statements, decl);
+            if (isExtern && this._peekTokenType() === TokenType.String) {
+                const stringNode = this._makeStringNode(this._getNextToken() as StringToken);
+                this._pushStatements(node.statements, stringNode);
+            } else {
+                const decl = this._parseCVarDecl();
+                this._pushStatements(node.statements, decl);
+            }
             this._expectNewLine();
             this._consumeTokenIfType(TokenType.NewLine);
         }
         this._consumeTokenIfType(TokenType.Dedent);
         extendRange(node, node.statements);
+        return node;
+    }
+    private _parseExtern(token: Token) {
+        let error = false;
+        let fileNameToken: StringToken | OperatorToken | undefined = undefined;
+        let nameSpaceToken: StringToken | undefined = undefined;
+        if (!this._consumeTokenIfKeyword(KeywordType.Extern)) {
+            this._addError(Localizer.DiagnosticCython.expectedExtern(), this._peekToken());
+            error = true;
+        }
+        if (!error && !this._consumeTokenIfKeyword(KeywordType.From)) {
+            this._addError(Localizer.DiagnosticCython.expectedFrom(), this._peekToken());
+            error = true;
+        }
+        if (!error) {
+            const maybeString = this._getTokenIfType(TokenType.String);
+            if (maybeString) {
+                fileNameToken = maybeString as StringToken;
+            }
+            if (!fileNameToken && this._peekOperatorType() === OperatorType.Multiply) {
+                fileNameToken = this._getNextToken() as OperatorToken;
+            }
+            if (!fileNameToken) {
+                this._addError(Localizer.DiagnosticCython.expectedExternFileName(), this._peekToken());
+                error = true;
+            }
+        }
+        if (!error && this._consumeTokenIfKeyword(KeywordType.Namespace)) {
+            const nextToken = this._getTokenIfType(TokenType.String);
+            if (nextToken) {
+                nameSpaceToken = nextToken as StringToken;
+            } else {
+                this._addError(Localizer.DiagnosticCython.expectedNameSpace(), this._peekToken());
+                error = true;
+            }
+        }
+        if (error) {
+            this._consumeTokensUntilType([TokenType.Colon, TokenType.NewLine]);
+        }
+        const suite = this._parseCDefSuite(this._peekToken(), /*nogil*/ true, /*isExtern*/ true);
+        const node = CExternNode.create(token, suite);
+        node.fileNameToken = fileNameToken;
+        node.nameSpaceToken = nameSpaceToken;
         return node;
     }
 }

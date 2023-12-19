@@ -1317,5 +1317,9 @@ export namespace Localizer {
         export const viewSliceStepInvalid = () => getRawString('DiagnosticCython.viewSliceStepInvalid');
         export const pointersInSharedDecl = () => getRawString('DiagnosticCython.pointersInSharedDecl');
         export const arrayDeclarationNotAllowed = () => getRawString('DiagnosticCython.arrayDeclarationNotAllowed');
+        export const expectedFrom = () => getRawString('DiagnosticCython.expectedFrom');
+        export const expectedExtern = () => getRawString('DiagnosticCython.expectedExtern');
+        export const expectedExternFileName = () => getRawString('DiagnosticCython.expectedExternFileName');
+        export const expectedNameSpace = () => getRawString('DiagnosticCython.expectedNameSpace');
     }
 }
