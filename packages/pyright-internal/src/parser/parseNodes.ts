@@ -114,6 +114,7 @@ export const enum ParseNodeType {
     CType,
     CVarTrail,
     CTypeTrail,
+    CDefSuite,
 }
 
 export const enum ErrorExpressionCategory {
@@ -682,7 +683,8 @@ export type StatementNode =
     | ErrorNode
 
     // ! Cython
-    | CTypeDefNode;
+    | CTypeDefNode
+    | CDefSuiteNode;
 
 export type SmallStatementNode =
     | ExpressionNode
@@ -2552,6 +2554,29 @@ export namespace CVarTrailNode {
     }
 }
 
+export interface CDefSuiteNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CDefSuite;
+    statements: StatementListNode;
+    nogil?: boolean;
+}
+
+export namespace CDefSuiteNode {
+    export function create(startToken: Token, nogil?: boolean) {
+        const statements = StatementListNode.create(startToken);
+        const node: CDefSuiteNode = {
+            start: startToken.start,
+            length: startToken.length,
+            nodeType: ParseNodeType.CDefSuite,
+            id: _nextNodeId++,
+            statements: statements,
+            nogil: nogil,
+        };
+        statements.parent = node;
+
+        return node;
+    }
+}
+
 // ! Cython End
 
 export type PatternAtomNode =
@@ -2648,7 +2673,8 @@ export type ParseNode =
     | CTypeDefNode
     | CVarTrailNode
     | CTypeTrailNode
-    | CTypeNode;
+    | CTypeNode
+    | CDefSuiteNode;
 
 export type EvaluationScopeNode = LambdaNode | FunctionNode | ModuleNode | ClassNode | ListComprehensionNode;
 export type ExecutionScopeNode = LambdaNode | FunctionNode | ModuleNode;

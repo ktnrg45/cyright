@@ -36,6 +36,7 @@ import {
     BreakNode,
     CallNode,
     CaseNode,
+    CDefSuiteNode,
     ClassNode,
     ConstantNode,
     ContinueNode,
@@ -5190,11 +5191,12 @@ export class Parser {
                 if (varModifiers.includes(kwToken.keywordType) || numericModifiers.includes(kwToken.keywordType)) {
                     // Var modifier (var declaration)
                     node = this._parseCVarDecl();
+                } else if (kwToken.keywordType === KeywordType.Nogil) {
+                    return this._parseCDefSuite(cdefToken);
                 }
                 break;
             case TokenType.Colon:
-                // TODO: Cdef suite
-                break;
+                return this._parseCDefSuite(cdefToken);
             case TokenType.OpenParenthesis:
                 // TODO: callback function / ctuple
                 break;
@@ -5634,5 +5636,35 @@ export class Parser {
             return node;
         }
         return errorNode;
+    }
+
+    private _parseCDefSuite(token: Token, nogil?: boolean) {
+        const node = CDefSuiteNode.create(token, nogil);
+        if (this._consumeTokenIfKeyword(KeywordType.Nogil)) {
+            node.nogil = true;
+        }
+        if (!this._consumeTokenIfType(TokenType.Colon)) {
+            this._addError(Localizer.Diagnostic.expectedColon(), this._peekToken());
+            this._consumeTokensUntilType([TokenType.NewLine]);
+        }
+        if (!this._consumeTokenIfType(TokenType.NewLine)) {
+            this._addError(Localizer.Diagnostic.expectedNewline(), this._peekToken());
+            this._consumeTokensUntilType([TokenType.NewLine]);
+            return node;
+        }
+        if (!this._consumeTokenIfType(TokenType.Indent)) {
+            this._addError(Localizer.Diagnostic.expectedIndentedBlock(), this._peekToken());
+            return node;
+        }
+        const stopTypes = [TokenType.Dedent, TokenType.Indent, TokenType.NewLine];
+        while (!stopTypes.includes(this._peekTokenType())) {
+            const decl = this._parseCVarDecl();
+            this._pushStatements(node.statements, decl);
+            this._expectNewLine();
+            this._consumeTokenIfType(TokenType.NewLine);
+        }
+        this._consumeTokenIfType(TokenType.Dedent);
+        extendRange(node, node.statements);
+        return node;
     }
 }

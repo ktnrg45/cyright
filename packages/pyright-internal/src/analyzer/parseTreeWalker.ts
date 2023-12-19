@@ -18,6 +18,7 @@ import {
     BreakNode,
     CallNode,
     CaseNode,
+    CDefSuiteNode,
     ClassNode,
     ConstantNode,
     ContinueNode,
@@ -386,6 +387,8 @@ export class ParseTreeWalker {
                 return this.visitCVarTrail(node) ? node.nodes : [];
             case ParseNodeType.CTypeTrail:
                 return this.visitCTypeTrail(node) ? node.nodes : [];
+            case ParseNodeType.CDefSuite:
+                return this.visitCDefSuite(node) ? [node.statements] : [];
         }
     }
 
@@ -716,6 +719,10 @@ export class ParseTreeWalker {
     }
 
     visitCTypeTrail(node: CTypeTrailNode) {
+        return true;
+    }
+
+    visitCDefSuite(node: CDefSuiteNode) {
         return true;
     }
 }
