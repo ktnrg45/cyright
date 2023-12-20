@@ -112,6 +112,7 @@ export const enum ParseNodeType {
     // ! Cython
     CTypeDef,
     CType,
+    CTupleType,
     CVarTrail,
     CTypeTrail,
     CDefSuite,
@@ -729,7 +730,8 @@ export type ExpressionNode =
     | SetNode
 
     // ! Cython
-    | CTypeNode;
+    | CTypeNode
+    | CTupleTypeNode;
 
 export function isExpressionNode(node: ParseNode): node is ExpressionNode {
     switch (node.nodeType) {
@@ -2398,7 +2400,7 @@ export namespace PatternValueNode {
 
 export interface CTypeNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CType;
-    name: NameNode;
+    name: NameNode | CTupleTypeNode;
     varModifiers: KeywordToken[];
     numModifiers: IdentifierToken[];
     operators: OperatorToken[]; // *(Pointer), &(Address Of)
@@ -2409,7 +2411,7 @@ export interface CTypeNode extends ParseNodeBase {
 
 export namespace CTypeNode {
     export function create(
-        name: NameNode,
+        name: NameNode | CTupleTypeNode,
         varModifiers: KeywordToken[],
         numModifiers: IdentifierToken[],
         operators: OperatorToken[]
@@ -2441,6 +2443,12 @@ export namespace CTypeNode {
         node.fullValue = '';
         return node;
     }
+    export function alias(node: CTypeNode) {
+        if (node.name.nodeType === ParseNodeType.CTupleType) {
+            return CTupleTypeNode.alias(node.name);
+        }
+        return { ...node.name } as NameNode;
+    }
 }
 
 export interface CTypeDefNode extends ParseNodeBase {
@@ -2468,10 +2476,46 @@ export namespace CTypeDefNode {
         return node;
     }
     export function alias(node: CTypeDefNode) {
-        const aliasNode = TypeAliasNode.create(node.typeDefToken, { ...node.name }, { ...node.typeNode.name });
+        const expr = CTypeNode.alias(node.typeNode);
+        const aliasNode = TypeAliasNode.create(node.typeDefToken, { ...node.name }, expr);
         aliasNode.id = node.id;
         aliasNode.parent = node.parent;
         return aliasNode;
+    }
+}
+
+export interface CTupleTypeNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CTupleType;
+    endToken: Token;
+    typeNodes: CTypeNode[];
+}
+
+export namespace CTupleTypeNode {
+    export function create(startToken: Token, typeNodes: CTypeNode[], endToken: Token) {
+        const node: CTupleTypeNode = {
+            start: startToken.start,
+            length: startToken.length,
+            nodeType: ParseNodeType.CTupleType,
+            id: _nextNodeId++,
+            typeNodes: typeNodes,
+            endToken: endToken,
+        };
+        typeNodes.forEach((n) => {
+            n.parent = node;
+        });
+        extendRange(node, endToken);
+        return node;
+    }
+    export function alias(node: CTupleTypeNode): ListNode {
+        // ! Is this needed?
+        const list = ListNode.create(node);
+        node.typeNodes.forEach((n) => {
+            list.entries.push(CTypeNode.alias(n));
+            n.parent = list;
+        });
+        extendRange(list, node);
+        list.parent = node.parent;
+        return list;
     }
 }
 
@@ -2697,6 +2741,7 @@ export type ParseNode =
     | CVarTrailNode
     | CTypeTrailNode
     | CTypeNode
+    | CTupleTypeNode
     | CDefSuiteNode
     | CExternNode;
 

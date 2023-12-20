@@ -1919,6 +1919,8 @@ export function printParseNodeType(type: ParseNodeType) {
             return 'CDefSuite';
         case ParseNodeType.CExtern:
             return 'CExtern';
+        case ParseNodeType.CTupleType:
+            return 'CTupleType';
     }
 
     assertNever(type);

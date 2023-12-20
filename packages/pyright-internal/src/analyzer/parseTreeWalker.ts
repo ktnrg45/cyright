@@ -23,6 +23,7 @@ import {
     ClassNode,
     ConstantNode,
     ContinueNode,
+    CTupleTypeNode,
     CTypeDefNode,
     CTypeNode,
     CTypeTrailNode,
@@ -392,6 +393,8 @@ export class ParseTreeWalker {
                 return this.visitCDefSuite(node) ? [node.statements] : [];
             case ParseNodeType.CExtern:
                 return this.visitCExtern(node) ? [node.suite] : [];
+            case ParseNodeType.CTupleType:
+                return this.visitCTupleType(node) ? node.typeNodes : [];
         }
     }
 
@@ -730,6 +733,10 @@ export class ParseTreeWalker {
     }
 
     visitCExtern(node: CExternNode) {
+        return true;
+    }
+
+    visitCTupleType(node: CTupleTypeNode) {
         return true;
     }
 }
