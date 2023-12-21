@@ -20,9 +20,11 @@ import {
     CaseNode,
     CDefSuiteNode,
     CExternNode,
+    CFunctionDeclNode,
     ClassNode,
     ConstantNode,
     ContinueNode,
+    CParameterNode,
     CTupleTypeNode,
     CTypeDefNode,
     CTypeNode,
@@ -384,7 +386,7 @@ export class ParseTreeWalker {
             case ParseNodeType.CTypeDef:
                 return this.visitCTypeDef(node) ? [node.name, node.typeNode] : [];
             case ParseNodeType.CType:
-                return this.visitCType(node) ? [node.name] : [];
+                return this.visitCType(node) ? [node.name, node.typeTrailNode, node.varTrailNode] : [];
             case ParseNodeType.CVarTrail:
                 return this.visitCVarTrail(node) ? node.nodes : [];
             case ParseNodeType.CTypeTrail:
@@ -395,6 +397,21 @@ export class ParseTreeWalker {
                 return this.visitCExtern(node) ? [node.suite] : [];
             case ParseNodeType.CTupleType:
                 return this.visitCTupleType(node) ? node.typeNodes : [];
+            case ParseNodeType.CFunctionDecl:
+                return this.visitCFunctionDecl(node)
+                    ? [
+                          ...node.decorators,
+                          node.returnTypeAnnotation,
+                          node.name,
+                          node.typeParameters,
+                          ...node.parameters,
+                          node.functionAnnotationComment,
+                      ]
+                    : [];
+            case ParseNodeType.CParameter:
+                return this.visitCParameter(node)
+                    ? [node.typeAnnotation, node.name, node.typeAnnotationComment, node.defaultValue]
+                    : [];
         }
     }
 
@@ -737,6 +754,14 @@ export class ParseTreeWalker {
     }
 
     visitCTupleType(node: CTupleTypeNode) {
+        return true;
+    }
+
+    visitCFunctionDecl(node: CFunctionDeclNode) {
+        return true;
+    }
+
+    visitCParameter(node: CParameterNode) {
         return true;
     }
 }

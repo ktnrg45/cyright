@@ -38,9 +38,11 @@ import {
     CaseNode,
     CDefSuiteNode,
     CExternNode,
+    CFunctionDeclNode,
     ClassNode,
     ConstantNode,
     ContinueNode,
+    CParameterNode,
     CTrailType,
     CTupleTypeNode,
     CTypeDefNode,
@@ -5338,11 +5340,11 @@ export class Parser {
         let closingToken: Token | undefined = undefined;
         let error = false;
         const trailNodes: ArgumentNode[] = [];
-        let openBracket = this._peekToken();
+        let openToken = this._peekToken();
         let trailType = CTrailType.None;
 
         if (this._consumeTokenIfType(TokenType.OpenBracket)) {
-            openBracket = this._peekToken(-1);
+            openToken = this._peekToken(-1);
             const subscriptList = this._parseSubscriptList();
             trailNodes.push(...subscriptList.list);
 
@@ -5375,7 +5377,7 @@ export class Parser {
                 this._handleExpressionParseError(
                     ErrorExpressionCategory.MissingIndexCloseBracket,
                     Localizer.Diagnostic.expectedCloseBracket(),
-                    openBracket,
+                    openToken,
                     node
                 );
                 error = true;
@@ -5478,11 +5480,15 @@ export class Parser {
             }
         }
 
-        if (!name) {
-            this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
-            return errorNode;
-        }
         typeNode.operators.push(...operators);
+        if (!name) {
+            if (this._peekTokenType() === TokenType.OpenParenthesis) {
+                return this._parseCCallback(typeNode);
+            } else {
+                this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
+                return errorNode;
+            }
+        }
         name.typeNode = typeNode;
         this._parseCVarTrailer(name.typeNode, false);
         this._setCTypeFullValue(name.typeNode);
@@ -5519,16 +5525,101 @@ export class Parser {
         return operators;
     }
 
-    private _parseCTupleOrCCallback() {
-        if (this._peekTokenType() !== TokenType.OpenParenthesis) {
-            this._addError(Localizer.Diagnostic.expectedOpenParen(), this._peekToken());
+    // parse param used in prototype function
+    // Type must be given but names are optional
+    private _parseCPrototypeParam() {
+        const startToken = this._peekToken();
+        const typeNode = this._parseCType();
+        const param = CParameterNode.create(startToken, typeNode);
+        if (typeNode.nodeType === ParseNodeType.Error) {
+            return param;
         }
-        const nextToken = this._peekToken(1);
-        const opToken = nextToken as OperatorToken;
-        if (nextToken.type === TokenType.Operator) {
-            // return this._parseCCallback();
+        typeNode.operators = this._parsePointersOrRef(/*allowReference*/ true);
+        const iden = this._getTokenIfIdentifier();
+        if (iden) {
+            param.name = NameNode.create(iden);
+            param.name.parent = param;
+            extendRange(param, param.name);
         }
-        return this._parseCTuple();
+        return param;
+    }
+
+    // parse c callback declaration
+    private _parseCCallback(returnType: CTypeNode) {
+        const startToken = this._peekToken();
+        if (!this._consumeTokenIfType(TokenType.OpenParenthesis)) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedOpenParen(),
+                this._peekToken()
+            );
+        }
+        const pointers = this._parsePointersOrRef(/*allowReference*/ false);
+        if (pointers.length === 0) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.DiagnosticCython.expectedPointer(),
+                this._peekToken()
+            );
+        }
+        const iden = this._getTokenIfIdentifier();
+        if (!iden) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedIdentifier(),
+                this._peekToken()
+            );
+        }
+        const name = NameNode.create(iden);
+        if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedCloseParen(),
+                this._peekToken()
+            );
+        }
+        if (!this._consumeTokenIfType(TokenType.OpenParenthesis)) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedOpenParen(),
+                this._peekToken()
+            );
+        }
+
+        const params: CParameterNode[] = [];
+        if (this._peekTokenType() !== TokenType.CloseParenthesis) {
+            let param = this._parseCPrototypeParam();
+            if (param.typeAnnotation.nodeType !== ParseNodeType.Error) {
+                params.push(param);
+            }
+            while (this._peekTokenType() === TokenType.Comma) {
+                this._getNextToken();
+                param = this._parseCPrototypeParam();
+                if (param.typeAnnotation.nodeType !== ParseNodeType.Error) {
+                    params.push(param);
+                }
+            }
+        }
+
+        const closeToken = this._peekToken();
+        if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedCloseParen(),
+                this._peekToken()
+            );
+        }
+
+        const node = CFunctionDeclNode.create(startToken, name);
+        node.returnTypeAnnotation = returnType;
+        returnType.parent = node;
+        extendRange(node, returnType);
+        params.forEach((p) => {
+            node.parameters.push(p);
+            p.parent = node;
+        });
+        extendRange(node, closeToken);
+        return node;
     }
 
     private _parseCTuple() {
@@ -5603,7 +5694,7 @@ export class Parser {
         const validTypes = [TokenType.Keyword, TokenType.Identifier];
 
         if (this._peekTokenType() === TokenType.OpenParenthesis) {
-            return this._parseCTupleOrCCallback();
+            return this._parseCTuple();
         }
         while (validTypes.includes(this._peekTokenType())) {
             const token = this._getNextToken();

@@ -1322,5 +1322,6 @@ export namespace Localizer {
         export const expectedExternFileName = () => getRawString('DiagnosticCython.expectedExternFileName');
         export const expectedNameSpace = () => getRawString('DiagnosticCython.expectedNameSpace');
         export const mixedPointersOrReference = () => getRawString('DiagnosticCython.mixedPointersOrReference');
+        export const expectedPointer = () => getRawString('DiagnosticCython.expectedPointer');
     }
 }

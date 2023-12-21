@@ -117,6 +117,8 @@ export const enum ParseNodeType {
     CTypeTrail,
     CDefSuite,
     CExtern,
+    CFunctionDecl,
+    CParameter,
 }
 
 export const enum ErrorExpressionCategory {
@@ -731,7 +733,8 @@ export type ExpressionNode =
 
     // ! Cython
     | CTypeNode
-    | CTupleTypeNode;
+    | CTupleTypeNode
+    | CFunctionDeclNode;
 
 export function isExpressionNode(node: ParseNode): node is ExpressionNode {
     switch (node.nodeType) {
@@ -2524,6 +2527,7 @@ export const enum CTrailType {
     Buffer,
     View,
     Template,
+    Function,
 }
 
 export interface CTypeTrailNode extends ParseNodeBase {
@@ -2644,6 +2648,70 @@ export namespace CExternNode {
     }
 }
 
+// Function declaration without implementation / prototype
+export interface CFunctionDeclNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CFunctionDecl;
+    decorators: DecoratorNode[];
+    name: NameNode;
+    typeParameters?: TypeParameterListNode;
+    parameters: CParameterNode[];
+    returnTypeAnnotation?: ExpressionNode | undefined;
+    functionAnnotationComment?: FunctionAnnotationNode | undefined;
+}
+
+export namespace CFunctionDeclNode {
+    export function create(startToken: Token, name: NameNode, typeParameters?: TypeParameterListNode) {
+        const node: CFunctionDeclNode = {
+            start: startToken.start,
+            length: startToken.length,
+            nodeType: ParseNodeType.CFunctionDecl,
+            id: _nextNodeId++,
+            decorators: [],
+            name,
+            typeParameters,
+            parameters: [],
+        };
+
+        name.parent = node;
+
+        if (typeParameters) {
+            typeParameters.parent = node;
+        }
+
+        return node;
+    }
+}
+
+export interface CParameterNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CParameter;
+    category: ParameterCategory;
+    name?: NameNode | undefined;
+    typeAnnotation: ExpressionNode;
+    typeAnnotationComment?: ExpressionNode | undefined;
+    defaultValue?: ExpressionNode | undefined;
+}
+
+export namespace CParameterNode {
+    export function create(
+        startToken: Token,
+        typeAnnotation: ExpressionNode,
+        paramCategory = ParameterCategory.Simple
+    ) {
+        const node: CParameterNode = {
+            start: startToken.start,
+            length: startToken.length,
+            nodeType: ParseNodeType.CParameter,
+            id: _nextNodeId++,
+            category: paramCategory,
+            typeAnnotation: typeAnnotation,
+        };
+        extendRange(node, typeAnnotation);
+        typeAnnotation.parent = node;
+
+        return node;
+    }
+}
+
 // ! Cython End
 
 export type PatternAtomNode =
@@ -2743,8 +2811,16 @@ export type ParseNode =
     | CTypeNode
     | CTupleTypeNode
     | CDefSuiteNode
-    | CExternNode;
+    | CExternNode
+    | CFunctionDeclNode
+    | CParameterNode;
 
 export type EvaluationScopeNode = LambdaNode | FunctionNode | ModuleNode | ClassNode | ListComprehensionNode;
 export type ExecutionScopeNode = LambdaNode | FunctionNode | ModuleNode;
-export type TypeParameterScopeNode = FunctionNode | ClassNode | TypeAliasNode | CTypeDefNode;
+export type TypeParameterScopeNode =
+    | FunctionNode
+    | ClassNode
+    | TypeAliasNode
+    // ! Cython
+    | CTypeDefNode
+    | CFunctionDeclNode;

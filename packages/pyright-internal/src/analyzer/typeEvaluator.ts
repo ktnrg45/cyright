@@ -1139,6 +1139,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             // ! Cython
             case ParseNodeType.CType:
             case ParseNodeType.CTupleType:
+            case ParseNodeType.CFunctionDecl:
                 // TODO
                 typeResult = { type: UnknownType.create() };
                 break;

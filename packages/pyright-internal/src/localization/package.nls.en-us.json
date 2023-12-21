@@ -669,6 +669,7 @@
         "expectedExtern": "Expected \"extern\"",
         "expectedExternFileName": "Expected a filename string or \"*\" for extern",
         "expectedNameSpace": "Expected namespace string",
-        "mixedPointersOrReference": "Declaration cannot be a pointer and a reference. (Contains \"*\" and \"&\")"
+        "mixedPointersOrReference": "Declaration cannot be a pointer and a reference. (Contains \"*\" and \"&\")",
+        "expectedPointer": "Expected \"*\""
     }
 }
