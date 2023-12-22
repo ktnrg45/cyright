@@ -119,6 +119,8 @@ export const enum ParseNodeType {
     CExtern,
     CFunctionDecl,
     CParameter,
+    CAddressOf,
+    CCast,
 }
 
 export const enum ErrorExpressionCategory {
@@ -734,7 +736,9 @@ export type ExpressionNode =
     // ! Cython
     | CTypeNode
     | CTupleTypeNode
-    | CFunctionDeclNode;
+    | CFunctionDeclNode
+    | CAddressOfNode
+    | CCastNode;
 
 export function isExpressionNode(node: ParseNode): node is ExpressionNode {
     switch (node.nodeType) {
@@ -2712,6 +2716,55 @@ export namespace CParameterNode {
     }
 }
 
+export interface CAddressOfNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CAddressOf;
+    addressToken: Token;
+    valueExpression: ExpressionNode;
+}
+
+export namespace CAddressOfNode {
+    export function create(addressToken: Token, expression: ExpressionNode) {
+        const node: CAddressOfNode = {
+            start: addressToken.start,
+            length: addressToken.length,
+            nodeType: ParseNodeType.CAddressOf,
+            id: _nextNodeId++,
+            addressToken: addressToken,
+            valueExpression: expression,
+        };
+        extendRange(node, expression);
+        expression.parent = node;
+        return node;
+    }
+}
+
+export interface CCastNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CCast;
+    startToken: Token;
+    typeNode: CTypeNode;
+    endToken: Token;
+    valueExpression: ExpressionNode;
+}
+
+export namespace CCastNode {
+    export function create(startToken: Token, typeNode: CTypeNode, endToken: Token, expression: ExpressionNode) {
+        const node: CCastNode = {
+            start: startToken.start,
+            length: startToken.length,
+            nodeType: ParseNodeType.CCast,
+            id: _nextNodeId++,
+            startToken: startToken,
+            typeNode: typeNode,
+            valueExpression: expression,
+            endToken: endToken,
+        };
+        typeNode.parent = node;
+        expression.parent = node;
+        extendRange(node, expression);
+        return node;
+    }
+}
+
 // ! Cython End
 
 export type PatternAtomNode =
@@ -2813,7 +2866,9 @@ export type ParseNode =
     | CDefSuiteNode
     | CExternNode
     | CFunctionDeclNode
-    | CParameterNode;
+    | CParameterNode
+    | CAddressOfNode
+    | CCastNode;
 
 export type EvaluationScopeNode = LambdaNode | FunctionNode | ModuleNode | ClassNode | ListComprehensionNode;
 export type ExecutionScopeNode = LambdaNode | FunctionNode | ModuleNode;

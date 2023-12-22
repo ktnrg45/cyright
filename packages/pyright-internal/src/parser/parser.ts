@@ -34,8 +34,10 @@ import {
     AwaitNode,
     BinaryOperationNode,
     BreakNode,
+    CAddressOfNode,
     CallNode,
     CaseNode,
+    CCastNode,
     CDefSuiteNode,
     CExternNode,
     CFunctionDeclNode,
@@ -3841,6 +3843,33 @@ export class Parser {
             }
         }
 
+        // ! Cython
+        if (nextToken.type === TokenType.Operator) {
+            const op = nextToken as OperatorToken;
+            if (op.operatorType === OperatorType.BitwiseAnd) {
+                // Address Of
+                this._getNextToken();
+                return CAddressOfNode.create(op, this._parseExpressionStatement());
+            } else if (op.operatorType === OperatorType.LessThan) {
+                this._getNextToken();
+                const typeNode = this._parseCType();
+                if (typeNode.nodeType === ParseNodeType.Error) {
+                    return typeNode;
+                }
+                const ptrs = this._parsePointersOrRef(/*allowReference*/ false, /*allowCastClose*/ true);
+                typeNode.operators = ptrs;
+                if (ptrs.length > 0) {
+                    extendRange(typeNode, ptrs[ptrs.length - 1]);
+                }
+                const closeToken = this._peekToken() as OperatorToken;
+                if (this._consumeTokenIfOperator(OperatorType.GreaterThan)) {
+                    return CCastNode.create(op, typeNode, closeToken, this._parseExpressionStatement());
+                } else {
+                    this._addError(Localizer.DiagnosticCython.expectedCastClose(), closeToken);
+                }
+            }
+        }
+
         return this._handleExpressionParseError(
             ErrorExpressionCategory.MissingExpression,
             Localizer.Diagnostic.expectedExpr()
@@ -5495,7 +5524,7 @@ export class Parser {
         return name;
     }
 
-    private _parsePointersOrRef(allowReference = false) {
+    private _parsePointersOrRef(allowReference = false, allowCastClose = false) {
         const operators: OperatorToken[] = [];
         const ptrs = [OperatorType.Multiply, OperatorType.Power];
         const valid = [OperatorType.BitwiseAnd, ...ptrs];
@@ -5519,6 +5548,13 @@ export class Parser {
                     operators.push(token);
                 }
             } else {
+                if (!(allowCastClose && token.operatorType === OperatorType.GreaterThan)) {
+                    this._handleExpressionParseError(
+                        ErrorExpressionCategory.InvalidDeclaration,
+                        Localizer.Diagnostic.expectedIdentifier(),
+                        this._getNextToken()
+                    );
+                }
                 break;
             }
         }

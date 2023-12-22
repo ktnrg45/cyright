@@ -16,8 +16,10 @@ import {
     AwaitNode,
     BinaryOperationNode,
     BreakNode,
+    CAddressOfNode,
     CallNode,
     CaseNode,
+    CCastNode,
     CDefSuiteNode,
     CExternNode,
     CFunctionDeclNode,
@@ -412,6 +414,10 @@ export class ParseTreeWalker {
                 return this.visitCParameter(node)
                     ? [node.typeAnnotation, node.name, node.typeAnnotationComment, node.defaultValue]
                     : [];
+            case ParseNodeType.CAddressOf:
+                return this.visitCAddressOf(node) ? [node.valueExpression] : [];
+            case ParseNodeType.CCast:
+                return this.visitCCast(node) ? [node.typeNode, node.valueExpression] : [];
         }
     }
 
@@ -762,6 +768,14 @@ export class ParseTreeWalker {
     }
 
     visitCParameter(node: CParameterNode) {
+        return true;
+    }
+
+    visitCAddressOf(node: CAddressOfNode) {
+        return true;
+    }
+
+    visitCCast(node: CCastNode) {
         return true;
     }
 }

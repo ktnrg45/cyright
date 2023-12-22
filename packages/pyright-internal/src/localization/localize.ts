@@ -1323,5 +1323,6 @@ export namespace Localizer {
         export const expectedNameSpace = () => getRawString('DiagnosticCython.expectedNameSpace');
         export const mixedPointersOrReference = () => getRawString('DiagnosticCython.mixedPointersOrReference');
         export const expectedPointer = () => getRawString('DiagnosticCython.expectedPointer');
+        export const expectedCastClose = () => getRawString('DiagnosticCython.expectedCastClose');
     }
 }

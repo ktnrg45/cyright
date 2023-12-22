@@ -1925,6 +1925,10 @@ export function printParseNodeType(type: ParseNodeType) {
             return 'CFunctionDecl';
         case ParseNodeType.CParameter:
             return 'CParameter';
+        case ParseNodeType.CAddressOf:
+            return 'CAddressOf';
+        case ParseNodeType.CCast:
+            return 'CCast';
     }
 
     assertNever(type);

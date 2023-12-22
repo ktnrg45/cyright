@@ -1140,6 +1140,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             case ParseNodeType.CType:
             case ParseNodeType.CTupleType:
             case ParseNodeType.CFunctionDecl:
+            case ParseNodeType.CAddressOf:
+            case ParseNodeType.CCast:
                 // TODO
                 typeResult = { type: UnknownType.create() };
                 break;
