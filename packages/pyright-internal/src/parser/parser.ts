@@ -39,6 +39,7 @@ import {
     CaseNode,
     CCastNode,
     CDefSuiteNode,
+    CEnumNode,
     CExternNode,
     CFunctionDeclNode,
     ClassNode,
@@ -451,6 +452,8 @@ export class Parser {
                 return this._parseCTypeDef();
             case KeywordType.Cdef:
                 return this._parseCDef();
+            case KeywordType.Cpdef:
+                return this._parseCpdef();
         }
 
         return this._parseSimpleStatement();
@@ -4975,8 +4978,8 @@ export class Parser {
         return this._tokenizerOutput!.tokens.getItemAt(this._tokenIndex + count);
     }
 
-    private _peekTokenType(): TokenType {
-        return this._peekToken().type;
+    private _peekTokenType(count?: number): TokenType {
+        return this._peekToken(count).type;
     }
 
     private _peekKeywordType(): KeywordType | undefined {
@@ -5216,6 +5219,147 @@ export class Parser {
         return statements;
     }
 
+    // parse fields. Similar to arglist. Can be single line or multiline with indent.
+    private _parseEnumFields(indented: boolean) {
+        const argList: ArgumentNode[] = [];
+        let trailingComma = false;
+        const stopTypes = [TokenType.EndOfStream];
+        if (indented) {
+            stopTypes.push(TokenType.Dedent);
+        } else {
+            stopTypes.push(TokenType.NewLine);
+        }
+        while (!stopTypes.includes(this._peekTokenType())) {
+            trailingComma = false;
+            const arg = this._parseArgument();
+            if (arg.argumentCategory !== ArgumentCategory.Simple) {
+                this._addError(Localizer.Diagnostic.unpackNotAllowed(), arg);
+            } else {
+                argList.push(arg);
+            }
+
+            if (!this._consumeTokenIfType(TokenType.Comma)) {
+                break;
+            }
+            if (indented) {
+                this._consumeTokenIfType(TokenType.NewLine);
+            }
+            trailingComma = true;
+        }
+
+        return { args: argList, trailingComma };
+    }
+
+    // parse enum
+    private _parseEnum(cpdef: boolean) {
+        const fields: ParseNode[] = [];
+        let classType: ArgumentNode | undefined = undefined;
+        const enumToken = this._peekToken();
+        this._consumeTokenIfKeyword(KeywordType.Enum);
+
+        // TODO: `class` cpdef not allowed when language is not C++
+        let isClass = this._consumeTokenIfKeyword(KeywordType.Class);
+        if (!cpdef && isClass) {
+            this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken(-1));
+            isClass = false;
+        }
+
+        // enum can be anonymous
+        const nameIden = this._getTokenIfIdentifier();
+        const name = nameIden ? NameNode.create(nameIden) : undefined;
+
+        if (isClass && this._consumeTokenIfType(TokenType.OpenParenthesis)) {
+            // Type expected
+            if (this._peekTokenType() === TokenType.CloseParenthesis) {
+                this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
+            } else {
+                const argToken = this._peekToken();
+                classType = ArgumentNode.create(argToken, this._parseCType(), ArgumentCategory.Simple);
+            }
+            if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
+                return this._handleExpressionParseError(
+                    ErrorExpressionCategory.InvalidDeclaration,
+                    Localizer.Diagnostic.expectedCloseParen()
+                );
+            }
+        }
+
+        if (!this._consumeTokenIfType(TokenType.Colon)) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedColon()
+            );
+        }
+        // Fields can be on same line. This runs counter to most python syntax that requires indented block after colon.
+        let indented = false;
+        if (this._consumeTokenIfType(TokenType.NewLine)) {
+            if (!this._consumeTokenIfType(TokenType.Indent)) {
+                return this._handleExpressionParseError(
+                    ErrorExpressionCategory.InvalidDeclaration,
+                    Localizer.Diagnostic.expectedIndentedBlock()
+                );
+            }
+            indented = true;
+        }
+
+        const suiteStart = this._peekToken();
+        fields.push(...this._parseEnumFields(indented).args);
+        if (indented) {
+            while (this._peekTokenType() === TokenType.NewLine) {
+                this._consumeTokenIfType(TokenType.NewLine);
+            }
+            this._consumeTokenIfType(TokenType.Dedent);
+        }
+        if (fields.length === 0) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedIdentifier()
+            );
+        }
+        const suite = SuiteNode.create(suiteStart);
+        const statements = StatementListNode.create(suiteStart);
+        fields.forEach((f) => {
+            this._pushStatements(statements, f);
+        });
+        suite.statements.push(statements);
+        statements.parent = suite;
+        extendRange(suite, statements);
+        const node = CEnumNode.create(enumToken, name, suite, indented, cpdef, undefined);
+        if (classType) {
+            node.arguments.push(classType);
+            classType.parent = node;
+        }
+        return node;
+    }
+
+    private _parseCpdef() {
+        const cdefToken = this._getKeywordToken(KeywordType.Cpdef);
+        const token = this._peekToken();
+        const kwToken = token as KeywordToken;
+        let node: ParseNode | undefined = undefined;
+        switch (token.type) {
+            case TokenType.Keyword:
+                if (kwToken.keywordType === KeywordType.Enum) {
+                    node = this._parseEnum(true);
+                }
+                break;
+            default:
+                break;
+        }
+
+        if (node && node.nodeType !== ParseNodeType.Error) {
+            return node;
+        }
+        if (!node) {
+            node = ErrorNode.create(cdefToken, ErrorExpressionCategory.InvalidDeclaration);
+            // TODO: Is this the right error?
+            this._addError(Localizer.Diagnostic.expectedIdentifier(), token);
+        }
+        const statements = StatementListNode.create(cdefToken);
+        this._pushStatements(statements, node);
+        return statements;
+    }
+
     // parse cdef statement; line starting with `cdef`
     private _parseCDef() {
         const cdefToken = this._getKeywordToken(KeywordType.Cdef);
@@ -5236,6 +5380,8 @@ export class Parser {
                     return this._parseCDefSuite(cdefToken, /*nogil*/ true);
                 } else if (kwToken.keywordType === KeywordType.Extern) {
                     return this._parseExtern(cdefToken);
+                } else if (kwToken.keywordType === KeywordType.Enum) {
+                    return this._parseEnum(false);
                 }
                 break;
             case TokenType.Colon:
@@ -5305,6 +5451,10 @@ export class Parser {
 
     private _parseCVarDecl() {
         const startToken = this._peekToken();
+        if (this._peekKeywordType() === KeywordType.Enum) {
+            // Only possible in cdef suite
+            return this._parseEnum(false);
+        }
         const typeNode = this._parseCType();
         const nodes: ParseNode[] = [];
         let hasPointers = false;
@@ -5895,6 +6045,9 @@ export class Parser {
             } else {
                 const decl = this._parseCVarDecl();
                 this._pushStatements(node.statements, decl);
+                if (decl.nodeType === ParseNodeType.CEnum && decl.indented) {
+                    continue;
+                }
             }
             this._expectNewLine();
             this._consumeTokenIfType(TokenType.NewLine);

@@ -21,6 +21,7 @@ import {
     CaseNode,
     CCastNode,
     CDefSuiteNode,
+    CEnumNode,
     CExternNode,
     CFunctionDeclNode,
     ClassNode,
@@ -418,6 +419,10 @@ export class ParseTreeWalker {
                 return this.visitCAddressOf(node) ? [node.valueExpression] : [];
             case ParseNodeType.CCast:
                 return this.visitCCast(node) ? [node.typeNode, node.valueExpression] : [];
+            case ParseNodeType.CEnum:
+                return this.visitCEnum(node)
+                    ? [...node.decorators, node.name, node.typeParameters, ...node.arguments, node.suite]
+                    : [];
         }
     }
 
@@ -776,6 +781,10 @@ export class ParseTreeWalker {
     }
 
     visitCCast(node: CCastNode) {
+        return true;
+    }
+
+    visitCEnum(node: CEnumNode) {
         return true;
     }
 }

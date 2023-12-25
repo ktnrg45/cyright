@@ -671,6 +671,7 @@
         "expectedNameSpace": "Expected namespace string",
         "mixedPointersOrReference": "Declaration cannot be a pointer and a reference. (Contains \"*\" and \"&\")",
         "expectedPointer": "Expected \"*\"",
-        "expectedCastClose": "Expected \">\""
+        "expectedCastClose": "Expected \">\"",
+        "expectedComma": "Expected \",\""
     }
 }

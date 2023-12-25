@@ -121,6 +121,7 @@ export const enum ParseNodeType {
     CParameter,
     CAddressOf,
     CCast,
+    CEnum,
 }
 
 export const enum ErrorExpressionCategory {
@@ -691,7 +692,8 @@ export type StatementNode =
     // ! Cython
     | CTypeDefNode
     | CDefSuiteNode
-    | CExternNode;
+    | CExternNode
+    | CEnumNode;
 
 export type SmallStatementNode =
     | ExpressionNode
@@ -2765,6 +2767,55 @@ export namespace CCastNode {
     }
 }
 
+export interface CEnumNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CEnum;
+    decorators: DecoratorNode[];
+    name?: NameNode;
+    typeParameters?: TypeParameterListNode;
+    arguments: ArgumentNode[];
+    suite: SuiteNode;
+    indented: boolean;
+    cpdef: boolean;
+}
+
+export namespace CEnumNode {
+    export function create(
+        classToken: Token,
+        name: NameNode | undefined,
+        suite: SuiteNode,
+        indented: boolean,
+        cpdef: boolean,
+        typeParameters?: TypeParameterListNode
+    ) {
+        const node: CEnumNode = {
+            start: classToken.start,
+            length: classToken.length,
+            nodeType: ParseNodeType.CEnum,
+            id: _nextNodeId++,
+            decorators: [],
+            name: name,
+            typeParameters: typeParameters,
+            arguments: [],
+            suite: suite,
+            indented: indented,
+            cpdef: cpdef,
+        };
+
+        if (name) {
+            name.parent = node;
+        }
+        suite.parent = node;
+
+        if (typeParameters) {
+            typeParameters.parent = node;
+        }
+
+        extendRange(node, suite);
+
+        return node;
+    }
+}
+
 // ! Cython End
 
 export type PatternAtomNode =
@@ -2868,9 +2919,17 @@ export type ParseNode =
     | CFunctionDeclNode
     | CParameterNode
     | CAddressOfNode
-    | CCastNode;
+    | CCastNode
+    | CEnumNode;
 
-export type EvaluationScopeNode = LambdaNode | FunctionNode | ModuleNode | ClassNode | ListComprehensionNode;
+export type EvaluationScopeNode =
+    | LambdaNode
+    | FunctionNode
+    | ModuleNode
+    | ClassNode
+    | ListComprehensionNode
+    // ! Cython
+    | CEnumNode;
 export type ExecutionScopeNode = LambdaNode | FunctionNode | ModuleNode;
 export type TypeParameterScopeNode =
     | FunctionNode
@@ -2878,4 +2937,5 @@ export type TypeParameterScopeNode =
     | TypeAliasNode
     // ! Cython
     | CTypeDefNode
-    | CFunctionDeclNode;
+    | CFunctionDeclNode
+    | CEnumNode;

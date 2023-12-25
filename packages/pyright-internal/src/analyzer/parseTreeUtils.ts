@@ -788,6 +788,20 @@ export function getEvaluationScopeNode(node: ParseNode): EvaluationScopeNode {
                 }
                 break;
             }
+
+            // ! Cython
+            case ParseNodeType.CEnum: {
+                // TODO: Need to handle
+                // Anonymous enum is not a scope; fields are global scope
+                // C++ class enum is similar to class scope
+                // Named enum fields have class scope and global scope
+                if (prevNode === curNode.suite) {
+                    if (getScope(curNode) !== undefined) {
+                        return curNode;
+                    }
+                }
+                break;
+            }
         }
 
         prevPrevNode = prevNode;
@@ -848,7 +862,9 @@ export function getExecutionScopeNode(node: ParseNode): ExecutionScopeNode {
     // comprehensions are executed within their container.
     while (
         evaluationScope.nodeType === ParseNodeType.Class ||
-        evaluationScope.nodeType === ParseNodeType.ListComprehension
+        evaluationScope.nodeType === ParseNodeType.ListComprehension ||
+        // ! Cython
+        evaluationScope.nodeType === ParseNodeType.CEnum
     ) {
         evaluationScope = getEvaluationScopeNode(evaluationScope.parent!);
     }
@@ -1929,6 +1945,8 @@ export function printParseNodeType(type: ParseNodeType) {
             return 'CAddressOf';
         case ParseNodeType.CCast:
             return 'CCast';
+        case ParseNodeType.CEnum:
+            return 'CEnum';
     }
 
     assertNever(type);

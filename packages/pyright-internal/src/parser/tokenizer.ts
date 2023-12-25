@@ -107,6 +107,8 @@ const _keywords: Map<string, KeywordType> = new Map([
     ['noexcept', KeywordType.Noexcept],
     ['packed', KeywordType.Packed],
     ['volatile', KeywordType.Volatile],
+    ['enum', KeywordType.Enum],
+    ['struct', KeywordType.Struct],
     // Macros
     ['DEF', KeywordType.DEF],
     ['IF', KeywordType.IF],

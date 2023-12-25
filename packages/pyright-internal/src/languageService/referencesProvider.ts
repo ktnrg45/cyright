@@ -317,6 +317,11 @@ function isVisibleOutside(
             case ParseNodeType.Module:
                 return true;
 
+            // ! Cython
+            case ParseNodeType.CEnum:
+                // TODO Cython
+                return true;
+
             default:
                 assertNever(scopingNode);
         }

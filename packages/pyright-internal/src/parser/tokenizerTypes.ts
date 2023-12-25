@@ -171,6 +171,8 @@ export const enum KeywordType {
     Noexcept,
     Packed, // Only used for struct
     Volatile,
+    Enum,
+    Struct,
     // Macros
     DEF,
     IF,
@@ -216,6 +218,8 @@ export const softKeywords = [
     KeywordType.Noexcept,
     KeywordType.Packed,
     KeywordType.Volatile,
+    KeywordType.Enum,
+    KeywordType.Struct,
     KeywordType.Namespace,
     KeywordType.Cppclass,
     KeywordType.Operator,
