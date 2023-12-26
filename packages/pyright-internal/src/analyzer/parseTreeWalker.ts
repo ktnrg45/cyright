@@ -28,6 +28,7 @@ import {
     ConstantNode,
     ContinueNode,
     CParameterNode,
+    CStructNode,
     CTupleTypeNode,
     CTypeDefNode,
     CTypeNode,
@@ -423,6 +424,10 @@ export class ParseTreeWalker {
                 return this.visitCEnum(node)
                     ? [...node.decorators, node.name, node.typeParameters, ...node.arguments, node.suite]
                     : [];
+            case ParseNodeType.CStruct:
+                return this.visitCStruct(node)
+                    ? [...node.decorators, node.name, node.typeParameters, ...node.arguments, node.suite]
+                    : [];
         }
     }
 
@@ -785,6 +790,10 @@ export class ParseTreeWalker {
     }
 
     visitCEnum(node: CEnumNode) {
+        return true;
+    }
+
+    visitCStruct(node: CStructNode) {
         return true;
     }
 }

@@ -672,6 +672,7 @@
         "mixedPointersOrReference": "Declaration cannot be a pointer and a reference. (Contains \"*\" and \"&\")",
         "expectedPointer": "Expected \"*\"",
         "expectedCastClose": "Expected \">\"",
-        "expectedComma": "Expected \",\""
+        "expectedComma": "Expected \",\"",
+        "expectedStruct": "Expected \"struct\""
     }
 }

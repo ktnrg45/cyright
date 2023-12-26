@@ -46,6 +46,7 @@ import {
     ConstantNode,
     ContinueNode,
     CParameterNode,
+    CStructNode,
     CTrailType,
     CTupleTypeNode,
     CTypeDefNode,
@@ -5332,6 +5333,91 @@ export class Parser {
         return node;
     }
 
+    private _parseCStruct() {
+        const fields: ParseNode[] = [];
+        const startToken = this._peekToken();
+        let packedToken: KeywordToken | undefined = undefined;
+        if (this._peekKeywordType() === KeywordType.Packed) {
+            packedToken = this._getKeywordToken(KeywordType.Packed);
+        }
+
+        if (!this._consumeTokenIfKeyword(KeywordType.Struct)) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.DiagnosticCython.expectedStruct()
+            );
+        }
+        const iden = this._getTokenIfIdentifier();
+        const name = iden ? NameNode.create(iden) : undefined;
+        if (!name) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedIdentifier()
+            );
+        }
+        if (!this._consumeTokenIfType(TokenType.Colon)) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedColon()
+            );
+        }
+        if (!this._consumeTokenIfType(TokenType.NewLine)) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedNewline()
+            );
+        }
+        if (!this._consumeTokenIfType(TokenType.Indent)) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedIndentedBlock()
+            );
+        }
+
+        const suiteStart = this._peekToken();
+        const stopTypes = [TokenType.EndOfStream, TokenType.Dedent];
+        while (!stopTypes.includes(this._peekTokenType())) {
+            const typeNode = this._parseCType();
+            if (typeNode.nodeType === ParseNodeType.Error) {
+                this._consumeTokensUntilType([TokenType.NewLine]);
+                this._consumeTokenIfType(TokenType.NewLine);
+                continue;
+            }
+            const expr = this._parseCVarName(typeNode);
+            if (expr.nodeType === ParseNodeType.Error) {
+                this._consumeTokensUntilType([TokenType.NewLine]);
+                this._consumeTokenIfType(TokenType.NewLine);
+                continue;
+            }
+            const field = TypeAnnotationNode.create(expr, typeNode);
+            fields.push(field);
+            this._expectNewLine();
+            this._consumeTokenIfType(TokenType.NewLine);
+        }
+
+        while (this._peekTokenType() === TokenType.NewLine) {
+            this._consumeTokenIfType(TokenType.NewLine);
+        }
+        this._consumeTokenIfType(TokenType.Dedent);
+
+        if (fields.length === 0) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedIdentifier()
+            );
+        }
+        const suite = SuiteNode.create(suiteStart);
+        const statements = StatementListNode.create(suiteStart);
+        fields.forEach((f) => {
+            this._pushStatements(statements, f);
+        });
+        suite.statements.push(statements);
+        statements.parent = suite;
+        extendRange(suite, statements);
+        const node = CStructNode.create(startToken, name, suite, !!packedToken, undefined);
+        return node;
+    }
+
     private _parseCpdef() {
         const cdefToken = this._getKeywordToken(KeywordType.Cpdef);
         const token = this._peekToken();
@@ -5382,6 +5468,10 @@ export class Parser {
                     return this._parseExtern(cdefToken);
                 } else if (kwToken.keywordType === KeywordType.Enum) {
                     return this._parseEnum(false);
+                } else if (kwToken.keywordType === KeywordType.Packed) {
+                    return this._parseCStruct();
+                } else if (kwToken.keywordType === KeywordType.Struct) {
+                    return this._parseCStruct();
                 }
                 break;
             case TokenType.Colon:
@@ -6016,6 +6106,7 @@ export class Parser {
             this._parseCTypeTrailer(node);
             return node;
         }
+        this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
         return errorNode;
     }
 

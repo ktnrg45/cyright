@@ -319,6 +319,7 @@ function isVisibleOutside(
 
             // ! Cython
             case ParseNodeType.CEnum:
+            case ParseNodeType.CStruct:
                 // TODO Cython
                 return true;
 

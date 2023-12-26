@@ -1325,5 +1325,6 @@ export namespace Localizer {
         export const expectedPointer = () => getRawString('DiagnosticCython.expectedPointer');
         export const expectedCastClose = () => getRawString('DiagnosticCython.expectedCastClose');
         export const expectedComma = () => getRawString('DiagnosticCython.expectedComma');
+        export const expectedStruct = () => getRawString('DiagnosticCython.expectedStruct');
     }
 }

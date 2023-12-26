@@ -864,7 +864,8 @@ export function getExecutionScopeNode(node: ParseNode): ExecutionScopeNode {
         evaluationScope.nodeType === ParseNodeType.Class ||
         evaluationScope.nodeType === ParseNodeType.ListComprehension ||
         // ! Cython
-        evaluationScope.nodeType === ParseNodeType.CEnum
+        evaluationScope.nodeType === ParseNodeType.CEnum ||
+        evaluationScope.nodeType === ParseNodeType.CStruct
     ) {
         evaluationScope = getEvaluationScopeNode(evaluationScope.parent!);
     }
@@ -1947,6 +1948,8 @@ export function printParseNodeType(type: ParseNodeType) {
             return 'CCast';
         case ParseNodeType.CEnum:
             return 'CEnum';
+        case ParseNodeType.CStruct:
+            return 'CStruct';
     }
 
     assertNever(type);
