@@ -2531,16 +2531,17 @@ export namespace CTupleTypeNode {
 }
 
 export const enum CTrailType {
-    None,
-    Buffer,
-    View,
-    Template,
-    Function,
+    None = 0,
+    Buffer = 1 << 0,
+    View = 1 << 1,
+    Template = 1 << 2,
+    Function = 1 << 3,
+    Array = 1 << 4,
 }
 
 export interface CTypeTrailNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CTypeTrail;
-    nodes: ParseNode[];
+    nodes: StatementListNode[];
     startToken: Token;
     endToken?: Token;
     isValid: boolean;
@@ -2550,7 +2551,7 @@ export interface CTypeTrailNode extends ParseNodeBase {
 export namespace CTypeTrailNode {
     export function create(
         startToken: Token,
-        nodes: ParseNode[],
+        nodes: StatementListNode[],
         trailType: CTrailType,
         isValid: boolean,
         endToken?: Token
@@ -2566,9 +2567,6 @@ export namespace CTypeTrailNode {
             isValid: isValid,
             trailType: trailType,
         };
-        if (nodes.length > 0) {
-            extendRange(node, nodes[nodes.length - 1]);
-        }
         if (endToken) {
             extendRange(node, endToken);
         }

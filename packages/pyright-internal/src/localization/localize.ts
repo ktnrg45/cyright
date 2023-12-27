@@ -1326,5 +1326,8 @@ export namespace Localizer {
         export const expectedCastClose = () => getRawString('DiagnosticCython.expectedCastClose');
         export const expectedComma = () => getRawString('DiagnosticCython.expectedComma');
         export const expectedStruct = () => getRawString('DiagnosticCython.expectedStruct');
+        export const deprecatedCStyleArray = () => getRawString('DiagnosticCython.deprecatedCStyleArray');
+        export const cStyleArrayInitNotAllowed = () => getRawString('DiagnosticCython.cStyleArrayInitNotAllowed');
+        export const invalidNDimDeclaration = () => getRawString('DiagnosticCython.invalidNDimDeclaration');
     }
 }

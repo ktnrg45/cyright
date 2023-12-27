@@ -5120,6 +5120,17 @@ export class Parser {
         }
     }
 
+    private _addDeprecated(message: string, range: TextRange) {
+        assert(range !== undefined);
+
+        if (!this._areErrorsSuppressed) {
+            this._diagSink.addDeprecated(
+                message,
+                convertOffsetsToRange(range.start, range.start + range.length, this._tokenizerOutput!.lines)
+            );
+        }
+    }
+
     private _pushStatements(statements: StatementListNode, node: ParseNode) {
         statements.statements.push(node);
         node.parent = statements;
@@ -5454,7 +5465,7 @@ export class Parser {
         const kwToken = token as KeywordToken;
         let node: ParseNode | undefined = undefined;
         switch (token.type) {
-            case TokenType.OpenParenthesis: // TODO: callback function / ctuple
+            case TokenType.OpenParenthesis:
             case TokenType.Identifier:
                 node = this._parseCVarDecl();
                 break;
@@ -5579,6 +5590,7 @@ export class Parser {
     // View args must be slices. Only step slot is allowed.
     // Each slice represents a dimension
     // The step indicates a memory layout (cython.view)
+    // See `https://cython.readthedocs.io/en/latest/src/userguide/memoryviews.html`
     private _validateMemoryViewArgs(args: ArgumentNode[]) {
         let error = false;
         args.forEach((arg) => {
@@ -5602,31 +5614,213 @@ export class Parser {
         return error;
     }
 
-    // parse type trailer can signify memoryview, buffer or template
-    // See `https://cython.readthedocs.io/en/latest/src/userguide/memoryviews.html`
+    // Return name node if ctype is simple
+    private _narrowCTypeToName(node: CTypeNode) {
+        if (
+            node.numModifiers.length === 0 &&
+            node.varModifiers.length === 0 &&
+            node.operators.length === 0 &&
+            !node.typeTrailNode &&
+            !node.varTrailNode &&
+            node.name.nodeType === ParseNodeType.Name
+        ) {
+            return node.name;
+        }
+        return node;
+    }
+
+    // parse subscript argument for ctype in subscriptlist.
+    private _parseCTypePossibleSlice(): ExpressionNode {
+        const firstToken = this._peekToken();
+        const sliceExpressions: (ExpressionNode | undefined)[] = [undefined, undefined, undefined];
+        let sliceIndex = 0;
+        let sawColon = false;
+
+        while (true) {
+            const nextTokenType = this._peekTokenType();
+            if (nextTokenType === TokenType.CloseBracket || nextTokenType === TokenType.Comma) {
+                break;
+            }
+
+            if (nextTokenType !== TokenType.Colon) {
+                const tokenIndex = this._tokenIndex;
+                const wasErrorsSuppressed = this._areErrorsSuppressed;
+                this._areErrorsSuppressed = true;
+                let sliceExpr: ExpressionNode = this._parseCType();
+                this._areErrorsSuppressed = wasErrorsSuppressed;
+
+                if (sliceExpr.nodeType === ParseNodeType.CType) {
+                    // This could be a buffer, template, array
+                    sliceExpr.operators = this._parsePointersOrRef(/*allowReference*/ true);
+                    sliceExpr = this._narrowCTypeToName(sliceExpr);
+                } else {
+                    // Most likely an array
+                    // Reset token index before last parse and parse expression normally.
+                    this._tokenIndex = tokenIndex;
+                    sliceExpr = this._parseTestExpression(/* allowAssignmentExpression */ false);
+                }
+                sliceExpressions[sliceIndex] = sliceExpr;
+            }
+            sliceIndex++;
+
+            if (sliceIndex >= 3 || !this._consumeTokenIfType(TokenType.Colon)) {
+                break;
+            }
+            sawColon = true;
+        }
+
+        // If this was a simple expression with no colons return it.
+        if (!sawColon) {
+            if (sliceExpressions[0]) {
+                return sliceExpressions[0];
+            }
+
+            return ErrorNode.create(this._peekToken(), ErrorExpressionCategory.MissingIndexOrSlice);
+        }
+
+        const sliceNode = SliceNode.create(firstToken);
+        sliceNode.startValue = sliceExpressions[0];
+        if (sliceNode.startValue) {
+            sliceNode.startValue.parent = sliceNode;
+        }
+        sliceNode.endValue = sliceExpressions[1];
+        if (sliceNode.endValue) {
+            sliceNode.endValue.parent = sliceNode;
+        }
+        sliceNode.stepValue = sliceExpressions[2];
+        if (sliceNode.stepValue) {
+            sliceNode.stepValue.parent = sliceNode;
+        }
+        const extension = sliceExpressions[2] || sliceExpressions[1] || sliceExpressions[0];
+        if (extension) {
+            extendRange(sliceNode, extension);
+        }
+
+        return sliceNode;
+    }
+
+    // parse subscriptList after type name `typename[*]`
+    private _parseCTypeSubscriptList(): SubscriptListResult {
+        const argList: ArgumentNode[] = [];
+        let trailingComma = false;
+        const argType = ArgumentCategory.Simple;
+
+        while (true) {
+            const firstToken = this._peekToken();
+
+            if (firstToken.type !== TokenType.Colon && this._isNextTokenNeverExpression()) {
+                break;
+            }
+
+            // const startOfSubscriptIndex = this._tokenIndex;
+            let valueExpr = this._parseCTypePossibleSlice();
+            let nameIdentifier: IdentifierToken | undefined;
+
+            // Is this a keyword argument?
+            if (argType === ArgumentCategory.Simple) {
+                if (this._consumeTokenIfOperator(OperatorType.Assign)) {
+                    const nameExpr = valueExpr;
+                    valueExpr = this._parseCTypePossibleSlice();
+
+                    if (nameExpr.nodeType === ParseNodeType.Name) {
+                        nameIdentifier = nameExpr.token;
+                    } else {
+                        this._addError(Localizer.Diagnostic.expectedParamName(), nameExpr);
+                    }
+                }
+                // TODO: Check if walrus is allowed
+                // else if (
+                //     valueExpr.nodeType === ParseNodeType.Name &&
+                //     this._peekOperatorType() === OperatorType.Walrus
+                // ) {
+                //     this._tokenIndex = startOfSubscriptIndex;
+                //     valueExpr = this._parseTestExpression(/* allowAssignmentExpression */ true);
+                // }
+            }
+
+            const argNode = ArgumentNode.create(firstToken, valueExpr, argType);
+            if (nameIdentifier) {
+                argNode.name = NameNode.create(nameIdentifier);
+                argNode.name.parent = argNode;
+            }
+
+            argList.push(argNode);
+
+            if (!this._consumeTokenIfType(TokenType.Comma)) {
+                trailingComma = false;
+                break;
+            }
+
+            trailingComma = true;
+        }
+
+        // An empty subscript list is illegal.
+        if (argList.length === 0) {
+            const errorNode = this._handleExpressionParseError(
+                ErrorExpressionCategory.MissingIndexOrSlice,
+                Localizer.Diagnostic.expectedSliceIndex(),
+                /* targetToken */ undefined,
+                /* childNode */ undefined,
+                [TokenType.CloseBracket]
+            );
+            argList.push(ArgumentNode.create(this._peekToken(), errorNode, ArgumentCategory.Simple));
+        }
+
+        return {
+            list: argList,
+            trailingComma,
+        };
+    }
+
+    // parse type trailer can signify memoryview, buffer, array or template
     private _parseCTypeTrailer(node: CTypeNode) {
         const startOfTrailerToken = this._peekToken();
         let closingToken: Token | undefined = undefined;
         let error = false;
-        const trailNodes: ArgumentNode[] = [];
+        const trailNodes: StatementListNode[] = [];
         let openToken = this._peekToken();
         let trailType = CTrailType.None;
 
-        if (this._consumeTokenIfType(TokenType.OpenBracket)) {
+        while (this._consumeTokenIfType(TokenType.OpenBracket)) {
             openToken = this._peekToken(-1);
-            const subscriptList = this._parseSubscriptList();
-            trailNodes.push(...subscriptList.list);
+            const subscriptList = this._parseCTypeSubscriptList();
+            const statements = StatementListNode.create(this._peekToken());
+            trailNodes.push(statements);
+            subscriptList.list.forEach((n) => {
+                this._pushStatements(statements, n);
+            });
 
-            // TODO: handle templates, buffer
             if (subscriptList.list.length > 0) {
-                if (subscriptList.list[0].valueExpression.nodeType === ParseNodeType.Slice) {
-                    trailType = CTrailType.View;
+                const firstExpr = subscriptList.list[0].valueExpression;
+                if (trailType === CTrailType.None && firstExpr.nodeType === ParseNodeType.Slice) {
+                    if (!trailType) {
+                        trailType = CTrailType.View;
+                    }
                     if (this._validateMemoryViewArgs(subscriptList.list)) {
                         error = true;
                     }
-                } else {
-                    error = true;
-                    //TODO: Unhandled error
+                } else if (firstExpr.nodeType === ParseNodeType.Number) {
+                    if (!trailType) {
+                        trailType = CTrailType.Array;
+                    }
+                    if (!firstExpr.isInteger || subscriptList.list.length > 1) {
+                        this._addError(Localizer.DiagnosticCython.expectedIndexOrIdentifier(), firstExpr);
+                        error = true;
+                    }
+                } else if (!trailType) {
+                    // Try to narrow trail type
+                    trailType = CTrailType.Buffer | CTrailType.Template | CTrailType.Array;
+                    if (subscriptList.list.length > 1) {
+                        const arg = subscriptList.list[1];
+                        if (arg.name) {
+                            // Buffer requires named arguments starting at arg 1
+                            // TODO: validate buffer args
+                            trailType = CTrailType.Buffer;
+                        } else {
+                            // Multiple unnamed arguments indicates template.
+                            trailType = CTrailType.Template;
+                        }
+                    }
                 }
 
                 if (subscriptList.trailingComma) {
@@ -5635,6 +5829,16 @@ export class Parser {
                 }
             } else {
                 error = true;
+                // error for no args should have been handled already
+            }
+
+            if (trailNodes.length > 1) {
+                // This should mean that this is a multidim array: `[ARRAY_SIZE][ARRAY_SIZE]`
+                if (!(trailType & CTrailType.Array)) {
+                    error = true;
+                    this._addError(Localizer.DiagnosticCython.invalidNDimDeclaration(), trailNodes[1]);
+                }
+                trailType = CTrailType.Array;
             }
 
             closingToken = this._peekToken();
@@ -5715,6 +5919,14 @@ export class Parser {
             const trailNode = CVarTrailNode.create(startOfTrailerToken, trailNodes, !error, closingToken);
             node.varTrailNode = trailNode;
             trailNode.parent = node;
+
+            // https://cython.readthedocs.io/en/latest/src/userguide/language_basics.html
+            // C style array declaration deprecated in favor of Java style
+            this._addDeprecated(Localizer.DiagnosticCython.deprecatedCStyleArray(), trailNode);
+            if (this._peekOperatorType() === OperatorType.Assign) {
+                // Initialization of C Style array not allowed
+                this._addError(Localizer.DiagnosticCython.cStyleArrayInitNotAllowed(), this._peekToken());
+            }
         }
     }
 
@@ -5723,12 +5935,19 @@ export class Parser {
         const operators: OperatorToken[] = [];
         const errorNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration);
         const validTypes = [TokenType.Identifier, TokenType.Operator, TokenType.Keyword];
+        const ptrRefTypes = [OperatorType.Multiply, OperatorType.Power, OperatorType.BitwiseAnd];
         let name: NameNode | undefined = undefined;
 
         while (validTypes.includes(this._peekTokenType()) && !name) {
-            if (this._peekTokenType() === TokenType.Operator) {
-                operators.push(...this._parsePointersOrRef(allowReference));
-                continue;
+            const opType = this._peekOperatorType();
+            if (opType) {
+                if (ptrRefTypes.includes(opType)) {
+                    operators.push(...this._parsePointersOrRef(allowReference));
+                    continue;
+                } else {
+                    this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
+                    return errorNode;
+                }
             }
             const token = this._getNextToken();
             const idToken = token as IdentifierToken;
@@ -5788,15 +6007,18 @@ export class Parser {
                     operators.push(token);
                 }
             } else {
-                if (!(allowCastClose && token.operatorType === OperatorType.GreaterThan)) {
-                    this._handleExpressionParseError(
-                        ErrorExpressionCategory.InvalidDeclaration,
-                        Localizer.Diagnostic.expectedIdentifier(),
-                        this._getNextToken()
-                    );
-                }
                 break;
             }
+            // else {
+            //     if (!(allowCastClose && token.operatorType === OperatorType.GreaterThan)) {
+            //         this._handleExpressionParseError(
+            //             ErrorExpressionCategory.InvalidDeclaration,
+            //             Localizer.Diagnostic.expectedIdentifier(),
+            //             this._getNextToken()
+            //         );
+            //     }
+            //     break;
+            // }
         }
         return operators;
     }
@@ -5961,7 +6183,6 @@ export class Parser {
     }
 
     private _parseCType(allowInline = false) {
-        // TODO: Templates, callback functions
         const identifiers: IdentifierToken[] = [];
         const modifiers: KeywordToken[] = [];
         const numModifiers: IdentifierToken[] = [];
