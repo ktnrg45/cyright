@@ -24,6 +24,7 @@ import {
     CEnumNode,
     CExternNode,
     CFunctionDeclNode,
+    CFunctionNode,
     ClassNode,
     ConstantNode,
     ContinueNode,
@@ -428,6 +429,19 @@ export class ParseTreeWalker {
                 return this.visitCStruct(node)
                     ? [...node.decorators, node.name, node.typeParameters, ...node.arguments, node.suite]
                     : [];
+
+            case ParseNodeType.CFunction:
+                return this.visitCFunction(node)
+                    ? [
+                          ...node.decorators,
+                          node.name,
+                          node.typeParameters,
+                          ...node.parameters,
+                          node.returnTypeAnnotation,
+                          node.functionAnnotationComment,
+                          node.suite,
+                      ]
+                    : [];
         }
     }
 
@@ -794,6 +808,10 @@ export class ParseTreeWalker {
     }
 
     visitCStruct(node: CStructNode) {
+        return true;
+    }
+
+    visitCFunction(node: CFunctionNode) {
         return true;
     }
 }

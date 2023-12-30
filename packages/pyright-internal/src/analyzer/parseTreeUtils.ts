@@ -727,6 +727,8 @@ export function getEvaluationScopeNode(node: ParseNode): EvaluationScopeNode {
         // we'll return this scope, but in a few cases we need to return
         // the enclosing scope instead.
         switch (curNode.nodeType) {
+            // ! Cython
+            case ParseNodeType.CFunction:
             case ParseNodeType.Function: {
                 if (curNode.parameters.some((param) => param === prevNode)) {
                     if (isParamNameNode) {
@@ -1950,6 +1952,8 @@ export function printParseNodeType(type: ParseNodeType) {
             return 'CEnum';
         case ParseNodeType.CStruct:
             return 'CStruct';
+        case ParseNodeType.CFunction:
+            return 'CFunction';
     }
 
     assertNever(type);

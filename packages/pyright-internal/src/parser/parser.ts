@@ -42,6 +42,7 @@ import {
     CEnumNode,
     CExternNode,
     CFunctionDeclNode,
+    CFunctionNode,
     ClassNode,
     ConstantNode,
     ContinueNode,
@@ -5153,6 +5154,21 @@ export class Parser {
         return undefined;
     }
 
+    // return true if next token is identifier or soft keyword
+    private _peekIdentifier() {
+        const token = this._peekToken();
+        if (token.type === TokenType.Identifier) {
+            return true;
+        }
+        if (token.type === TokenType.Keyword) {
+            const kwToken = token as KeywordToken;
+            if (softKeywords.includes(kwToken.keywordType)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private _rangeText(range: TextRange) {
         return this._fileContents!.substr(range.start, range.length);
     }
@@ -5444,6 +5460,16 @@ export class Parser {
                 break;
         }
 
+        if (!node) {
+            const typeNode = this._parseCType();
+            if (typeNode.nodeType !== ParseNodeType.Error) {
+                const possibleFunction = this._getCFunction(typeNode, true);
+                if (possibleFunction) {
+                    return possibleFunction;
+                }
+            }
+        }
+
         if (node && node.nodeType !== ParseNodeType.Error) {
             return node;
         }
@@ -5550,6 +5576,41 @@ export class Parser {
         return result;
     }
 
+    // return function if function is parsed. Should be called after `parseCType()`
+    // Will parse up to the first open parenthesis
+    // Any pointers or refs will be parsed and added to type node as well
+    private _getCFunction(typeNode: CTypeNode, cpdef: boolean) {
+        const tokenIndex = this._tokenIndex;
+        const operators = !cpdef ? this._parsePointersOrRef(/*allowReference*/ true) : [];
+        let name: NameNode | undefined = undefined;
+        let returnType: CTypeNode | undefined = typeNode;
+        if (this._peekIdentifier() && this._peekTokenType(1) === TokenType.OpenParenthesis) {
+            // Return type annotation present and function name and open paren present
+            const iden = this._getTokenIfIdentifier();
+            if (iden) {
+                name = NameNode.create(iden);
+            }
+        } else if (operators.length === 0 && this._peekTokenType() === TokenType.OpenParenthesis) {
+            const narrowed = this._narrowCTypeToName(typeNode);
+            if (narrowed.nodeType === ParseNodeType.Name) {
+                // Only function name present and open paren present
+                name = narrowed;
+                returnType = undefined;
+            }
+        }
+        if (name) {
+            if (returnType && operators.length > 0) {
+                returnType.operators = operators;
+                extendRange(returnType, operators[operators.length - 1]);
+                this._setCTypeFullValue(returnType);
+            }
+            const functionNode = this._parseCFunction(name, returnType);
+            return functionNode;
+        }
+        this._tokenIndex = tokenIndex;
+        return undefined;
+    }
+
     private _parseCVarDecl() {
         const startToken = this._peekToken();
         if (this._peekKeywordType() === KeywordType.Enum) {
@@ -5561,6 +5622,11 @@ export class Parser {
         let hasPointers = false;
 
         if (typeNode.nodeType !== ParseNodeType.Error) {
+            const possibleFunction = this._getCFunction(typeNode, false);
+            if (possibleFunction) {
+                return possibleFunction;
+            }
+
             let result = this._parseSharedDecl(typeNode);
             nodes.push(result.node);
             if (result.pointers) {
@@ -5971,11 +6037,16 @@ export class Parser {
         typeNode.operators.push(...operators);
         if (!name) {
             if (this._peekTokenType() === TokenType.OpenParenthesis) {
-                return this._parseCCallback(typeNode);
-            } else {
-                this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
-                return errorNode;
+                const ptrToken = this._peekToken(1);
+                if (ptrToken.type === TokenType.Operator) {
+                    const opToken = ptrToken as OperatorToken;
+                    if (opToken.operatorType === OperatorType.Multiply || opToken.operatorType === OperatorType.Power) {
+                        return this._parseCCallback(typeNode);
+                    }
+                }
             }
+            this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
+            return errorNode;
         }
         name.typeNode = typeNode;
         this._parseCVarTrailer(name.typeNode, false);
@@ -6026,20 +6097,214 @@ export class Parser {
     // parse param used in prototype function
     // Type must be given but names are optional
     private _parseCPrototypeParam() {
+        return this._parseCParameter(true);
+    }
+
+    private _parseCParameter(isPrototype = false) {
         const startToken = this._peekToken();
         const typeNode = this._parseCType();
-        const param = CParameterNode.create(startToken, typeNode);
+        let typeAnnotation: ExpressionNode | undefined = typeNode;
+        let name: NameNode | undefined = undefined;
+        if (!isPrototype) {
+            // Check for param name. Type annotation is optional.
+            if (!this._peekIdentifier()) {
+                typeAnnotation = undefined;
+                if (typeNode.nodeType === ParseNodeType.CType && typeNode.name.nodeType === ParseNodeType.Name) {
+                    name = typeNode.name;
+                }
+            }
+        }
+        const param = CParameterNode.create(startToken, typeAnnotation);
         if (typeNode.nodeType === ParseNodeType.Error) {
             return param;
         }
-        typeNode.operators = this._parsePointersOrRef(/*allowReference*/ true);
-        const iden = this._getTokenIfIdentifier();
-        if (iden) {
-            param.name = NameNode.create(iden);
+        if (param.typeAnnotation) {
+            typeNode.operators = this._parsePointersOrRef(/*allowReference*/ true);
+        }
+
+        if (!name) {
+            const iden = this._getTokenIfIdentifier();
+            if (iden) {
+                name = NameNode.create(iden);
+            }
+        }
+
+        if (name) {
+            param.name = name;
             param.name.parent = param;
             extendRange(param, param.name);
         }
+        if (!isPrototype) {
+            if (this._consumeTokenIfOperator(OperatorType.Assign)) {
+                param.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
+                param.defaultValue.parent = param;
+                extendRange(param, param.defaultValue);
+            }
+        }
         return param;
+    }
+
+    private _parseCVarArgsList(terminator: TokenType, allowAnnotations: boolean): CParameterNode[] {
+        const paramMap = new Map<string, string>();
+        const paramList: CParameterNode[] = [];
+        let sawDefaultParam = false;
+        let reportedNonDefaultParamErr = false;
+        let sawKeywordOnlySeparator = false;
+        let sawPositionOnlySeparator = false;
+        let sawKeywordOnlyParamAfterSeparator = false;
+        let sawArgs = false;
+        let sawKwArgs = false;
+
+        while (true) {
+            if (this._peekTokenType() === terminator) {
+                break;
+            }
+
+            const param = this._parseCParameter();
+            if (!param) {
+                this._consumeTokensUntilType([terminator]);
+                break;
+            }
+
+            if (param.name) {
+                const name = param.name.value;
+                if (paramMap.has(name)) {
+                    this._addError(Localizer.Diagnostic.duplicateParam().format({ name }), param.name);
+                } else {
+                    paramMap.set(name, name);
+                }
+            } else if (param.category === ParameterCategory.Simple) {
+                if (paramList.length === 0) {
+                    this._addError(Localizer.Diagnostic.positionOnlyFirstParam(), param);
+                }
+            }
+
+            if (param.category === ParameterCategory.Simple) {
+                if (!param.name) {
+                    if (sawPositionOnlySeparator) {
+                        this._addError(Localizer.Diagnostic.duplicatePositionOnly(), param);
+                    } else if (sawKeywordOnlySeparator) {
+                        this._addError(Localizer.Diagnostic.positionOnlyAfterKeywordOnly(), param);
+                    } else if (sawArgs) {
+                        this._addError(Localizer.Diagnostic.positionOnlyAfterArgs(), param);
+                    }
+                    sawPositionOnlySeparator = true;
+                } else {
+                    if (sawKeywordOnlySeparator) {
+                        sawKeywordOnlyParamAfterSeparator = true;
+                    }
+
+                    if (param.defaultValue) {
+                        sawDefaultParam = true;
+                    } else if (sawDefaultParam && !sawKeywordOnlySeparator && !sawArgs) {
+                        // Report this error only once.
+                        if (!reportedNonDefaultParamErr) {
+                            this._addError(Localizer.Diagnostic.nonDefaultAfterDefault(), param);
+                            reportedNonDefaultParamErr = true;
+                        }
+                    }
+                }
+            }
+
+            paramList.push(param);
+
+            if (param.category === ParameterCategory.VarArgList) {
+                if (!param.name) {
+                    if (sawKeywordOnlySeparator) {
+                        this._addError(Localizer.Diagnostic.duplicateKeywordOnly(), param);
+                    } else if (sawArgs) {
+                        this._addError(Localizer.Diagnostic.keywordOnlyAfterArgs(), param);
+                    }
+                    sawKeywordOnlySeparator = true;
+                } else {
+                    if (sawKeywordOnlySeparator || sawArgs) {
+                        this._addError(Localizer.Diagnostic.duplicateArgsParam(), param);
+                    }
+                    sawArgs = true;
+                }
+            }
+
+            if (param.category === ParameterCategory.VarArgDictionary) {
+                if (sawKwArgs) {
+                    this._addError(Localizer.Diagnostic.duplicateKwargsParam(), param);
+                }
+                sawKwArgs = true;
+
+                // A **kwargs cannot immediately follow a keyword-only separator ("*").
+                if (sawKeywordOnlySeparator && !sawKeywordOnlyParamAfterSeparator) {
+                    this._addError(Localizer.Diagnostic.keywordParameterMissing(), param);
+                }
+            } else if (sawKwArgs) {
+                this._addError(Localizer.Diagnostic.paramAfterKwargsParam(), param);
+            }
+
+            const foundComma = this._consumeTokenIfType(TokenType.Comma);
+
+            if (allowAnnotations && !param.typeAnnotation) {
+                // Look for a type annotation comment at the end of the line.
+                const typeAnnotationComment = this._parseVariableTypeAnnotationComment();
+                if (typeAnnotationComment) {
+                    param.typeAnnotationComment = typeAnnotationComment;
+                    param.typeAnnotationComment.parent = param;
+                    extendRange(param, param.typeAnnotationComment);
+                }
+            }
+
+            if (!foundComma) {
+                break;
+            }
+        }
+
+        if (paramList.length > 0) {
+            const lastParam = paramList[paramList.length - 1];
+            if (lastParam.category === ParameterCategory.VarArgList && !lastParam.name) {
+                this._addError(Localizer.Diagnostic.expectedNamedParameter(), lastParam);
+            }
+        }
+
+        return paramList;
+    }
+
+    private _parseCFunction(name: NameNode, returnType?: CTypeNode, decorators?: DecoratorNode[]) {
+        const openParenToken = this._peekToken();
+        if (!this._consumeTokenIfType(TokenType.OpenParenthesis)) {
+            this._addError(Localizer.Diagnostic.expectedOpenParen(), this._peekToken());
+            return ErrorNode.create(name.token, ErrorExpressionCategory.MissingFunctionParameterList, name, decorators);
+        }
+
+        const paramList = this._parseCVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true);
+
+        if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
+            this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
+            this._consumeTokensUntilType([TokenType.Colon]);
+        }
+        const nogil = this._consumeTokenIfKeyword(KeywordType.Nogil);
+        const suite = this._parseSuite(/* isFunction */ true, this._parseOptions.skipFunctionAndClassBody);
+        const functionNode = CFunctionNode.create(openParenToken, name, suite);
+        functionNode.nogil = nogil;
+        functionNode.parameters = paramList;
+        paramList.forEach((param) => {
+            param.parent = functionNode;
+        });
+
+        if (decorators) {
+            functionNode.decorators = decorators;
+            decorators.forEach((decorator) => {
+                decorator.parent = functionNode;
+            });
+
+            if (decorators.length > 0) {
+                extendRange(functionNode, decorators[0]);
+            }
+        }
+
+        if (returnType) {
+            functionNode.returnTypeAnnotation = returnType;
+            functionNode.returnTypeAnnotation.parent = functionNode;
+            extendRange(functionNode, returnType);
+        }
+
+        return functionNode;
     }
 
     // parse c callback declaration
@@ -6087,13 +6352,13 @@ export class Parser {
         const params: CParameterNode[] = [];
         if (this._peekTokenType() !== TokenType.CloseParenthesis) {
             let param = this._parseCPrototypeParam();
-            if (param.typeAnnotation.nodeType !== ParseNodeType.Error) {
+            if (param.typeAnnotation && param.typeAnnotation.nodeType !== ParseNodeType.Error) {
                 params.push(param);
             }
             while (this._peekTokenType() === TokenType.Comma) {
                 this._getNextToken();
                 param = this._parseCPrototypeParam();
-                if (param.typeAnnotation.nodeType !== ParseNodeType.Error) {
+                if (param.typeAnnotation && param.typeAnnotation.nodeType !== ParseNodeType.Error) {
                     params.push(param);
                 }
             }

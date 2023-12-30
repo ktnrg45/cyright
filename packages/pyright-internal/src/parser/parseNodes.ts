@@ -123,6 +123,7 @@ export const enum ParseNodeType {
     CCast,
     CEnum,
     CStruct,
+    CFunction,
 }
 
 export const enum ErrorExpressionCategory {
@@ -695,7 +696,8 @@ export type StatementNode =
     | CDefSuiteNode
     | CExternNode
     | CEnumNode
-    | CStructNode;
+    | CStructNode
+    | CFunctionNode;
 
 export type SmallStatementNode =
     | ExpressionNode
@@ -2692,17 +2694,13 @@ export interface CParameterNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CParameter;
     category: ParameterCategory;
     name?: NameNode | undefined;
-    typeAnnotation: ExpressionNode;
+    typeAnnotation?: ExpressionNode | undefined;
     typeAnnotationComment?: ExpressionNode | undefined;
     defaultValue?: ExpressionNode | undefined;
 }
 
 export namespace CParameterNode {
-    export function create(
-        startToken: Token,
-        typeAnnotation: ExpressionNode,
-        paramCategory = ParameterCategory.Simple
-    ) {
+    export function create(startToken: Token, typeAnnotation?: ExpressionNode, paramCategory = ParameterCategory.Simple) {
         const node: CParameterNode = {
             start: startToken.start,
             length: startToken.length,
@@ -2711,8 +2709,10 @@ export namespace CParameterNode {
             category: paramCategory,
             typeAnnotation: typeAnnotation,
         };
-        extendRange(node, typeAnnotation);
-        typeAnnotation.parent = node;
+        if (typeAnnotation) {
+            extendRange(node, typeAnnotation);
+            typeAnnotation.parent = node;
+        }
 
         return node;
     }
@@ -2862,6 +2862,45 @@ export namespace CStructNode {
     }
 }
 
+export interface CFunctionNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CFunction;
+    decorators: DecoratorNode[];
+    isAsync?: boolean;
+    name: NameNode;
+    typeParameters?: TypeParameterListNode;
+    parameters: CParameterNode[];
+    returnTypeAnnotation?: ExpressionNode | undefined;
+    functionAnnotationComment?: FunctionAnnotationNode | undefined;
+    suite: SuiteNode;
+    cpdef?: boolean;
+    nogil?: boolean;
+}
+
+export namespace CFunctionNode {
+    export function create(defToken: Token, name: NameNode, suite: SuiteNode) {
+        const node: CFunctionNode = {
+            start: defToken.start,
+            length: defToken.length,
+            nodeType: ParseNodeType.CFunction,
+            id: _nextNodeId++,
+            decorators: [],
+            name,
+            typeParameters: undefined,
+            parameters: [],
+            suite,
+            isAsync: false,
+        };
+
+        name.parent = node;
+        suite.parent = node;
+
+        extendRange(node, suite);
+        extendRange(node, name);
+
+        return node;
+    }
+}
+
 // ! Cython End
 
 export type PatternAtomNode =
@@ -2967,7 +3006,8 @@ export type ParseNode =
     | CAddressOfNode
     | CCastNode
     | CEnumNode
-    | CStructNode;
+    | CStructNode
+    | CFunctionNode;
 
 export type EvaluationScopeNode =
     | LambdaNode
@@ -2977,8 +3017,9 @@ export type EvaluationScopeNode =
     | ListComprehensionNode
     // ! Cython
     | CEnumNode
-    | CStructNode;
-export type ExecutionScopeNode = LambdaNode | FunctionNode | ModuleNode;
+    | CStructNode
+    | CFunctionNode;
+export type ExecutionScopeNode = LambdaNode | FunctionNode | ModuleNode | /*Cython*/ CFunctionNode;
 export type TypeParameterScopeNode =
     | FunctionNode
     | ClassNode
@@ -2987,4 +3028,5 @@ export type TypeParameterScopeNode =
     | CTypeDefNode
     | CFunctionDeclNode
     | CEnumNode
-    | CStructNode;
+    | CStructNode
+    | CFunctionNode;
