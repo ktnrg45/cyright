@@ -20,6 +20,7 @@ import {
     CallNode,
     CaseNode,
     CCastNode,
+    CDefineNode,
     CDefSuiteNode,
     CEnumNode,
     CExternNode,
@@ -442,6 +443,9 @@ export class ParseTreeWalker {
                           node.suite,
                       ]
                     : [];
+
+            case ParseNodeType.CDefine:
+                return this.visitCDefine(node) ? [node.valueExpression] : [];
         }
     }
 
@@ -812,6 +816,10 @@ export class ParseTreeWalker {
     }
 
     visitCFunction(node: CFunctionNode) {
+        return true;
+    }
+
+    visitCDefine(node: CDefineNode) {
         return true;
     }
 }

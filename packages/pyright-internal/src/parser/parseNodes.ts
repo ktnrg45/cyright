@@ -124,6 +124,7 @@ export const enum ParseNodeType {
     CEnum,
     CStruct,
     CFunction,
+    CDefine,
 }
 
 export const enum ErrorExpressionCategory {
@@ -697,7 +698,8 @@ export type StatementNode =
     | CExternNode
     | CEnumNode
     | CStructNode
-    | CFunctionNode;
+    | CFunctionNode
+    | CDefineNode;
 
 export type SmallStatementNode =
     | ExpressionNode
@@ -2700,7 +2702,11 @@ export interface CParameterNode extends ParseNodeBase {
 }
 
 export namespace CParameterNode {
-    export function create(startToken: Token, typeAnnotation?: ExpressionNode, paramCategory = ParameterCategory.Simple) {
+    export function create(
+        startToken: Token,
+        typeAnnotation?: ExpressionNode,
+        paramCategory = ParameterCategory.Simple
+    ) {
         const node: CParameterNode = {
             start: startToken.start,
             length: startToken.length,
@@ -2900,7 +2906,28 @@ export namespace CFunctionNode {
         return node;
     }
 }
+export interface CDefineNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CDefine;
+    defToken: Token;
+    valueExpression: ExpressionNode;
+}
 
+export namespace CDefineNode {
+    export function create(defToken: Token, valueExpression: ExpressionNode) {
+        const node: CDefineNode = {
+            start: defToken.start,
+            length: defToken.length,
+            nodeType: ParseNodeType.CDefine,
+            id: _nextNodeId++,
+            defToken,
+            valueExpression,
+        };
+
+        valueExpression.parent = node;
+        extendRange(node, valueExpression);
+        return node;
+    }
+}
 // ! Cython End
 
 export type PatternAtomNode =
@@ -3007,7 +3034,8 @@ export type ParseNode =
     | CCastNode
     | CEnumNode
     | CStructNode
-    | CFunctionNode;
+    | CFunctionNode
+    | CDefineNode;
 
 export type EvaluationScopeNode =
     | LambdaNode

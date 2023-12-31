@@ -38,6 +38,7 @@ import {
     CallNode,
     CaseNode,
     CCastNode,
+    CDefineNode,
     CDefSuiteNode,
     CEnumNode,
     CExternNode,
@@ -456,6 +457,8 @@ export class Parser {
                 return this._parseCDef();
             case KeywordType.Cpdef:
                 return this._parseCpdef();
+            case KeywordType.DEF:
+                return this._parseCDefine();
         }
 
         return this._parseSimpleStatement();
@@ -6674,6 +6677,31 @@ export class Parser {
         const node = CExternNode.create(token, suite);
         node.fileNameToken = fileNameToken;
         node.nameSpaceToken = nameSpaceToken;
+        return node;
+    }
+
+    // parse define macro: `DEF name = value`
+    private _parseCDefine() {
+        const defToken = this._getKeywordToken(KeywordType.DEF);
+        const iden = this._getTokenIfIdentifier();
+        if (!iden) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.MissingExpression,
+                Localizer.Diagnostic.expectedIdentifier()
+            );
+        }
+        const name = NameNode.create(iden);
+        if (!this._consumeTokenIfOperator(OperatorType.Assign)) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.MissingExpression,
+                Localizer.Diagnostic.expectedEquals()
+            );
+        }
+        const expr = this._parseTestExpression(false);
+        const assign = AssignmentNode.create(name, expr);
+        const node = CDefineNode.create(defToken, assign);
+        this._expectNewLine();
+        this._consumeTokenIfType(TokenType.NewLine);
         return node;
     }
 }
