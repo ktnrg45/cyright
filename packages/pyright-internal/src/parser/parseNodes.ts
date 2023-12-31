@@ -227,6 +227,8 @@ export interface IfNode extends ParseNodeBase {
     testExpression: ExpressionNode;
     ifSuite: SuiteNode;
     elseSuite?: SuiteNode | IfNode | undefined;
+    // ! Cython
+    cython?: boolean;
 }
 
 export namespace IfNode {

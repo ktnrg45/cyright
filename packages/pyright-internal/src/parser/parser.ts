@@ -459,6 +459,8 @@ export class Parser {
                 return this._parseCpdef();
             case KeywordType.DEF:
                 return this._parseCDefine();
+            case KeywordType.IF:
+                return this._parseCIfStatement();
         }
 
         return this._parseSimpleStatement();
@@ -6703,5 +6705,28 @@ export class Parser {
         this._expectNewLine();
         this._consumeTokenIfType(TokenType.NewLine);
         return node;
+    }
+
+    // parse C macro IF ELSE statement
+    private _parseCIfStatement(keywordType: KeywordType.IF | KeywordType.ELIF = KeywordType.IF): IfNode {
+        const ifOrElifToken = this._getKeywordToken(keywordType);
+
+        const test = this._parseTestExpression(/* allowAssignmentExpression */ true);
+        const suite = this._parseSuite(this._isInFunction);
+        const ifNode = IfNode.create(ifOrElifToken, test, suite);
+        ifNode.cython = true;
+
+        if (this._consumeTokenIfKeyword(KeywordType.ELSE)) {
+            ifNode.elseSuite = this._parseSuite(this._isInFunction);
+            ifNode.elseSuite.parent = ifNode;
+            extendRange(ifNode, ifNode.elseSuite);
+        } else if (this._peekKeywordType() === KeywordType.ELIF) {
+            // Recursively handle an "elif" statement.
+            ifNode.elseSuite = this._parseCIfStatement(KeywordType.ELIF);
+            ifNode.elseSuite.parent = ifNode;
+            extendRange(ifNode, ifNode.elseSuite);
+        }
+
+        return ifNode;
     }
 }
