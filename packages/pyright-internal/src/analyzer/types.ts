@@ -8,7 +8,7 @@
  */
 
 import { assert } from '../common/debug';
-import { CTypeNode, ExpressionNode, ParameterCategory } from '../parser/parseNodes';
+import { CTrailType, CTypeNode, ExpressionNode, ParameterCategory } from '../parser/parseNodes';
 import { FunctionDeclaration } from './declaration';
 import { Symbol, SymbolTable } from './symbol';
 
@@ -134,6 +134,7 @@ interface TypeBase {
 
     // ! Cython Type
     cTypeNode?: CTypeNode;
+    cythonDetails?: CythonDetails;
 }
 
 export namespace TypeBase {
@@ -246,6 +247,23 @@ export namespace TypeBase {
         const typeClone = cloneType(type);
         typeClone.isAmbiguous = true;
         return typeClone;
+    }
+
+    // ! Cython
+    export function cloneForCType(node: CTypeNode, type: Type) {
+        const cType = TypeBase.cloneType(type);
+        cType.cythonDetails = {
+            isPointer: node.isPointer,
+            ptrRefCount: node.ptrRefCount,
+            isConst: CTypeNode.isConstant(node),
+            isVolatile: CTypeNode.isVolatile(node),
+            isPublic: CTypeNode.isPublic(node),
+            isReadOnly: CTypeNode.isReadOnly(node),
+            numMods: CTypeNode.numModifiers(node),
+            trailType: CTypeNode.trailType(node),
+        };
+        cType.cTypeNode = node;
+        return cType;
     }
 }
 
@@ -502,6 +520,22 @@ interface ClassDetails {
     // Indicates that one or more type parameters has an
     // autovariance, so variance must be inferred.
     requiresVarianceInference?: boolean;
+}
+
+// ! Cython
+export interface CythonDetails {
+    // true if pointer; false if reference; undefined if neither
+    isPointer?: boolean;
+
+    // count of '*' or '&' symbols
+    ptrRefCount: number;
+
+    isConst: boolean;
+    isVolatile: boolean;
+    isReadOnly: boolean;
+    isPublic: boolean;
+    numMods: string[];
+    trailType: CTrailType;
 }
 
 export interface TupleTypeArgument {

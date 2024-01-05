@@ -586,8 +586,39 @@ export function printObjectTypeForClass(
     recursionTypes: Type[] = [],
     recursionCount = 0
 ): string {
+    let objName = type.aliasName || type.details.name;
+
     // ! Cython
-    let objName = type.cTypeNode?.fullValue || type.aliasName || type.details.name;
+    if (type.cythonDetails) {
+        const details = type.cythonDetails;
+        let op = '';
+        if (details.isPointer) {
+            op = '*';
+        } else if (details.isPointer === false) {
+            op = '&';
+        }
+        op = op.repeat(details.ptrRefCount);
+        const prefixes: string[] = [];
+        if (details.isReadOnly) {
+            prefixes.push('readonly');
+        }
+        if (details.isPublic) {
+            prefixes.push('public');
+        }
+        if (details.isConst) {
+            prefixes.push('const');
+        }
+        if (details.isVolatile) {
+            prefixes.push('volatile');
+        }
+        prefixes.push(...details.numMods);
+        const prefix = prefixes.join(' ');
+
+        objName = `${objName}${op}`;
+        if (prefix.length > 0) {
+            objName = `${prefix} ${objName}`;
+        }
+    }
 
     // If this is a pseudo-generic class, don't display the type arguments
     // or type parameters because it will confuse users.
@@ -866,10 +897,5 @@ function _printNestedInstantiable(type: Type, textToWrap: string) {
         textToWrap = `Type[${textToWrap}]`;
     }
 
-    // ! Cython Type
-    // ? Is this the most appropriate place?
-    if (type.cTypeNode) {
-        textToWrap = type.cTypeNode.fullValue;
-    }
     return textToWrap;
 }

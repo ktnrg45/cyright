@@ -2417,36 +2417,37 @@ export namespace PatternValueNode {
 
 export interface CTypeNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CType;
-    name: NameNode | CTupleTypeNode;
+    expression: NameNode | CTupleTypeNode;
     varModifiers: KeywordToken[];
     numModifiers: IdentifierToken[];
     operators: OperatorToken[]; // *(Pointer), &(Address Of)
-    fullValue: string;
+    ptrRefCount: number;
+    isPointer?: boolean; // undefined means neither pointer or reference
     typeTrailNode?: CTypeTrailNode;
     varTrailNode?: CVarTrailNode;
 }
 
 export namespace CTypeNode {
     export function create(
-        name: NameNode | CTupleTypeNode,
+        expression: NameNode | CTupleTypeNode,
         varModifiers: KeywordToken[],
         numModifiers: IdentifierToken[],
         operators: OperatorToken[]
     ) {
         const node: CTypeNode = {
-            start: name.start,
-            length: name.length,
+            start: expression.start,
+            length: expression.length,
             nodeType: ParseNodeType.CType,
             id: _nextNodeId++,
-            name: name,
+            expression: expression,
             varModifiers: varModifiers,
             numModifiers: numModifiers,
             operators: operators,
-            fullValue: '',
+            ptrRefCount: 0,
         };
-        name.parent = node;
-        name.typeNode = node;
-        extendRange(node, name);
+        expression.parent = node;
+        expression.typeNode = node;
+        extendRange(node, expression);
         if (operators.length > 0) {
             extendRange(node, operators[operators.length - 1]);
         }
@@ -2457,14 +2458,56 @@ export namespace CTypeNode {
         node.operators = [];
         node.varTrailNode = undefined;
         node.id = _nextNodeId++;
-        node.fullValue = '';
         return node;
     }
     export function alias(node: CTypeNode) {
-        if (node.name.nodeType === ParseNodeType.CTupleType) {
-            return CTupleTypeNode.alias(node.name);
+        if (node.expression.nodeType === ParseNodeType.CTupleType) {
+            return CTupleTypeNode.alias(node.expression);
         }
-        return { ...node.name } as NameNode;
+        return { ...node.expression } as NameNode;
+    }
+
+    export function hasModifier(node: CTypeNode, keywordType: KeywordType) {
+        for (const mod of node.varModifiers) {
+            if (mod.keywordType === keywordType) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    export function isConstant(node: CTypeNode) {
+        return hasModifier(node, KeywordType.Const);
+    }
+
+    export function isVolatile(node: CTypeNode) {
+        return hasModifier(node, KeywordType.Volatile);
+    }
+
+    export function isPublic(node: CTypeNode) {
+        return hasModifier(node, KeywordType.Public);
+    }
+
+    export function isReadOnly(node: CTypeNode) {
+        return hasModifier(node, KeywordType.Readonly);
+    }
+
+    export function numModifiers(node: CTypeNode) {
+        const text: string[] = [];
+        node.numModifiers.forEach((mod) => {
+            text.push(mod.value);
+        });
+        return text;
+    }
+
+    export function trailType(node: CTypeNode) {
+        if (node.varTrailNode?.isValid) {
+            return CTrailType.Array;
+        }
+        if (node.typeTrailNode?.isValid) {
+            return node.typeTrailNode.trailType;
+        }
+        return CTrailType.None;
     }
 }
 
@@ -2585,14 +2628,14 @@ export namespace CTypeTrailNode {
 
 export interface CVarTrailNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CVarTrail;
-    nodes: ParseNode[];
+    nodes: ArgumentNode[];
     startToken: Token;
     endToken?: Token;
     isValid: boolean;
 }
 
 export namespace CVarTrailNode {
-    export function create(startToken: Token, nodes: ParseNode[], isValid: boolean, endToken?: Token) {
+    export function create(startToken: Token, nodes: ArgumentNode[], isValid: boolean, endToken?: Token) {
         const node: CVarTrailNode = {
             start: startToken.start,
             length: startToken.length,

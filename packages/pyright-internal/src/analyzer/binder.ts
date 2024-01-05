@@ -2295,7 +2295,7 @@ export class Binder extends ParseTreeWalker {
 
         this._createAssignmentTargetFlowNodes(node.name, /* walkTargets */ true, /* unbound */ false);
 
-        this.walk(node.typeNode.name); // this.walk(node.expression);
+        this.walk(node.typeNode.expression); // this.walk(node.expression);
 
         if (node.typeParameters) {
             this._removeActiveTypeParameters(node.typeParameters);

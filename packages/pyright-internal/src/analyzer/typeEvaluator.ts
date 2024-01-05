@@ -693,13 +693,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         // ! Cython
         // TODO: Right place for this?
         if (node.typeNode) {
-            if (node.typeNode.name.nodeType === ParseNodeType.CTupleType) {
+            if (node.typeNode.expression.nodeType === ParseNodeType.CTupleType) {
                 // ! HACK Assign tuple. Should also adjust type details?
                 type = getBuiltInType(node, 'tuple');
             }
             // Copy type and add typeNode
-            type = TypeBase.cloneType(type);
-            type.cTypeNode = node.typeNode;
+            type = TypeBase.cloneForCType(node.typeNode, type);
         }
         if (isIncomplete) {
             if (incompleteTypeCache) {

@@ -392,7 +392,7 @@ export class ParseTreeWalker {
             case ParseNodeType.CTypeDef:
                 return this.visitCTypeDef(node) ? [node.name, node.typeNode] : [];
             case ParseNodeType.CType:
-                return this.visitCType(node) ? [node.name, node.typeTrailNode, node.varTrailNode] : [];
+                return this.visitCType(node) ? [node.expression, node.typeTrailNode, node.varTrailNode] : [];
             case ParseNodeType.CVarTrail:
                 return this.visitCVarTrail(node) ? node.nodes : [];
             case ParseNodeType.CTypeTrail:

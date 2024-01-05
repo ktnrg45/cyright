@@ -5197,40 +5197,6 @@ export class Parser {
         }
     }
 
-    private _setCTypeFullValue(node: CTypeNode) {
-        const items: string[] = [];
-        if (node.name.nodeType === ParseNodeType.CTupleType) {
-            node.name.typeNodes.forEach((n) => {
-                items.push(n.fullValue);
-            });
-            node.fullValue = `(${items.join(', ')})`;
-            return;
-        }
-        node.varModifiers.forEach((mod) => {
-            items.push(this._rangeText(mod));
-        });
-        node.numModifiers.forEach((mod) => {
-            items.push(this._rangeText(mod));
-        });
-        items.push(node.name.value);
-        let value = items.join(' ');
-        node.operators.forEach((op) => {
-            value += this._rangeText(op);
-        });
-
-        if (node.typeTrailNode?.isValid) {
-            value += this._rangeText(node.typeTrailNode);
-        }
-        if (node.varTrailNode?.isValid) {
-            if (node.typeTrailNode && node.typeTrailNode.trailType !== CTrailType.Template) {
-                this._addError(Localizer.DiagnosticCython.arrayDeclarationNotAllowed(), node.varTrailNode);
-            } else {
-                value += this._rangeText(node.varTrailNode);
-            }
-        }
-        node.fullValue = value;
-    }
-
     // ctypedef type mytype
     private _parseCTypeDef() {
         const typeDefToken = this._getKeywordToken(KeywordType.Ctypedef);
@@ -5537,7 +5503,7 @@ export class Parser {
         const result: CDeclResult = { node: leftExpr, pointers: false };
 
         if (nameOrError.nodeType !== ParseNodeType.Error) {
-            leftExpr = TypeAnnotationNode.create(nameOrError, typeNode.name);
+            leftExpr = TypeAnnotationNode.create(nameOrError, typeNode.expression);
             nameOrError.typeNode = typeNode;
             result.pointers = typeNode.operators.length > 0;
         } else {
@@ -5607,7 +5573,6 @@ export class Parser {
             if (returnType && operators.length > 0) {
                 returnType.operators = operators;
                 extendRange(returnType, operators[operators.length - 1]);
-                this._setCTypeFullValue(returnType);
             }
             const functionNode = this._parseCFunction(name, returnType);
             return functionNode;
@@ -5693,9 +5658,9 @@ export class Parser {
             node.operators.length === 0 &&
             !node.typeTrailNode &&
             !node.varTrailNode &&
-            node.name.nodeType === ParseNodeType.Name
+            node.expression.nodeType === ParseNodeType.Name
         ) {
-            return node.name;
+            return node.expression;
         }
         return node;
     }
@@ -6055,7 +6020,6 @@ export class Parser {
         }
         name.typeNode = typeNode;
         this._parseCVarTrailer(name.typeNode, false);
-        this._setCTypeFullValue(name.typeNode);
         return name;
     }
 
@@ -6114,8 +6078,8 @@ export class Parser {
             // Check for param name. Type annotation is optional.
             if (!this._peekIdentifier()) {
                 typeAnnotation = undefined;
-                if (typeNode.nodeType === ParseNodeType.CType && typeNode.name.nodeType === ParseNodeType.Name) {
-                    name = typeNode.name;
+                if (typeNode.nodeType === ParseNodeType.CType && typeNode.expression.nodeType === ParseNodeType.Name) {
+                    name = typeNode.expression;
                 }
             }
         }
@@ -6402,7 +6366,6 @@ export class Parser {
         const firstNode = this._parseCType();
         if (firstNode?.nodeType === ParseNodeType.CType) {
             firstNode.operators = this._parsePointersOrRef();
-            this._setCTypeFullValue(firstNode);
             nodes.push(firstNode);
         } else {
             return this._handleExpressionParseError(
@@ -6420,7 +6383,6 @@ export class Parser {
             const nextNode = this._parseCType();
             if (nextNode?.nodeType === ParseNodeType.CType) {
                 nextNode.operators = this._parsePointersOrRef();
-                this._setCTypeFullValue(nextNode);
                 nodes.push(nextNode);
             } else {
                 return this._handleExpressionParseError(
@@ -6442,13 +6404,8 @@ export class Parser {
                 Localizer.Diagnostic.expectedIdentifier()
             );
         }
-        const nodeText: string[] = [];
-        nodes.forEach((n) => {
-            nodeText.push(n.fullValue);
-        });
         const tupleNode = CTupleTypeNode.create(startToken, nodes, closeToken);
         const node = CTypeNode.create(tupleNode, [], [], []);
-        this._setCTypeFullValue(node);
         return node;
     }
 
@@ -6593,7 +6550,6 @@ export class Parser {
         if (identifiers.length > 0) {
             const name = NameNode.create(identifiers[identifiers.length - 1]);
             const node = CTypeNode.create(name, modifiers, numModifiers, []);
-            this._setCTypeFullValue(node); // TODO: Remove or keep?
             this._parseCTypeTrailer(node);
             return node;
         }
