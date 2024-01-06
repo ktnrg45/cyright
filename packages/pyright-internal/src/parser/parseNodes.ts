@@ -125,6 +125,7 @@ export const enum ParseNodeType {
     CStruct,
     CFunction,
     CDefine,
+    CSizeOf,
 }
 
 export const enum ErrorExpressionCategory {
@@ -748,7 +749,8 @@ export type ExpressionNode =
     | CTupleTypeNode
     | CFunctionDeclNode
     | CAddressOfNode
-    | CCastNode;
+    | CCastNode
+    | CSizeOfNode;
 
 export function isExpressionNode(node: ParseNode): node is ExpressionNode {
     switch (node.nodeType) {
@@ -2999,6 +3001,29 @@ export namespace CDefineNode {
         return node;
     }
 }
+
+export interface CSizeOfNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CSizeOf;
+    leftExpression: ExpressionNode;
+    valueExpression: CParameterNode;
+}
+
+export namespace CSizeOfNode {
+    export function create(leftExpression: ExpressionNode, valueExpression: CParameterNode) {
+        const node: CSizeOfNode = {
+            start: leftExpression.start,
+            length: leftExpression.length,
+            nodeType: ParseNodeType.CSizeOf,
+            id: _nextNodeId++,
+            leftExpression,
+            valueExpression,
+        };
+        leftExpression.parent = node;
+        valueExpression.parent = node;
+        extendRange(node, valueExpression);
+        return node;
+    }
+}
 // ! Cython End
 
 export type PatternAtomNode =
@@ -3106,7 +3131,8 @@ export type ParseNode =
     | CEnumNode
     | CStructNode
     | CFunctionNode
-    | CDefineNode;
+    | CDefineNode
+    | CSizeOfNode;
 
 export type EvaluationScopeNode =
     | LambdaNode

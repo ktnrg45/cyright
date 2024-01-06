@@ -30,6 +30,7 @@ import {
     ConstantNode,
     ContinueNode,
     CParameterNode,
+    CSizeOfNode,
     CStructNode,
     CTupleTypeNode,
     CTypeDefNode,
@@ -446,6 +447,9 @@ export class ParseTreeWalker {
 
             case ParseNodeType.CDefine:
                 return this.visitCDefine(node) ? [node.valueExpression] : [];
+
+            case ParseNodeType.CSizeOf:
+                return this.visitCSizeOf(node) ? [node.leftExpression, node.valueExpression] : [];
         }
     }
 
@@ -820,6 +824,10 @@ export class ParseTreeWalker {
     }
 
     visitCDefine(node: CDefineNode) {
+        return true;
+    }
+
+    visitCSizeOf(node: CSizeOfNode) {
         return true;
     }
 }

@@ -1956,6 +1956,8 @@ export function printParseNodeType(type: ParseNodeType) {
             return 'CFunction';
         case ParseNodeType.CDefine:
             return 'CDefine';
+        case ParseNodeType.CSizeOf:
+            return 'CSizeOf';
     }
 
     assertNever(type);

@@ -48,6 +48,7 @@ import {
     ConstantNode,
     ContinueNode,
     CParameterNode,
+    CSizeOfNode,
     CStructNode,
     CTrailType,
     CTupleTypeNode,
@@ -3374,7 +3375,27 @@ export class Parser {
         while (true) {
             // Is it a function call?
             const startOfTrailerToken = this._peekToken();
-            if (this._consumeTokenIfType(TokenType.OpenParenthesis)) {
+
+            // ! Cython sizeof
+            // check for possible sizeof call
+            if (
+                this._peekTokenType() === TokenType.OpenParenthesis &&
+                atomExpression.nodeType === ParseNodeType.Name &&
+                (atomExpression as NameNode).value === 'sizeof'
+            ) {
+                // sizeof cannot be redefined so we can evaluate it before the type evaluator
+                this._getNextToken();
+                const param = this._parseCPrototypeParam();
+                const closeParen = this._peekToken();
+                const sizeOf = CSizeOfNode.create(atomExpression, param);
+                if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
+                    this._addError(Localizer.Diagnostic.expectedCloseParen(), closeParen);
+                    this._consumeTokensUntilType([TokenType.NewLine]);
+                } else {
+                    extendRange(sizeOf, closeParen);
+                }
+                atomExpression = sizeOf;
+            } else if (this._consumeTokenIfType(TokenType.OpenParenthesis)) {
                 // Generally, function calls are not allowed within type annotations,
                 // but they are permitted in "Annotated" annotations.
                 const wasParsingTypeAnnotation = this._isParsingTypeAnnotation;

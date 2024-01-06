@@ -1141,6 +1141,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             case ParseNodeType.CTupleType:
             case ParseNodeType.CFunctionDecl:
             case ParseNodeType.CAddressOf:
+            case ParseNodeType.CSizeOf:
             case ParseNodeType.CCast:
                 typeResult = getTypeOfCythonNode(node, flags, expectedType);
                 break;
@@ -24033,6 +24034,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             switch (node.nodeType) {
                 case ParseNodeType.CAddressOf:
                     typeResult = getTypeOfCAddressNode(node, flags, expectedType);
+                    break;
+                case ParseNodeType.CSizeOf:
+                    typeResult = { type: convertToInstance(getBuiltInType(node, 'int')) };
                     break;
                 default:
                     break;
