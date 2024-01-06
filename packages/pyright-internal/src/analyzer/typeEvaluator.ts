@@ -33,6 +33,7 @@ import {
     AugmentedAssignmentNode,
     AwaitNode,
     BinaryOperationNode,
+    CAddressOfNode,
     CallNode,
     CaseNode,
     ClassNode,
@@ -1141,8 +1142,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             case ParseNodeType.CFunctionDecl:
             case ParseNodeType.CAddressOf:
             case ParseNodeType.CCast:
-                // TODO
-                typeResult = { type: UnknownType.create() };
+                typeResult = getTypeOfCythonNode(node, flags, expectedType);
                 break;
 
             default:
@@ -24022,6 +24022,46 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         return (range.start.line + 1).toString();
     }
 
+    // ! Cython
+    function getTypeOfCythonNode(node: ParseNode, flags?: EvaluatorFlags, expectedType?: Type): TypeResult {
+        let typeResult: TypeResult = { type: UnknownType.create() };
+        // Is this type already cached?
+        const cachedType = readTypeCache(node, flags);
+        if (cachedType) {
+            typeResult = { type: cachedType };
+        } else {
+            switch (node.nodeType) {
+                case ParseNodeType.CAddressOf:
+                    typeResult = getTypeOfCAddressNode(node, flags, expectedType);
+                    break;
+                default:
+                    break;
+            }
+        }
+        return typeResult;
+    }
+
+    function getTypeOfCAddressNode(node: CAddressOfNode, flags?: EvaluatorFlags, expectedType?: Type) {
+        const cachedType = readTypeCache(node, flags);
+        if (cachedType) {
+            return { type: cachedType };
+        }
+        const typeResult = getTypeOfExpression(node.valueExpression, flags);
+        const type = { ...typeResult.type };
+        if (type.cythonDetails) {
+            const details = { ...type.cythonDetails };
+            if (details.isPointer === false) {
+                // TODO: error taking address of reference
+                return { type: UnknownType.create() };
+            }
+            details.isPointer = true;
+            details.ptrRefCount++;
+            type.cythonDetails = details;
+            return { type: type };
+        }
+        return { type: UnknownType.create() };
+    }
+
     const evaluatorInterface: TypeEvaluator = {
         runWithCancellationToken,
         getType,
@@ -24106,6 +24146,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         useSpeculativeMode,
         setTypeForNode,
         checkForCancellation,
+        // ! Cython
+        getTypeOfCythonNode,
     };
 
     const codeFlowEngine = getCodeFlowEngine(evaluatorInterface, speculativeTypeTracker);

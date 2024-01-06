@@ -252,16 +252,18 @@ export namespace TypeBase {
     // ! Cython
     export function cloneForCType(node: CTypeNode, type: Type) {
         const cType = TypeBase.cloneType(type);
-        cType.cythonDetails = {
-            isPointer: node.isPointer,
-            ptrRefCount: node.ptrRefCount,
-            isConst: CTypeNode.isConstant(node),
-            isVolatile: CTypeNode.isVolatile(node),
-            isPublic: CTypeNode.isPublic(node),
-            isReadOnly: CTypeNode.isReadOnly(node),
-            numMods: CTypeNode.numModifiers(node),
-            trailType: CTypeNode.trailType(node),
-        };
+        if (!cType.cythonDetails) {
+            cType.cythonDetails = {
+                isPointer: CTypeNode.isPointer(node),
+                ptrRefCount: CTypeNode.ptrRefCount(node),
+                isConst: CTypeNode.isConstant(node),
+                isVolatile: CTypeNode.isVolatile(node),
+                isPublic: CTypeNode.isPublic(node),
+                isReadOnly: CTypeNode.isReadOnly(node),
+                numMods: CTypeNode.numModifiers(node),
+                trailType: CTypeNode.trailType(node),
+            };
+        }
         cType.cTypeNode = node;
         return cType;
     }

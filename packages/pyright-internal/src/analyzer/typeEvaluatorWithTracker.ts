@@ -159,6 +159,9 @@ export function createTypeEvaluatorWithTracker(
         useSpeculativeMode: typeEvaluator.useSpeculativeMode,
         setTypeForNode: typeEvaluator.setTypeForNode,
         checkForCancellation: typeEvaluator.checkForCancellation,
+
+        // ! Cython
+        getTypeOfCythonNode: typeEvaluator.getTypeOfCythonNode,
     };
 
     return withTracker;

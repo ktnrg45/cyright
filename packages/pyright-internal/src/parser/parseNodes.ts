@@ -2421,8 +2421,6 @@ export interface CTypeNode extends ParseNodeBase {
     varModifiers: KeywordToken[];
     numModifiers: IdentifierToken[];
     operators: OperatorToken[]; // *(Pointer), &(Address Of)
-    ptrRefCount: number;
-    isPointer?: boolean; // undefined means neither pointer or reference
     typeTrailNode?: CTypeTrailNode;
     varTrailNode?: CVarTrailNode;
 }
@@ -2443,7 +2441,6 @@ export namespace CTypeNode {
             varModifiers: varModifiers,
             numModifiers: numModifiers,
             operators: operators,
-            ptrRefCount: 0,
         };
         expression.parent = node;
         expression.typeNode = node;
@@ -2474,6 +2471,35 @@ export namespace CTypeNode {
             }
         }
         return false;
+    }
+
+    export function isPointer(node: CTypeNode) {
+        for (const op of node.operators) {
+            if (op.operatorType === OperatorType.Multiply || op.operatorType === OperatorType.Power) {
+                return true;
+            }
+            if (op.operatorType === OperatorType.BitwiseAnd) {
+                return false;
+            }
+        }
+        return undefined;
+    }
+
+    export function ptrRefCount(node: CTypeNode) {
+        let count = 0;
+        for (const op of node.operators) {
+            const operatorType = op.operatorType;
+            switch (operatorType) {
+                case OperatorType.Multiply:
+                case OperatorType.BitwiseAnd:
+                    count++;
+                    break;
+                case OperatorType.Power:
+                    count += 2;
+                    break;
+            }
+        }
+        return count;
     }
 
     export function isConstant(node: CTypeNode) {

@@ -484,4 +484,7 @@ export interface TypeEvaluator {
     setTypeForNode: (node: ParseNode, type?: Type, flags?: EvaluatorFlags) => void;
 
     checkForCancellation: () => void;
+
+    // ! Cython
+    getTypeOfCythonNode: (node: ExpressionNode, flags?: EvaluatorFlags, expectedType?: Type) => TypeResult;
 }
