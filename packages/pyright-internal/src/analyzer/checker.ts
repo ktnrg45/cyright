@@ -31,6 +31,7 @@ import {
     BinaryOperationNode,
     CallNode,
     CaseNode,
+    CCastNode,
     ClassNode,
     DelNode,
     DictionaryNode,
@@ -5580,6 +5581,17 @@ export class Checker extends ParseTreeWalker {
                 }
             }
         });
+    }
+
+    // ! Cython
+    override visitCCast(node: CCastNode) {
+        if (isExpressionNode(node.valueExpression)) {
+            // Evaluate expression and mark if undefined
+            this._evaluator.getType(node.valueExpression);
+            this._reportUnusedExpression(node.valueExpression);
+        }
+
+        return true;
     }
 }
 

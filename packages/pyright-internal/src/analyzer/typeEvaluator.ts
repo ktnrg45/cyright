@@ -36,9 +36,12 @@ import {
     CAddressOfNode,
     CallNode,
     CaseNode,
+    CCastNode,
     ClassNode,
     ConstantNode,
+    CSizeOfNode,
     CTypeDefNode,
+    CTypeNode,
     DecoratorNode,
     DictionaryNode,
     ExceptNode,
@@ -24032,16 +24035,33 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             typeResult = { type: cachedType };
         } else {
             switch (node.nodeType) {
+                case ParseNodeType.CType:
+                    typeResult = getTypeOfCTypeNode(node, flags, expectedType);
+                    break;
                 case ParseNodeType.CAddressOf:
                     typeResult = getTypeOfCAddressNode(node, flags, expectedType);
                     break;
                 case ParseNodeType.CSizeOf:
-                    typeResult = { type: convertToInstance(getBuiltInType(node, 'int')) };
+                    typeResult = getTypeOfCSizeOfNode(node, flags, expectedType);
+                    break;
+                case ParseNodeType.CCast:
+                    typeResult = getTypeOfCCastNode(node, flags, expectedType);
                     break;
                 default:
                     break;
             }
         }
+        return typeResult;
+    }
+
+    function getTypeOfCTypeNode(node: CTypeNode, flags?: EvaluatorFlags, expectedType?: Type) {
+        const cachedType = readTypeCache(node, flags);
+        if (cachedType) {
+            return { type: cachedType };
+        }
+        const typeResult = getTypeOfExpression(node.expression);
+        const type = TypeBase.cloneForCType(node, convertToInstance(typeResult.type));
+        typeResult.type = type;
         return typeResult;
     }
 
@@ -24064,6 +24084,22 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             return { type: type };
         }
         return { type: UnknownType.create() };
+    }
+
+    function getTypeOfCSizeOfNode(node: CSizeOfNode, flags?: EvaluatorFlags, expectedType?: Type) {
+        const cachedType = readTypeCache(node, flags);
+        if (cachedType) {
+            return { type: cachedType };
+        }
+        return { type: convertToInstance(getBuiltInType(node, 'int')) };
+    }
+
+    function getTypeOfCCastNode(node: CCastNode, flags?: EvaluatorFlags, expectedType?: Type) {
+        const cachedType = readTypeCache(node, flags);
+        if (cachedType) {
+            return { type: cachedType };
+        }
+        return getTypeOfExpression(node.typeNode, flags);
     }
 
     const evaluatorInterface: TypeEvaluator = {
