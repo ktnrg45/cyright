@@ -38,6 +38,7 @@ import {
     BreakNode,
     CallNode,
     CaseNode,
+    CFunctionNode,
     ClassNode,
     ContinueNode,
     CTypeDefNode,
@@ -4250,6 +4251,12 @@ export class Binder extends ParseTreeWalker {
 
     private _addInformation(message: string, textRange: TextRange) {
         return this._fileInfo.diagnosticSink.addDiagnosticWithTextRange('information', message, textRange);
+    }
+
+    // ! Cython
+    override visitCFunction(node: CFunctionNode): boolean {
+        const alias = CFunctionNode.alias(node);
+        return this.visitFunction(alias);
     }
 }
 

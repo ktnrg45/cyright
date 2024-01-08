@@ -253,6 +253,7 @@ export class HoverProvider {
 
             case DeclarationType.Function: {
                 let label = 'function';
+
                 if (resolvedDecl.isMethod) {
                     const declaredType = evaluator.getTypeForDeclaration(resolvedDecl);
                     label =
@@ -262,6 +263,16 @@ export class HoverProvider {
                 }
 
                 const type = evaluator.getType(node);
+
+                // ! Cython
+                if (type && type.cythonDetails) {
+                    const prefix = type.cythonDetails.cpdef ? 'cp' : 'c';
+                    label = `${prefix}${label}`;
+                    if (type.cythonDetails.nogil) {
+                        label = `${label} nogil`;
+                    }
+                }
+
                 if (type && isOverloadedFunction(type)) {
                     this._addResultsPart(
                         parts,

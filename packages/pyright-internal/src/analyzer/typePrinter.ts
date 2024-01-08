@@ -250,7 +250,7 @@ export function printType(
                 if (TypeBase.isInstance(type)) {
                     // ! Cython
                     // Don't Print literals for cython types
-                    if (!type.cTypeNode && type.literalValue !== undefined) {
+                    if (!type.cythonDetails && type.literalValue !== undefined) {
                         return `Literal[${printLiteralValue(type)}]`;
                     }
 

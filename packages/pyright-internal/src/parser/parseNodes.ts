@@ -2795,6 +2795,32 @@ export namespace CParameterNode {
 
         return node;
     }
+
+    export function alias(node: CParameterNode) {
+        const token = Token.create(TokenType.Invalid, 0, 0, undefined);
+        const alias = ParameterNode.create(token, node.category);
+        alias.id = node.id;
+        alias.parent = node.parent;
+        alias.start = node.start;
+        alias.length = node.length;
+        if (node.name) {
+            alias.name = { ...node.name };
+            alias.name.parent = alias;
+        }
+        if (node.typeAnnotation) {
+            alias.typeAnnotation = { ...node.typeAnnotation };
+            alias.typeAnnotation.parent = alias;
+        }
+        if (node.typeAnnotationComment) {
+            alias.typeAnnotationComment = { ...node.typeAnnotationComment };
+            alias.typeAnnotationComment.parent = alias;
+        }
+        if (node.defaultValue) {
+            alias.defaultValue = { ...node.defaultValue };
+            alias.defaultValue.parent = alias;
+        }
+        return alias;
+    }
 }
 
 export interface CAddressOfNode extends ParseNodeBase {
@@ -2977,6 +3003,36 @@ export namespace CFunctionNode {
         extendRange(node, name);
 
         return node;
+    }
+
+    export function alias(node: CFunctionNode) {
+        const token = Token.create(TokenType.Invalid, 0, 0, undefined);
+        // TODO: See if we have to copy suite
+        const alias = FunctionNode.create(token, { ...node.name }, { ...node.suite });
+        alias.id = node.id;
+        alias.parent = node.parent;
+        alias.start = node.start;
+        alias.length = node.length;
+        if (node.returnTypeAnnotation) {
+            alias.returnTypeAnnotation = { ...node.returnTypeAnnotation };
+            alias.returnTypeAnnotation.parent = alias;
+        }
+        if (node.typeParameters) {
+            alias.typeParameters = { ...node.typeParameters };
+            alias.typeParameters.parent = alias;
+        }
+        node.decorators.forEach((n) => {
+            const decorator = { ...n };
+            decorator.parent = alias;
+            alias.decorators.push(decorator);
+        });
+        node.parameters.forEach((n) => {
+            const param = CParameterNode.alias(n);
+            param.parent = alias;
+            alias.parameters.push(param);
+        });
+
+        return alias;
     }
 }
 export interface CDefineNode extends ParseNodeBase {

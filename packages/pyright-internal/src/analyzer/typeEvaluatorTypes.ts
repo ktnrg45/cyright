@@ -18,6 +18,7 @@ import {
     ArgumentNode,
     CallNode,
     CaseNode,
+    CFunctionNode,
     ClassNode,
     ExpressionNode,
     FunctionNode,
@@ -486,5 +487,6 @@ export interface TypeEvaluator {
     checkForCancellation: () => void;
 
     // ! Cython
-    getTypeOfCythonNode: (node: ExpressionNode, flags?: EvaluatorFlags, expectedType?: Type) => TypeResult;
+    getTypeOfCythonNode: (node: ParseNode, flags?: EvaluatorFlags, expectedType?: Type) => TypeResult;
+    getTypeOfCFunction: (node: CFunctionNode) => FunctionTypeResult | undefined;
 }

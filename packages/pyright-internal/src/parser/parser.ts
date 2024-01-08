@@ -5457,6 +5457,9 @@ export class Parser {
             if (typeNode.nodeType !== ParseNodeType.Error) {
                 const possibleFunction = this._getCFunction(typeNode, true);
                 if (possibleFunction) {
+                    if (possibleFunction.nodeType === ParseNodeType.CFunction) {
+                        possibleFunction.cpdef = true;
+                    }
                     return possibleFunction;
                 }
             }
@@ -6095,6 +6098,7 @@ export class Parser {
         const typeNode = this._parseCType();
         let typeAnnotation: ExpressionNode | undefined = typeNode;
         let name: NameNode | undefined = undefined;
+        const operators: OperatorToken[] = typeAnnotation ? this._parsePointersOrRef(/*allowReference*/ true) : [];
         if (!isPrototype) {
             // Check for param name. Type annotation is optional.
             if (!this._peekIdentifier()) {
@@ -6109,7 +6113,7 @@ export class Parser {
             return param;
         }
         if (param.typeAnnotation) {
-            typeNode.operators = this._parsePointersOrRef(/*allowReference*/ true);
+            typeNode.operators = operators;
         }
 
         if (!name) {
@@ -6255,6 +6259,23 @@ export class Parser {
         return paramList;
     }
 
+    // parse 'with gil'
+    private _consumeIfWithGil() {
+        const possibleWithToken = this._peekToken();
+        const possibleGilToken = this._peekToken(1);
+        if (possibleWithToken.type === TokenType.Keyword && possibleGilToken.type === TokenType.Keyword) {
+            if (
+                (possibleWithToken as KeywordToken).keywordType === KeywordType.With &&
+                (possibleGilToken as KeywordToken).keywordType === KeywordType.Gil
+            ) {
+                this._getNextToken();
+                this._getNextToken();
+                return true;
+            }
+        }
+        return false;
+    }
+
     private _parseCFunction(name: NameNode, returnType?: CTypeNode, decorators?: DecoratorNode[]) {
         const openParenToken = this._peekToken();
         if (!this._consumeTokenIfType(TokenType.OpenParenthesis)) {
@@ -6268,7 +6289,10 @@ export class Parser {
             this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
             this._consumeTokensUntilType([TokenType.Colon]);
         }
-        const nogil = this._consumeTokenIfKeyword(KeywordType.Nogil);
+        let nogil = false;
+        if (!this._consumeIfWithGil()) {
+            nogil = this._consumeTokenIfKeyword(KeywordType.Nogil);
+        }
         const suite = this._parseSuite(/* isFunction */ true, this._parseOptions.skipFunctionAndClassBody);
         const functionNode = CFunctionNode.create(openParenToken, name, suite);
         functionNode.nogil = nogil;

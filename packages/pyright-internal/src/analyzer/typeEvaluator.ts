@@ -37,9 +37,11 @@ import {
     CallNode,
     CaseNode,
     CCastNode,
+    CFunctionNode,
     ClassNode,
     ConstantNode,
     CSizeOfNode,
+    CTrailType,
     CTypeDefNode,
     CTypeNode,
     DecoratorNode,
@@ -701,7 +703,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 // ! HACK Assign tuple. Should also adjust type details?
                 type = getBuiltInType(node, 'tuple');
             }
-            // Copy type and add typeNode
+            // Copy type and cython details
             type = TypeBase.cloneForCType(node.typeNode, type);
         }
         if (isIncomplete) {
@@ -19024,9 +19026,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
             // ! Cython Declaration
             case DeclarationType.CTypeDef: {
-                const type = getTypeOfTypeAlias(CTypeDefNode.alias(declaration.node));
-                type.cTypeNode = declaration.cTypeNode;
-                return type;
+                return getTypeOfTypeAlias(CTypeDefNode.alias(declaration.node));
             }
         }
     }
@@ -24060,7 +24060,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             return { type: cachedType };
         }
         const typeResult = getTypeOfExpression(node.expression);
-        const type = TypeBase.cloneForCType(node, convertToInstance(typeResult.type));
+        const type = TypeBase.cloneForCType(node, typeResult.type);
         typeResult.type = type;
         return typeResult;
     }
@@ -24100,6 +24100,28 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             return { type: cachedType };
         }
         return getTypeOfExpression(node.typeNode, flags);
+    }
+
+    function getTypeOfCFunction(node: CFunctionNode): FunctionTypeResult | undefined {
+        const typeResult = getTypeOfFunction(CFunctionNode.alias(node));
+        if (typeResult && !typeResult.functionType.cythonDetails) {
+            typeResult.functionType.cythonDetails = {
+                isPointer: false,
+                ptrRefCount: 0,
+                isVolatile: false,
+                numMods: [],
+                trailType: CTrailType.None,
+
+                // TODO: might need to be used
+                isConst: false,
+                isPublic: false,
+                isReadOnly: false,
+
+                cpdef: node.cpdef,
+                nogil: node.nogil,
+            };
+        }
+        return typeResult;
     }
 
     const evaluatorInterface: TypeEvaluator = {
@@ -24188,6 +24210,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         checkForCancellation,
         // ! Cython
         getTypeOfCythonNode,
+        getTypeOfCFunction,
     };
 
     const codeFlowEngine = getCodeFlowEngine(evaluatorInterface, speculativeTypeTracker);

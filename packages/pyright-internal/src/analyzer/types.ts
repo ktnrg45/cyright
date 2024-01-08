@@ -132,8 +132,7 @@ interface TypeBase {
     // type to be seen as distinct when comparing types.
     isAmbiguous?: boolean;
 
-    // ! Cython Type
-    cTypeNode?: CTypeNode;
+    // ! Cython
     cythonDetails?: CythonDetails;
 }
 
@@ -264,7 +263,6 @@ export namespace TypeBase {
                 trailType: CTypeNode.trailType(node),
             };
         }
-        cType.cTypeNode = node;
         return cType;
     }
 }
@@ -538,6 +536,13 @@ export interface CythonDetails {
     isPublic: boolean;
     numMods: string[];
     trailType: CTrailType;
+
+    // Function details
+    cpdef?: boolean;
+    except?: string;
+
+    // Misc details
+    nogil?: boolean;
 }
 
 export interface TupleTypeArgument {
