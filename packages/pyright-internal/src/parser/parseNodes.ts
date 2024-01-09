@@ -2594,16 +2594,15 @@ export namespace CTupleTypeNode {
         extendRange(node, endToken);
         return node;
     }
-    export function alias(node: CTupleTypeNode): ListNode {
-        // ! Is this needed?
-        const list = ListNode.create(node);
+    export function alias(node: CTupleTypeNode) {
+        const tupleNode = TupleNode.create(node, true);
         node.typeNodes.forEach((n) => {
-            list.entries.push(CTypeNode.alias(n));
-            n.parent = list;
+            const expr = { ...n };
+            expr.parent = tupleNode;
+            tupleNode.expressions.push(expr);
         });
-        extendRange(list, node);
-        list.parent = node.parent;
-        return list;
+        tupleNode.parent = node.parent;
+        return tupleNode;
     }
 }
 

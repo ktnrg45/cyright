@@ -42,6 +42,7 @@ import {
     ConstantNode,
     CSizeOfNode,
     CTrailType,
+    CTupleTypeNode,
     CTypeDefNode,
     CTypeNode,
     DecoratorNode,
@@ -697,15 +698,20 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         allowSpeculativeCaching = false
     ) {
         // ! Cython
-        // TODO: Right place for this?
+        // TODO: remove
         if (node.typeNode) {
-            if (node.typeNode.expression.nodeType === ParseNodeType.CTupleType) {
-                // ! HACK Assign tuple. Should also adjust type details?
-                type = getBuiltInType(node, 'tuple');
-            }
             // Copy type and cython details
             type = TypeBase.cloneForCType(node.typeNode, type);
+            if (
+                node.parent?.nodeType === ParseNodeType.TypeAnnotation &&
+                node.parent.typeAnnotation.nodeType === ParseNodeType.CTupleType &&
+                isClass(type)
+            ) {
+                // ! Hack probably wrong but show type as instance
+                type = convertToInstance(type);
+            }
         }
+
         if (isIncomplete) {
             if (incompleteTypeCache) {
                 incompleteTypeCache.set(node.id, type);
@@ -24047,6 +24053,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 case ParseNodeType.CCast:
                     typeResult = getTypeOfCCastNode(node, flags, expectedType);
                     break;
+                case ParseNodeType.CTupleType:
+                    typeResult = getTypeOfCTupleNode(node, flags, expectedType);
+                    break;
                 default:
                     break;
             }
@@ -24099,7 +24108,38 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         if (cachedType) {
             return { type: cachedType };
         }
-        return getTypeOfExpression(node.typeNode, flags);
+        const typeResult = getTypeOfExpression(node.typeNode, flags);
+        typeResult.type = convertToInstance(typeResult.type);
+        return typeResult;
+    }
+
+    function getTypeOfCTupleNode(node: CTupleTypeNode, flags?: EvaluatorFlags, expectedType?: Type) {
+        const cachedType = readTypeCache(node, flags);
+        if (cachedType) {
+            return { type: cachedType };
+        }
+
+        if (!tupleClassType || !isInstantiableClass(tupleClassType)) {
+            return { type: UnknownType.create() };
+        }
+
+        // ! HACK: probably wrong but ensure that nested tuples are shown as instances
+        const entryTypeResults = node.typeNodes.map((n) => {
+            const entryType = getTypeOfCTypeNode(n).type;
+            if (isClass(entryType) && isTupleClass(entryType)) {
+                entryType.instantiableNestingLevel = undefined;
+            }
+            return { type: convertToInstance(entryType) };
+        });
+
+        const type = convertToInstantiable(
+            specializeTupleClass(
+                tupleClassType,
+                buildTupleTypesList(entryTypeResults),
+                /* isTypeArgumentExplicit */ true
+            )
+        );
+        return { type: type };
     }
 
     function getTypeOfCFunction(node: CFunctionNode): FunctionTypeResult | undefined {
