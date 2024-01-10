@@ -23,6 +23,12 @@ export interface Host {
     getPythonPlatform(logInfo?: string[]): PythonPlatform | undefined;
 }
 
+// ! Cython
+export interface PythonExecDetails {
+    arch: string,
+    isGlobal: boolean,
+}
+
 export class NoAccessHost implements Host {
     get kind(): HostKind {
         return HostKind.NoAccess;
@@ -42,6 +48,15 @@ export class NoAccessHost implements Host {
     }
 
     getPythonPlatform(logInfo?: string[]): PythonPlatform | undefined {
+        return undefined;
+    }
+
+    // ! Cython
+    getPythonVersionAsString(pythonPath?: string, logInfo?: string[]): string | undefined {
+        return undefined;
+    }
+
+    getPythonExecDetails(pythonPath?: string, logInfo?: string[]): PythonExecDetails | undefined {
         return undefined;
     }
 }

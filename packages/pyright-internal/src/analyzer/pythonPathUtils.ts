@@ -68,6 +68,24 @@ export function findPythonSearchPaths(
 ): string[] | undefined {
     importFailureInfo.push('Finding python search paths');
 
+    // ! Cython
+    const addUserIncludePaths = (paths: string[]) => {
+        // Add user include paths
+        if (configOptions.includePaths) {
+            configOptions.includePaths.forEach((path) => {
+                addPathIfUnique(paths, path);
+                importFailureInfo.push(`Cython Added Include Path: ${path}`);
+            });
+        }
+    };
+
+    const addCythonStdPath = (paths: string[], packagePath: string) => {
+        // Add Cython STD lib path
+        const cythonPath = combinePaths(packagePath, pathConsts.cython, pathConsts.includes);
+        addPathIfUnique(paths, cythonPath);
+        importFailureInfo.push(`Cython Added Cython STD Include Path: ${cythonPath}`);
+    };
+
     if (configOptions.venvPath !== undefined && configOptions.venv) {
         const venvDir = configOptions.venv;
         const venvPath = combinePaths(configOptions.venvPath, venvDir);
@@ -91,18 +109,10 @@ export function findPythonSearchPaths(
             });
 
             // ! Cython
-            // Add Cython Includes Path
-            const cythonPath = combinePaths(sitePackagesPath, pathConsts.cython, pathConsts.includes);
-            addPathIfUnique(foundPaths, cythonPath);
-            importFailureInfo.push(`Cython Added Cython Include Path: ${cythonPath}`);
+            addCythonStdPath(foundPaths, sitePackagesPath);
         });
 
-        if (configOptions.includePaths) {
-            configOptions.includePaths.forEach((path) => {
-                addPathIfUnique(foundPaths, path);
-                importFailureInfo.push(`Cython Added Include Path: ${path}`);
-            });
-        }
+        addUserIncludePaths(foundPaths);
 
         if (foundPaths.length > 0) {
             importFailureInfo.push(`Found the following '${pathConsts.sitePackages}' dirs`);
@@ -126,8 +136,21 @@ export function findPythonSearchPaths(
                 containsPath(pathResult.prefix, p, /* ignoreCase */ true)
         );
 
+        // ! Cython
+        // Add cython std paths and user include paths still
+        const cythonPaths: string[] = [];
+        paths.forEach((path) => addCythonStdPath(cythonPaths, path));
+        paths.push(...cythonPaths);
+        addUserIncludePaths(paths);
         return paths;
     }
+
+    // ! Cython
+    // Add cython std paths and user include paths still
+    const cythonPaths: string[] = [];
+    pathResult.paths.forEach((path) => addCythonStdPath(cythonPaths, path));
+    pathResult.paths.push(...cythonPaths);
+    addUserIncludePaths(pathResult.paths);
 
     return pathResult.paths;
 }

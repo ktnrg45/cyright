@@ -34,7 +34,8 @@ import { Diagnostic } from '../common/diagnostic';
 import { FileEditActions, TextEditAction } from '../common/editAction';
 import { LanguageServiceExtension } from '../common/extensibility';
 import { FileSystem, FileWatcher, FileWatcherEventType, ignoredWatchEventFunction } from '../common/fileSystem';
-import { Host, HostFactory, NoAccessHost } from '../common/host';
+import { FullAccessHost } from '../common/fullAccessHost';
+import { Host, HostFactory, HostKind, NoAccessHost } from '../common/host';
 import {
     combinePaths,
     FileSpec,
@@ -774,6 +775,20 @@ export class AnalyzerService {
         } else {
             if (!configOptions.stubPath) {
                 configOptions.stubPath = normalizePath(combinePaths(configOptions.projectRoot, 'typings'));
+            }
+        }
+
+        // ! Cython
+        // Set venv path if not set and python path is not a global path
+        if (!configOptions.venvPath && !configOptions.venv && configOptions.pythonPath) {
+            if (host.kind === HostKind.FullAccess) {
+                const fullAccessHost = host as FullAccessHost;
+                const details = fullAccessHost.getPythonExecDetails(configOptions.pythonPath);
+                if (details && !details.isGlobal) {
+                    const searchPaths = fullAccessHost.getPythonSearchPaths(configOptions.pythonPath);
+                    configOptions.venvPath = searchPaths.prefix;
+                    configOptions.venv = '.';
+                }
             }
         }
 

@@ -39,7 +39,7 @@ import { Commands } from 'pyright-internal/commands/commands';
 import { isThenable } from 'pyright-internal/common/core';
 
 import { FileBasedCancellationStrategy } from './cancellationUtils';
-
+import { StatusBar } from './statusBar';
 let cancellationStrategy: FileBasedCancellationStrategy | undefined;
 
 let languageClient: LanguageClient | undefined;
@@ -55,18 +55,20 @@ export async function activate(context: ExtensionContext) {
     // hover text, etc.because the two extensions overlap in functionality.
     // const pylanceExtension = extensions.getExtension('ms-python.vscode-pylance');
     // if (pylanceExtension) {
-        //     window.showErrorMessage(
-            //         'Pyright has detected that the Pylance extension is installed. ' +
-                //             'Pylance includes the functionality of Pyright, and running both of ' +
-                //             'these extensions can lead to problems. Pyright will disable itself. ' +
-                //             'Uninstall or disable Pyright to avoid this message.'
-        //     );
-        //     return;
+    //     window.showErrorMessage(
+    //         'Pyright has detected that the Pylance extension is installed. ' +
+    //             'Pylance includes the functionality of Pyright, and running both of ' +
+    //             'these extensions can lead to problems. Pyright will disable itself. ' +
+    //             'Uninstall or disable Pyright to avoid this message.'
+    //     );
+    //     return;
     // }
+    // ! Cython
+    const statusBar = new StatusBar(context);
     cancellationStrategy = new FileBasedCancellationStrategy();
 
     // const bundlePath = context.asAbsolutePath(path.join('dist', 'server.js'));
-const bundlePath = context.asAbsolutePath(path.join('cyright', 'packages', 'vscode-pyright', 'dist', 'server.js'));
+    const bundlePath = context.asAbsolutePath(path.join('cyright', 'packages', 'vscode-pyright', 'dist', 'server.js'));
     const runOptions = { execArgv: [`--max-old-space-size=${defaultHeapSize}`] };
     const debugOptions = { execArgv: ['--nolazy', '--inspect=9600', `--max-old-space-size=${defaultHeapSize}`] };
 
@@ -130,13 +132,18 @@ const bundlePath = context.asAbsolutePath(path.join('cyright', 'packages', 'vsco
                         const pythonPathPromises: Promise<string | undefined>[] = params.items.map((item) => {
                             if (item.section === 'python') {
                                 const uri = item.scopeUri ? Uri.parse(item.scopeUri) : undefined;
-                                return getPythonPathFromPythonExtension(client.outputChannel, uri, () => {
-                                    // Posts a "workspace/didChangeConfiguration" message to the service
-                                    // so it re-queries the settings for all workspaces.
-                                    client.sendNotification(DidChangeConfigurationNotification.type, {
-                                        settings: null,
-                                    });
-                                });
+                                return getPythonPathFromPythonExtension(
+                                    client.outputChannel,
+                                    uri,
+                                    () => {
+                                        // Posts a "workspace/didChangeConfiguration" message to the service
+                                        // so it re-queries the settings for all workspaces.
+                                        client.sendNotification(DidChangeConfigurationNotification.type, {
+                                            settings: null,
+                                        });
+                                    },
+                                    statusBar
+                                );
                             }
                             return Promise.resolve(undefined);
                         });
@@ -231,7 +238,8 @@ export function deactivate() {
 async function getPythonPathFromPythonExtension(
     outputChannel: OutputChannel,
     scopeUri: Uri | undefined,
-    postConfigChanged: () => void
+    postConfigChanged: () => void,
+    statusBar: StatusBar
 ): Promise<string | undefined> {
     try {
         const extension = extensions.getExtension('ms-python.python');
@@ -264,6 +272,7 @@ async function getPythonPathFromPythonExtension(
                 } else {
                     outputChannel.appendLine(`Received pythonPath from Python extension: ${result}`);
                 }
+                statusBar.update(result);
 
                 return result;
             }
