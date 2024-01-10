@@ -1821,6 +1821,9 @@ export namespace PassNode {
 export interface ImportNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.Import;
     list: ImportAsNode[];
+
+    // ! Cython
+    isCython?: boolean;
 }
 
 export namespace ImportNode {
@@ -1891,6 +1894,9 @@ export interface ImportFromNode extends ParseNodeBase {
     usesParens: boolean;
     wildcardToken?: Token;
     missingImportKeyword?: boolean;
+
+    // ! Cython
+    isCython?: boolean;
 }
 
 export namespace ImportFromNode {

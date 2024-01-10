@@ -70,7 +70,8 @@ import { findPythonSearchPaths } from './pythonPathUtils';
 import { IPythonMode } from './sourceFile';
 import { TypeEvaluator } from './typeEvaluatorTypes';
 
-export const configFileNames = ['pyrightconfig.json'];
+// ! Cython
+export const configFileNames = ['cyrightconfig.json']; // Change config filename to differentiate from pyrightconfig.json
 export const pyprojectTomlName = 'pyproject.toml';
 
 // How long since the last user activity should we wait until running
@@ -831,6 +832,9 @@ export class AnalyzerService {
             }
         }
 
+        // ! Cython
+        configOptions.includePaths = commandLineOptions.includePaths;
+
         return configOptions;
     }
 
@@ -1006,15 +1010,18 @@ export class AnalyzerService {
         return this._attemptParseFile(pyprojectPath, (fileContents, attemptCount) => {
             try {
                 const configObj = TOML.parse(fileContents);
-                if (configObj && configObj.tool && (configObj.tool as TOML.JsonMap).pyright) {
-                    return (configObj.tool as TOML.JsonMap).pyright as object;
+                // ! Cython
+                // Differentiate from [tool.pyright]
+                if (configObj && configObj.tool && (configObj.tool as TOML.JsonMap).cyright) {
+                    return (configObj.tool as TOML.JsonMap).cyright as object;
                 }
             } catch (e: any) {
                 this._console.error(`Pyproject file parse attempt ${attemptCount} error: ${JSON.stringify(e)}`);
                 throw e;
             }
 
-            this._console.error(`Pyproject file "${pyprojectPath}" is missing "[tool.pyright]" section.`);
+            // ! Cython
+            this._console.error(`Pyproject file "${pyprojectPath}" is missing "[tool.cyright]" section.`);
             return undefined;
         });
     }

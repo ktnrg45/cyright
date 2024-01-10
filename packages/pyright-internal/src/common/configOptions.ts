@@ -756,6 +756,10 @@ export class ConfigOptions {
     // treated as Any rather than Unknown?
     evaluateUnknownImportsAsAny?: boolean;
 
+    // ! Cython
+    // Cython Include Paths
+    includePaths?: string[] | undefined;
+
     static getDiagnosticRuleSet(typeCheckingMode?: string): DiagnosticRuleSet {
         if (typeCheckingMode === 'strict') {
             return getStrictDiagnosticRuleSet();

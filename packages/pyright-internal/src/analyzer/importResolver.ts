@@ -55,6 +55,10 @@ export interface ImportedModuleDescriptor {
     nameParts: string[];
     hasTrailingDot?: boolean | undefined;
     importedSymbols: string[] | undefined;
+
+    // ! Cython
+    isCython?: boolean | undefined;
+    cythonExt?: string | undefined;
 }
 
 export interface ModuleNameAndType {
@@ -97,7 +101,10 @@ interface SupportedVersionRange {
 }
 
 const supportedNativeLibExtensions = ['.pyd', '.so', '.dylib'];
-export const supportedFileExtensions = ['.py', '.pyi', ...supportedNativeLibExtensions];
+
+// ! Cython
+const supportedCythonExtensions = ['.pyx', '.pxd', '.pxi'];
+export const supportedFileExtensions = ['.py', '.pyi', ...supportedNativeLibExtensions, ...supportedCythonExtensions];
 
 // Should we allow partial resolution for third-party packages? Some use tricks
 // to populate their package namespaces, so we might be able to partially resolve
@@ -977,17 +984,44 @@ export class ImportResolver {
             const pyFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.py');
             const pyiFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.pyi');
 
-            if (allowPyi && this.fileExistsCached(pyiFilePath)) {
-                importFailureInfo.push(`Resolved import with file '${pyiFilePath}'`);
-                resolvedPaths.push(pyiFilePath);
-                isStubFile = true;
-            } else if (this.fileExistsCached(pyFilePath)) {
-                importFailureInfo.push(`Resolved import with file '${pyFilePath}'`);
-                resolvedPaths.push(pyFilePath);
-            } else {
+            // ! Cython
+            const pxdFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.pxd');
+            const cythonFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.' + moduleDescriptor.cythonExt);
+
+            if (!moduleDescriptor.isCython) {
+                if (allowPyi && this.fileExistsCached(pyiFilePath)) {
+                    importFailureInfo.push(`Resolved import with file '${pyiFilePath}'`);
+                    resolvedPaths.push(pyiFilePath);
+                    isStubFile = true;
+                } else if (this.fileExistsCached(pyFilePath)) {
+                    importFailureInfo.push(`Resolved import with file '${pyFilePath}'`);
+                    resolvedPaths.push(pyFilePath);
+                }
+            }
+
+            // ! Cython
+            if (moduleDescriptor.isCython || moduleDescriptor.isCython === undefined) {
+                if (!moduleDescriptor.cythonExt && this.fileExistsCached(pxdFilePath)) {
+                    importFailureInfo.push(`Resolved import with file '${pxdFilePath}'`);
+                    resolvedPaths.push(pxdFilePath);
+                } else if (moduleDescriptor.cythonExt && this.fileExistsCached(cythonFilePath)) {
+                    importFailureInfo.push(`Resolved import with file '${cythonFilePath}'`);
+                    resolvedPaths.push(cythonFilePath);
+                }
+            }
+
+            if (resolvedPaths.length === 0) {
                 importFailureInfo.push(`Partially resolved import with directory '${dirPath}'`);
                 resolvedPaths.push('');
                 isNamespacePackage = true;
+            }
+
+            // ! Cython
+            let paths = [pyFilePath, pyiFilePath];
+            if (moduleDescriptor.isCython) {
+                paths = moduleDescriptor.cythonExt ? [cythonFilePath] : [pxdFilePath];
+            } else if (moduleDescriptor.isCython === undefined) {
+                paths.push(pxdFilePath);
             }
 
             implicitImports = this._findImplicitImports(importName, dirPath, [pyFilePath, pyiFilePath]);
@@ -1013,19 +1047,43 @@ export class ImportResolver {
                     const fileNameWithoutExtension = '__init__';
                     const pyFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.py');
                     const pyiFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.pyi');
+
+                    // ! Cython
+                    const pyxFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.pyx');
+                    const pxdFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.pxd');
+                    const pxiFilePath = combinePaths(dirPath, fileNameWithoutExtension + '.pxi');
                     let foundInit = false;
 
-                    if (allowPyi && this.fileExistsCached(pyiFilePath)) {
-                        importFailureInfo.push(`Resolved import with file '${pyiFilePath}'`);
-                        resolvedPaths.push(pyiFilePath);
-                        if (isLastPart) {
-                            isStubFile = true;
+                    if (!moduleDescriptor.isCython) {
+                        if (allowPyi && this.fileExistsCached(pyiFilePath)) {
+                            importFailureInfo.push(`Resolved import with file '${pyiFilePath}'`);
+                            resolvedPaths.push(pyiFilePath);
+                            if (isLastPart) {
+                                isStubFile = true;
+                            }
+                            foundInit = true;
+                        } else if (this.fileExistsCached(pyFilePath)) {
+                            importFailureInfo.push(`Resolved import with file '${pyFilePath}'`);
+                            resolvedPaths.push(pyFilePath);
+                            foundInit = true;
                         }
-                        foundInit = true;
-                    } else if (this.fileExistsCached(pyFilePath)) {
-                        importFailureInfo.push(`Resolved import with file '${pyFilePath}'`);
-                        resolvedPaths.push(pyFilePath);
-                        foundInit = true;
+                    }
+
+                    // ! Cython
+                    if (moduleDescriptor.isCython || moduleDescriptor.isCython === undefined) {
+                        if (this.fileExistsCached(pyxFilePath)) {
+                            importFailureInfo.push(`Resolved import with file '${pyxFilePath}'`);
+                            resolvedPaths.push(pyxFilePath);
+                            foundInit = true;
+                        } else if (this.fileExistsCached(pxdFilePath)) {
+                            importFailureInfo.push(`Resolved import with file '${pxdFilePath}'`);
+                            resolvedPaths.push(pxdFilePath);
+                            foundInit = true;
+                        } else if (this.fileExistsCached(pxiFilePath)) {
+                            importFailureInfo.push(`Resolved import with file '${pxiFilePath}'`);
+                            resolvedPaths.push(pxiFilePath);
+                            foundInit = true;
+                        }
                     }
 
                     if (!pyTypedInfo && lookForPyTyped) {
@@ -1045,11 +1103,19 @@ export class ImportResolver {
                         continue;
                     }
 
+                    // ! Cython
                     if (foundInit) {
-                        implicitImports = this._findImplicitImports(moduleDescriptor.nameParts.join('.'), dirPath, [
-                            pyFilePath,
-                            pyiFilePath,
-                        ]);
+                        let paths = [pyFilePath, pyiFilePath];
+                        if (moduleDescriptor.isCython) {
+                            paths = [pxdFilePath, pxiFilePath, pyxFilePath];
+                        } else if (moduleDescriptor.isCython === undefined) {
+                            paths.push(...[pxdFilePath, pxiFilePath, pyxFilePath]);
+                        }
+                        implicitImports = this._findImplicitImports(
+                            moduleDescriptor.nameParts.join('.'),
+                            dirPath,
+                            paths
+                        );
                         break;
                     }
                 }
@@ -1063,16 +1129,38 @@ export class ImportResolver {
                 const pyFilePath = combinePaths(fileDirectory, fileNameWithoutExtension + '.py');
                 const pyiFilePath = combinePaths(fileDirectory, fileNameWithoutExtension + '.pyi');
 
-                if (allowPyi && this.fileExistsCached(pyiFilePath)) {
-                    importFailureInfo.push(`Resolved import with file '${pyiFilePath}'`);
-                    resolvedPaths.push(pyiFilePath);
-                    if (isLastPart) {
-                        isStubFile = true;
+                // ! Cython
+                const pxdFilePath = combinePaths(fileDirectory, fileNameWithoutExtension + '.pxd');
+                const cythonFilePath = combinePaths(
+                    fileDirectory,
+                    fileNameWithoutExtension + '.' + moduleDescriptor.cythonExt
+                );
+                const resolvedCount = resolvedPaths.length;
+
+                if (!moduleDescriptor.isCython) {
+                    if (allowPyi && this.fileExistsCached(pyiFilePath)) {
+                        importFailureInfo.push(`Resolved import with file '${pyiFilePath}'`);
+                        resolvedPaths.push(pyiFilePath);
+                        if (isLastPart) {
+                            isStubFile = true;
+                        }
+                    } else if (this.fileExistsCached(pyFilePath)) {
+                        importFailureInfo.push(`Resolved import with file '${pyFilePath}'`);
+                        resolvedPaths.push(pyFilePath);
                     }
-                } else if (this.fileExistsCached(pyFilePath)) {
-                    importFailureInfo.push(`Resolved import with file '${pyFilePath}'`);
-                    resolvedPaths.push(pyFilePath);
-                } else {
+                }
+
+                // ! Cython
+                if (moduleDescriptor.isCython || moduleDescriptor.isCython === undefined) {
+                    if (!moduleDescriptor.cythonExt && this.fileExistsCached(pxdFilePath)) {
+                        importFailureInfo.push(`Resolved import with file '${pxdFilePath}'`);
+                        resolvedPaths.push(pxdFilePath);
+                    } else if (moduleDescriptor.cythonExt && this.fileExistsCached(cythonFilePath)) {
+                        importFailureInfo.push(`Resolved import with file '${cythonFilePath}'`);
+                        resolvedPaths.push(cythonFilePath);
+                    }
+                }
+                if (resolvedCount === resolvedPaths.length) {
                     if (allowNativeLib && this.dirExistsCached(fileDirectory)) {
                         const filesInDir = this._getFilesInDirectory(fileDirectory);
                         const nativeLibFileName = filesInDir.find((f) =>
@@ -1096,7 +1184,14 @@ export class ImportResolver {
                         importFailureInfo.push(`Partially resolved import with directory '${dirPath}'`);
                         resolvedPaths.push('');
                         if (isLastPart) {
-                            implicitImports = this._findImplicitImports(importName, dirPath, [pyFilePath, pyiFilePath]);
+                            // ! Cython
+                            let paths = [pyFilePath, pyiFilePath];
+                            if (moduleDescriptor.isCython) {
+                                paths = moduleDescriptor.cythonExt ? [cythonFilePath] : [pxdFilePath];
+                            } else if (moduleDescriptor.isCython === undefined) {
+                                paths.push(pxdFilePath);
+                            }
+                            implicitImports = this._findImplicitImports(importName, dirPath, paths);
                             isNamespacePackage = true;
                         }
                     } else if (isNativeLib) {
@@ -2221,12 +2316,23 @@ export class ImportResolver {
             let strippedFileName: string;
             let isNativeLib = false;
 
-            if (fileExt === '.py' || fileExt === '.pyi') {
+            // ! Cython
+            if (
+                fileExt === '.py' ||
+                fileExt === '.pyi' ||
+                fileExt === '.pxd' ||
+                fileExt === '.pxi' ||
+                fileExt === '.pyx'
+            ) {
                 strippedFileName = stripFileExtension(fileName);
             } else if (
                 this._isNativeModuleFileExtension(fileExt) &&
                 !this.fileExistsCached(`${fileName}.py`) &&
-                !this.fileExistsCached(`${fileName}.pyi`)
+                !this.fileExistsCached(`${fileName}.pyi`) &&
+                // ! Cython
+                !this.fileExistsCached(`${fileName}.pxd`) &&
+                !this.fileExistsCached(`${fileName}.pxi`) &&
+                !this.fileExistsCached(`${fileName}.pyx`)
             ) {
                 // Native module.
                 strippedFileName = fileName.substr(0, fileName.indexOf('.'));
@@ -2297,7 +2403,14 @@ export class ImportResolver {
     }
 
     protected formatImportName(moduleDescriptor: ImportedModuleDescriptor) {
-        return '.'.repeat(moduleDescriptor.leadingDots) + moduleDescriptor.nameParts.join('.');
+        let name = '.'.repeat(moduleDescriptor.leadingDots) + moduleDescriptor.nameParts.join('.');
+        // ! Cython
+        if (moduleDescriptor.cythonExt) {
+            name = `(cython)[${moduleDescriptor.cythonExt}] ` + name;
+        } else if (moduleDescriptor.isCython) {
+            name = '(cython) ' + name;
+        }
+        return name;
     }
 
     private _resolveNativeModuleStub(

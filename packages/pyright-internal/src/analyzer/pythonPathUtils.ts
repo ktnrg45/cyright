@@ -89,7 +89,20 @@ export function findPythonSearchPaths(
             pthPaths.forEach((path) => {
                 addPathIfUnique(foundPaths, path);
             });
+
+            // ! Cython
+            // Add Cython Includes Path
+            const cythonPath = combinePaths(sitePackagesPath, pathConsts.cython, pathConsts.includes);
+            addPathIfUnique(foundPaths, cythonPath);
+            importFailureInfo.push(`Cython Added Cython Include Path: ${cythonPath}`);
         });
+
+        if (configOptions.includePaths) {
+            configOptions.includePaths.forEach((path) => {
+                addPathIfUnique(foundPaths, path);
+                importFailureInfo.push(`Cython Added Include Path: ${path}`);
+            });
+        }
 
         if (foundPaths.length > 0) {
             importFailureInfo.push(`Found the following '${pathConsts.sitePackages}' dirs`);

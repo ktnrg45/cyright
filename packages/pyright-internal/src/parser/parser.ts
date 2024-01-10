@@ -214,6 +214,10 @@ export interface ModuleImport {
     // Used for "from X import Y" pattern. An empty
     // array implies "from X import *".
     importedSymbols: string[] | undefined;
+
+    // ! Cython
+    isCython?: boolean; // false: python; true: cython; undefined: unknown
+    cythonExt?: string;
 }
 
 export interface ArgListResult {
@@ -2393,7 +2397,20 @@ export class Parser {
             modName.leadingDots === 0 && modName.nameParts.length === 1 && modName.nameParts[0].value === '__future__';
 
         const possibleInputToken = this._peekToken();
-        if (!this._consumeTokenIfKeyword(KeywordType.Import)) {
+
+        // ! Cython
+        let isCython: boolean | undefined = undefined;
+        if (possibleInputToken.type === TokenType.Keyword) {
+            const kwToken = possibleInputToken as KeywordToken;
+            if (kwToken.keywordType === KeywordType.Import) {
+                isCython = false;
+            } else if (kwToken.keywordType === KeywordType.Cimport) {
+                isCython = true;
+            }
+        }
+        importFromNode.isCython = isCython;
+
+        if (!this._consumeTokenIfKeyword(KeywordType.Import) && !this._consumeTokenIfKeyword(KeywordType.Cimport)) {
             this._addError(Localizer.Diagnostic.expectedImport(), this._peekToken());
             if (!modName.hasTrailingDot) {
                 importFromNode.missingImportKeyword = true;
@@ -2474,6 +2491,8 @@ export class Parser {
             leadingDots: importFromNode.module.leadingDots,
             nameParts: importFromNode.module.nameParts.map((p) => p.value),
             importedSymbols: importFromNode.imports.map((imp) => imp.name.value),
+            isCython: isCython,
+            cythonExt: isCython ? 'pxd' : undefined,
         });
 
         let isTypingImport = false;
@@ -2506,10 +2525,14 @@ export class Parser {
     // import_name: 'import' dotted_as_names
     // dotted_as_names: dotted_as_name (',' dotted_as_name)*
     // dotted_as_name: dotted_name ['as' NAME]
-    private _parseImportStatement(): ImportNode {
-        const importToken = this._getKeywordToken(KeywordType.Import);
+    private _parseImportStatement(keyword: KeywordType): ImportNode {
+        const importToken = this._getKeywordToken(keyword);
 
         const importNode = ImportNode.create(importToken);
+
+        // ! Cython
+        const isCython = keyword === KeywordType.Cimport ? true : false;
+        importNode.isCython = isCython;
 
         while (true) {
             const modName = this._parseDottedModuleName();
@@ -2539,6 +2562,10 @@ export class Parser {
                 leadingDots: importAsNode.module.leadingDots,
                 nameParts: importAsNode.module.nameParts.map((p) => p.value),
                 importedSymbols: undefined,
+
+                // ! Cython
+                isCython: isCython,
+                cythonExt: isCython ? 'pxd' : undefined,
             });
 
             if (modName.nameParts.length === 1) {
@@ -2832,7 +2859,8 @@ export class Parser {
                 return this._parseFromStatement();
 
             case KeywordType.Import:
-                return this._parseImportStatement();
+                // ! Cython
+                return this._parseImportStatement(KeywordType.Import);
 
             case KeywordType.Global:
                 return this._parseGlobalStatement();
@@ -2876,6 +2904,10 @@ export class Parser {
                 }
                 break;
             }
+
+            // ! Cython
+            case KeywordType.Cimport:
+                return this._parseImportStatement(KeywordType.Cimport);
         }
 
         return this._parseExpressionStatement();
