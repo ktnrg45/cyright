@@ -19019,6 +19019,11 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                             );
                         }
 
+                        // ! Cython
+                        // Attach cython details to type
+                        if (typeAnnotationNode.typeNode) {
+                            declaredType = TypeBase.cloneForCType(typeAnnotationNode.typeNode, declaredType);
+                        }
                         return declaredType;
                     }
                 }
