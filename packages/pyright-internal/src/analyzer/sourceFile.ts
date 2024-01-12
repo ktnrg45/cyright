@@ -28,13 +28,7 @@ import { TextEditAction } from '../common/editAction';
 import { FileSystem } from '../common/fileSystem';
 import { LogTracker } from '../common/logTracker';
 import { fromLSPAny } from '../common/lspUtils';
-import {
-    changeAnyExtension,
-    getFileExtension,
-    getFileName,
-    normalizeSlashes,
-    stripFileExtension,
-} from '../common/pathUtils';
+import { getFileExtension, getFileName, normalizeSlashes, stripFileExtension } from '../common/pathUtils';
 import { convertOffsetsToRange } from '../common/positionUtils';
 import * as StringUtils from '../common/stringUtils';
 import { DocumentRange, getEmptyRange, Position, Range, TextRange } from '../common/textRange';
@@ -1432,17 +1426,15 @@ export class SourceFile {
         // matching ".pxd" files are automatically imported for ".pyx" files
         const ext = getFileExtension(this._filePath);
         if (ext === '.pyx') {
-            let filename = changeAnyExtension(getFileName(this._filePath), '');
-            const lastIndex = filename.lastIndexOf('.');
-            filename = lastIndex >= 0 ? filename.substring(0, lastIndex) : filename;
-            const pxdImportResult = importResolver.resolveImport(this._filePath, execEnv, {
-                leadingDots: 1,
-                nameParts: [filename],
-                importedSymbols: undefined,
-                isCython: true,
-                cythonExt: 'pxd',
-            });
-            imports.push(pxdImportResult);
+            const filename = stripFileExtension(getFileName(this._filePath));
+            const matchingPxdImport = Parser.getMatchingDeclarationImport(filename);
+            const pxdImportResult = importResolver.resolveImport(this._filePath, execEnv, matchingPxdImport.import);
+            if (pxdImportResult.isImportFound && !pxdImportResult.isNativeLib) {
+                imports.push(pxdImportResult);
+                AnalyzerNodeInfo.setImportInfo(matchingPxdImport.import.nameNode, pxdImportResult);
+                this._parseResults?.parseTree.statements.push(matchingPxdImport.statements);
+                matchingPxdImport.statements.parent = this._parseResults?.parseTree;
+            }
         }
 
         for (const moduleImport of moduleImports) {

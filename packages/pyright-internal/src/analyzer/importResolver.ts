@@ -889,6 +889,12 @@ export class ImportResolver {
         allowPyi = true,
         lookForPyTyped = false
     ): ImportResult {
+        // ! Cython
+        if (moduleDescriptor.isCython) {
+            // cimports can never be a native lib
+            allowNativeLib = false;
+        }
+
         if (allowPyi && useStubPackage) {
             // Look for packaged stubs first. PEP 561 indicates that package authors can ship
             // their stubs separately from their package implementation by appending the string
@@ -1152,7 +1158,7 @@ export class ImportResolver {
 
                 // ! Cython
                 if (moduleDescriptor.isCython || moduleDescriptor.isCython === undefined) {
-                    if (!moduleDescriptor.cythonExt && this.fileExistsCached(pxdFilePath)) {
+                    if (moduleDescriptor.cythonExt && this.fileExistsCached(pxdFilePath)) {
                         importFailureInfo.push(`Resolved import with file '${pxdFilePath}'`);
                         resolvedPaths.push(pxdFilePath);
                     } else if (moduleDescriptor.cythonExt && this.fileExistsCached(cythonFilePath)) {

@@ -153,5 +153,8 @@ function getEffectiveCommandLineOptions(
     commandLineOptions.excludeFileSpecs = serverSettings.excludeFileSpecs ?? [];
     commandLineOptions.ignoreFileSpecs = serverSettings.ignoreFileSpecs ?? [];
 
+    // ! Cython
+    commandLineOptions.includePaths = serverSettings.includePaths ?? [];
+
     return commandLineOptions;
 }

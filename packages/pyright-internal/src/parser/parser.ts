@@ -6762,4 +6762,53 @@ export class Parser {
 
         return ifNode;
     }
+
+    // Create wildcard import for a matching 'pxd' import. These do not have to be explicitly imported for 'pyx' files.
+    // Example: If this file path is 'package/module.pyx', import the 'package/module.pxd' file as 'from package.module cimport *'
+    static getMatchingDeclarationImport(moduleName: string) {
+        const module = ModuleNameNode.create(TextRange.create(0, 0));
+        const nameParts = moduleName.split('.');
+        for (let index = 0; index < moduleName.length; index++) {
+            if (moduleName.charAt(index) === '.') {
+                module.leadingDots++;
+                continue;
+            }
+            break;
+        }
+        for (const part of nameParts) {
+            if (part !== '') {
+                const token = IdentifierToken.create(0, 0, part, undefined);
+                module.nameParts.push(NameNode.create(token));
+            }
+        }
+        const fromToken = KeywordToken.create(0, 0, KeywordType.From, undefined);
+        const importFromNode = ImportFromNode.create(fromToken, module);
+        importFromNode.isWildcardImport = true;
+        importFromNode.wildcardToken = OperatorToken.create(0, 0, OperatorType.Multiply, undefined);
+        const pxdImport = {
+            nameNode: importFromNode.module,
+            leadingDots: importFromNode.module.leadingDots,
+            nameParts: importFromNode.module.nameParts.map((p) => p.value),
+            importedSymbols: importFromNode.imports.map((imp) => imp.name.value),
+            isCython: true,
+            cythonExt: 'pxd',
+        };
+        const statements = StatementListNode.create(fromToken);
+        statements.statements.push(importFromNode);
+        importFromNode.parent = statements;
+
+        // Invalidate starts
+        importFromNode.start = -1;
+        importFromNode.module.start = -1;
+        importFromNode.module.nameParts.forEach((n) => {
+            n.start = -1;
+        });
+        importFromNode.imports.forEach((n) => {
+            n.start = -1;
+            n.name.start = -1;
+        });
+        statements.start = -1;
+
+        return { moduleNode: importFromNode, statements: statements, import: pxdImport };
+    }
 }

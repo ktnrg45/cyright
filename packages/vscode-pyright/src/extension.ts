@@ -91,6 +91,8 @@ export async function activate(context: ExtensionContext) {
         },
     };
 
+    // ! Cython
+
     // Options to control the language client
     const clientOptions: LanguageClientOptions = {
         // Register the server for python source files.
@@ -101,7 +103,7 @@ export async function activate(context: ExtensionContext) {
         ],
         synchronize: {
             // Synchronize the setting section to the server.
-            configurationSection: ['python', 'pyright'],
+            configurationSection: ['python', 'pyright', 'cython'],
         },
         connectionOptions: { cancellationStrategy: cancellationStrategy },
         middleware: {
