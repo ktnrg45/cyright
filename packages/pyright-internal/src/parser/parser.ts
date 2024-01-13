@@ -259,6 +259,10 @@ export class Parser {
             this._startNewParse(fileContents, 0, fileContents.length, parseOptions, diagSink);
         });
 
+        // ! Cython
+        // Always allow forward references
+        this._futureImportMap.set('annotations', true);
+
         const moduleNode = ModuleNode.create({ start: 0, length: fileContents.length });
 
         timingStats.parseFileTime.timeOperation(() => {

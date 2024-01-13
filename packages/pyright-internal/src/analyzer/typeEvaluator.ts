@@ -4026,6 +4026,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                     !!effectiveType && isInstantiableClass(effectiveType) && ClassType.isSpecialBuiltIn(effectiveType);
 
                 type = effectiveType;
+
                 if (useCodeFlowAnalysis && !isSpecialBuiltIn) {
                     // See if code flow analysis can tell us anything more about the type.
                     // If the symbol is declared outside of our execution scope, use its effective
@@ -11313,6 +11314,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
             type = UnknownType.create();
         }
+
+        // ! Cython
+        type = validateBinaryOperationCython(node, leftType, rightType, type);
 
         return { type, isIncomplete };
     }
@@ -24167,6 +24171,62 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             };
         }
         return typeResult;
+    }
+
+    function isPointer(type: Type) {
+        if (isClassInstance(type)) {
+            const classType = type as ClassType;
+            if (classType.cythonDetails && classType.cythonDetails.isPointer) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function validateBinaryOperationCython(
+        node: AugmentedAssignmentNode | BinaryOperationNode,
+        leftType: Type,
+        rightType: Type,
+        expectedType: Type
+    ) {
+        const diag = new DiagnosticAddendum();
+        const fileInfo = AnalyzerNodeInfo.getFileInfo(node);
+        const leftClass = isClassInstance(leftType) ? (leftType as ClassType) : undefined;
+        // const rightClass = isClassInstance(rightType) ? (rightType as ClassType) : undefined;
+        const expectedClass = isClassInstance(expectedType) ? (expectedType as ClassType) : undefined;
+
+        if (leftClass && expectedClass) {
+            // Handle operations on pointers
+            if (expectedClass && leftClass && isPointer(leftClass)) {
+                const pointerOps = [
+                    OperatorType.Add,
+                    OperatorType.AddEqual,
+                    OperatorType.Subtract,
+                    OperatorType.SubtractEqual,
+                ];
+                if (pointerOps.includes(node.operator)) {
+                    expectedClass.cythonDetails = leftClass.cythonDetails ? { ...leftClass.cythonDetails } : undefined;
+                    expectedType = expectedClass;
+                } else {
+                    addDiagnostic(
+                        fileInfo.diagnosticRuleSet.reportGeneralTypeIssues,
+                        DiagnosticRule.reportGeneralTypeIssues,
+                        Localizer.Diagnostic.typeNotSupportBinaryOperator().format({
+                            operator: ParseTreeUtils.printOperator(node.operator),
+                            leftType: printType(leftType),
+                            rightType: printType(rightType),
+                        }) + diag.getString(),
+                        node
+                    );
+                    expectedType = UnknownType.create();
+                }
+            } else {
+                // Copy cython details
+                expectedClass.cythonDetails = leftClass.cythonDetails ? { ...leftClass.cythonDetails } : undefined;
+                expectedType = expectedClass;
+            }
+        }
+        return expectedType;
     }
 
     const evaluatorInterface: TypeEvaluator = {

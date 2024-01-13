@@ -1430,9 +1430,9 @@ export class SourceFile {
             const matchingPxdImport = Parser.getMatchingDeclarationImport(filename);
             const pxdImportResult = importResolver.resolveImport(this._filePath, execEnv, matchingPxdImport.import);
             if (pxdImportResult.isImportFound && !pxdImportResult.isNativeLib) {
-                imports.push(pxdImportResult);
+                imports.unshift(pxdImportResult);
                 AnalyzerNodeInfo.setImportInfo(matchingPxdImport.import.nameNode, pxdImportResult);
-                this._parseResults?.parseTree.statements.push(matchingPxdImport.statements);
+                this._parseResults?.parseTree.statements.unshift(matchingPxdImport.statements);
                 matchingPxdImport.statements.parent = this._parseResults?.parseTree;
             }
         }
