@@ -1,17 +1,25 @@
 import { ExtensionContext } from 'vscode';
+import { LanguageClient } from 'vscode-languageclient/node';
 
+import { CythonCompiler } from './compiler';
 import { StatusBar } from './statusBar';
 
 // Additional misc service objects for Cython
-export interface CythonServices {
-    statusBar: StatusBar;
-}
+export class CythonServices {
+    readonly client: LanguageClient;
+    readonly context: ExtensionContext;
+    readonly statusBar: StatusBar;
+    readonly compiler: CythonCompiler;
 
-export namespace CythonServices {
-    export function create(context: ExtensionContext) {
-        const services: CythonServices = {
-            statusBar: new StatusBar(context),
-        };
-        return services;
+    constructor(client: LanguageClient, context: ExtensionContext) {
+        this.client = client;
+        this.context = context;
+        this.statusBar = new StatusBar(context);
+        this.compiler = new CythonCompiler(context);
+    }
+
+    updatePythonPath(path?: string) {
+        this.statusBar.update(path);
+        this.compiler.setPythonPath(path);
     }
 }

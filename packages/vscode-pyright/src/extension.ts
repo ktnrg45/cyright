@@ -65,9 +65,6 @@ export async function activate(context: ExtensionContext) {
     //     return;
     // }
 
-    // ! Cython
-    const cythonServices = CythonServices.create(context);
-
     cancellationStrategy = new FileBasedCancellationStrategy();
 
     // const bundlePath = context.asAbsolutePath(path.join('dist', 'server.js'));
@@ -180,6 +177,9 @@ export async function activate(context: ExtensionContext) {
     const client = new LanguageClient('cython', 'Cython', serverOptions, clientOptions);
     languageClient = client;
 
+    // ! Cython
+    const cythonServices = new CythonServices(client, context);
+
     // Register our custom commands.
     const textEditorCommands = [Commands.orderImports, Commands.addMissingOptionalToParam];
     textEditorCommands.forEach((commandName) => {
@@ -278,7 +278,7 @@ async function getPythonPathFromPythonExtension(
                     outputChannel.appendLine(`Received pythonPath from Python extension: ${result}`);
                 }
 
-                cythonServices.statusBar.update(result);
+                cythonServices.updatePythonPath(result);
 
                 return result;
             }
