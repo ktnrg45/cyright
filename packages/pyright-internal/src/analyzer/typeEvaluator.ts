@@ -24127,28 +24127,11 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         if (cachedType) {
             return { type: cachedType };
         }
+        // Evaluate arguments first so that cython details are cached
+        node.expressions.forEach((n) => getTypeOfCTypeNode(n));
 
-        if (!tupleClassType || !isInstantiableClass(tupleClassType)) {
-            return { type: UnknownType.create() };
-        }
-
-        // ! HACK: probably wrong but ensure that nested tuples are shown as instances
-        const entryTypeResults = node.typeNodes.map((n) => {
-            const entryType = getTypeOfCTypeNode(n).type;
-            if (isClass(entryType) && isTupleClass(entryType)) {
-                entryType.instantiableNestingLevel = undefined;
-            }
-            return { type: convertToInstance(entryType) };
-        });
-
-        const type = convertToInstantiable(
-            specializeTupleClass(
-                tupleClassType,
-                buildTupleTypesList(entryTypeResults),
-                /* isTypeArgumentExplicit */ true
-            )
-        );
-        return { type: type };
+        const typeResult = getTypeOfIndex(CTupleTypeNode.alias(node), flags);
+        return typeResult;
     }
 
     function getTypeOfCFunction(node: CFunctionNode): FunctionTypeResult | undefined {

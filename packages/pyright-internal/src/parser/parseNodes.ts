@@ -2581,7 +2581,7 @@ export namespace CTypeDefNode {
 export interface CTupleTypeNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CTupleType;
     endToken: Token;
-    typeNodes: CTypeNode[];
+    expressions: CTypeNode[];
 }
 
 export namespace CTupleTypeNode {
@@ -2591,7 +2591,7 @@ export namespace CTupleTypeNode {
             length: startToken.length,
             nodeType: ParseNodeType.CTupleType,
             id: _nextNodeId++,
-            typeNodes: typeNodes,
+            expressions: typeNodes,
             endToken: endToken,
         };
         typeNodes.forEach((n) => {
@@ -2601,14 +2601,15 @@ export namespace CTupleTypeNode {
         return node;
     }
     export function alias(node: CTupleTypeNode) {
-        const tupleNode = TupleNode.create(node, true);
-        node.typeNodes.forEach((n) => {
-            const expr = { ...n };
-            expr.parent = tupleNode;
-            tupleNode.expressions.push(expr);
+        const dummyToken = Token.create(TokenType.Invalid, 0, 0, undefined);
+        const base = NameNode.create(IdentifierToken.create(0, 0, 'tuple', undefined));
+        const args = node.expressions.map((n) => {
+            return ArgumentNode.create(dummyToken, CTypeNode.alias(n), ArgumentCategory.Simple);
         });
-        tupleNode.parent = node.parent;
-        return tupleNode;
+        const alias = IndexNode.create(base, args, false, dummyToken);
+        alias.id = node.id;
+        alias.parent = node.parent;
+        return alias;
     }
 }
 

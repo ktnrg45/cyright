@@ -403,7 +403,7 @@ export class ParseTreeWalker {
             case ParseNodeType.CExtern:
                 return this.visitCExtern(node) ? [node.suite] : [];
             case ParseNodeType.CTupleType:
-                return this.visitCTupleType(node) ? node.typeNodes : [];
+                return this.visitCTupleType(node) ? node.expressions : [];
             case ParseNodeType.CFunctionDecl:
                 return this.visitCFunctionDecl(node)
                     ? [
