@@ -39,7 +39,8 @@ import { Commands } from 'pyright-internal/commands/commands';
 import { isThenable } from 'pyright-internal/common/core';
 
 import { FileBasedCancellationStrategy } from './cancellationUtils';
-import { StatusBar } from './statusBar';
+import { CythonServices } from './cythonServices';
+
 let cancellationStrategy: FileBasedCancellationStrategy | undefined;
 
 let languageClient: LanguageClient | undefined;
@@ -63,8 +64,10 @@ export async function activate(context: ExtensionContext) {
     //     );
     //     return;
     // }
+
     // ! Cython
-    const statusBar = new StatusBar(context);
+    const cythonServices = CythonServices.create(context);
+
     cancellationStrategy = new FileBasedCancellationStrategy();
 
     // const bundlePath = context.asAbsolutePath(path.join('dist', 'server.js'));
@@ -144,7 +147,7 @@ export async function activate(context: ExtensionContext) {
                                             settings: null,
                                         });
                                     },
-                                    statusBar
+                                    cythonServices
                                 );
                             }
                             return Promise.resolve(undefined);
@@ -241,7 +244,7 @@ async function getPythonPathFromPythonExtension(
     outputChannel: OutputChannel,
     scopeUri: Uri | undefined,
     postConfigChanged: () => void,
-    statusBar: StatusBar
+    cythonServices: CythonServices
 ): Promise<string | undefined> {
     try {
         const extension = extensions.getExtension('ms-python.python');
@@ -274,7 +277,8 @@ async function getPythonPathFromPythonExtension(
                 } else {
                     outputChannel.appendLine(`Received pythonPath from Python extension: ${result}`);
                 }
-                statusBar.update(result);
+
+                cythonServices.statusBar.update(result);
 
                 return result;
             }
