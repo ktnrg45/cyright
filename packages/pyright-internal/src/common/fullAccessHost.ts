@@ -12,7 +12,7 @@ import { PythonPathResult } from '../analyzer/pythonPathUtils';
 import { PythonPlatform } from './configOptions';
 import { assertNever } from './debug';
 import { FileSystem } from './fileSystem';
-import { HostKind, NoAccessHost, PythonExecDetails } from './host';
+import { CythonExecDetails, HostKind, NoAccessHost, PythonExecDetails } from './host';
 import { isDirectory, normalizePath } from './pathUtils';
 import { PythonVersion, versionFromMajorMinor } from './pythonVersion';
 
@@ -45,6 +45,16 @@ const extractExecDetails = [
     'import sys, json, platform, os',
     'prefix = getattr(sys, "base_prefix", None) or getattr(sys, "real_prefix", None) or sys.prefix',
     'json.dump(dict(arch=platform.architecture()[0], isGlobal=prefix==sys.prefix), sys.stdout)',
+].join('; ');
+
+const extractCythonDetails = [
+    ...removeCwdFromSysPath,
+    'import sys, json, contextlib',
+    'version=""',
+    'exec("with contextlib.suppress(Exception): import cython")',
+    'exec("with contextlib.suppress(Exception): version=cython.__version__")',
+    'found="cython" in sys.modules',
+    'json.dump(dict(found=found, version=version), sys.stdout)',
 ].join('; ');
 
 export class LimitedAccessHost extends NoAccessHost {
@@ -237,6 +247,22 @@ export class FullAccessHost extends LimitedAccessHost {
 
             const details: { arch: string; isGlobal: boolean } = JSON.parse(execOutput!);
             details.arch = details.arch.replace('bit', '-bit');
+            return details;
+        } catch {
+            importFailureInfo.push('Unable to get Python arch from interpreter');
+            return undefined;
+        }
+    }
+    override getCythonExecDetails(pythonPath?: string, logInfo?: string[]): CythonExecDetails | undefined {
+        const importFailureInfo = logInfo ?? [];
+
+        try {
+            const commandLineArgs: string[] = ['-c', extractCythonDetails];
+            const execOutput = this._executePythonInterpreter(pythonPath, (p) =>
+                child_process.execFileSync(p, commandLineArgs, { encoding: 'utf8' })
+            );
+
+            const details: { found: boolean; version: string } = JSON.parse(execOutput!);
             return details;
         } catch {
             importFailureInfo.push('Unable to get Python arch from interpreter');

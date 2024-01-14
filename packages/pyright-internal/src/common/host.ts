@@ -29,6 +29,11 @@ export interface PythonExecDetails {
     isGlobal: boolean,
 }
 
+export interface CythonExecDetails {
+    found: boolean;
+    version: string;
+}
+
 export class NoAccessHost implements Host {
     get kind(): HostKind {
         return HostKind.NoAccess;
@@ -57,6 +62,10 @@ export class NoAccessHost implements Host {
     }
 
     getPythonExecDetails(pythonPath?: string, logInfo?: string[]): PythonExecDetails | undefined {
+        return undefined;
+    }
+
+    getCythonExecDetails(pythonPath?: string, logInfo?: string[]): CythonExecDetails | undefined {
         return undefined;
     }
 }

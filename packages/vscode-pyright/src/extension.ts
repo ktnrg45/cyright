@@ -278,7 +278,7 @@ async function getPythonPathFromPythonExtension(
                     outputChannel.appendLine(`Received pythonPath from Python extension: ${result}`);
                 }
 
-                cythonServices.updatePythonPath(result);
+                cythonServices.updatePythonPath(outputChannel, result);
 
                 return result;
             }
