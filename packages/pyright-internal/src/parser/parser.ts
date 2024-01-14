@@ -5235,6 +5235,7 @@ export class Parser {
         return this._fileContents!.substr(range.start, range.length);
     }
 
+    // Check for new line. Consumes semicolon if present
     private _expectNewLine() {
         const nextToken = this._peekTokenType();
         const valid = [TokenType.NewLine, TokenType.EndOfStream];
@@ -5525,11 +5526,17 @@ export class Parser {
             case TokenType.OpenParenthesis:
             case TokenType.Identifier:
                 node = this._parseCVarDecl();
+                if (node.nodeType === ParseNodeType.CFunction) {
+                    return node;
+                }
                 break;
             case TokenType.Keyword:
                 if (varModifiers.includes(kwToken.keywordType) || numericModifiers.includes(kwToken.keywordType)) {
                     // Var modifier (var declaration)
                     node = this._parseCVarDecl();
+                    if (node.nodeType === ParseNodeType.CFunction) {
+                        return node;
+                    }
                 } else if (kwToken.keywordType === KeywordType.Nogil) {
                     return this._parseCDefSuite(cdefToken, /*nogil*/ true);
                 } else if (kwToken.keywordType === KeywordType.Extern) {
@@ -5554,6 +5561,8 @@ export class Parser {
         }
         const statements = StatementListNode.create(cdefToken);
         this._pushStatements(statements, node);
+        this._expectNewLine();
+        this._consumeTokenIfType(TokenType.NewLine);
         return statements;
     }
 
