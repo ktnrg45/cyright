@@ -2982,6 +2982,7 @@ export interface CFunctionNode extends ParseNodeBase {
     returnTypeAnnotation?: ExpressionNode | undefined;
     functionAnnotationComment?: FunctionAnnotationNode | undefined;
     suite: SuiteNode;
+    alias?: FunctionNode;
     cpdef?: boolean;
     nogil?: boolean;
 }
@@ -3011,6 +3012,10 @@ export namespace CFunctionNode {
     }
 
     export function alias(node: CFunctionNode) {
+        if (node.alias) {
+            // Return alias if cached
+            return node.alias;
+        }
         const token = Token.create(TokenType.Invalid, 0, 0, undefined);
         // TODO: See if we have to copy suite
         const alias = FunctionNode.create(token, { ...node.name }, { ...node.suite });
@@ -3036,7 +3041,7 @@ export namespace CFunctionNode {
             param.parent = alias;
             alias.parameters.push(param);
         });
-
+        node.alias = alias;
         return alias;
     }
 }

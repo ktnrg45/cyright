@@ -4256,7 +4256,30 @@ export class Binder extends ParseTreeWalker {
     // ! Cython
     override visitCFunction(node: CFunctionNode): boolean {
         const alias = CFunctionNode.alias(node);
-        return this.visitFunction(alias);
+        const result = this.visitFunction(alias);
+
+        // copy the NodeInfo from alias
+        const decl = AnalyzerNodeInfo.getDeclaration(alias);
+        if (decl) {
+            AnalyzerNodeInfo.setDeclaration(node, decl);
+        }
+        const scope = AnalyzerNodeInfo.getScope(alias);
+        if (scope) {
+            AnalyzerNodeInfo.setScope(node, scope);
+        }
+        const after = AnalyzerNodeInfo.getAfterFlowNode(alias);
+        if (after) {
+            AnalyzerNodeInfo.setAfterFlowNode(node, after);
+        }
+        const exprs = AnalyzerNodeInfo.getCodeFlowExpressions(alias);
+        if (exprs) {
+            AnalyzerNodeInfo.setCodeFlowExpressions(node, exprs);
+        }
+        const complexity = AnalyzerNodeInfo.getCodeFlowComplexity(alias);
+        if (complexity) {
+            AnalyzerNodeInfo.setCodeFlowComplexity(node, complexity);
+        }
+        return result;
     }
 }
 
