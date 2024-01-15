@@ -179,6 +179,14 @@ export async function activate(context: ExtensionContext) {
 
     // ! Cython
     const cythonServices = new CythonServices(client, context);
+    context.subscriptions.push(
+        commands.registerTextEditorCommand(
+            Commands.compileCurrentFile,
+            (editor: TextEditor, edit: TextEditorEdit, ...args: any[]) => {
+                cythonServices.compiler.compileCurrentFile(editor.document.uri);
+            }
+        )
+    );
 
     // Register our custom commands.
     const textEditorCommands = [Commands.orderImports, Commands.addMissingOptionalToParam];

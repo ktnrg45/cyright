@@ -1,15 +1,6 @@
 // Compiler command
 import { exec } from 'child_process';
-import {
-    commands,
-    ExtensionContext,
-    OutputChannel,
-    ProgressLocation,
-    TextEditor,
-    TextEditorEdit,
-    Uri,
-    window,
-} from 'vscode';
+import { ExtensionContext, OutputChannel, ProgressLocation, Uri, window } from 'vscode';
 
 import { combinePaths, getDirectoryPath } from 'pyright-internal/common/pathUtils';
 
@@ -123,15 +114,6 @@ export class CythonCompiler {
         this._context = context;
         this._outputChannel = window.createOutputChannel('Cython - compile');
         this._compiling = false;
-
-        this._context.subscriptions.push(
-            commands.registerTextEditorCommand(
-                'cython.compileCurrentFile',
-                (editor: TextEditor, edit: TextEditorEdit, ...args: any[]) => {
-                    this.compileCurrentFile(editor.document.uri);
-                }
-            )
-        );
     }
 
     private _compilingDone() {

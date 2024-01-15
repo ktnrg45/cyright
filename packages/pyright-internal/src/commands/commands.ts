@@ -13,4 +13,8 @@ export const enum Commands {
     orderImports = 'cython.organizeimports',
     addMissingOptionalToParam = 'cython.addoptionalforparam',
     unusedImport = 'cython.unusedImport',
+
+    // ! Cython
+    // Cython specific
+    compileCurrentFile = 'cython.compileCurrentFile',
 }
