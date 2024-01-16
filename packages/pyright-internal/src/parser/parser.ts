@@ -5255,6 +5255,11 @@ export class Parser {
         }
     }
 
+    private _isPointerToken(token: Token) {
+        const types = [OperatorType.Multiply, OperatorType.Power];
+        return token.type === TokenType.Operator && types.includes((token as OperatorToken).operatorType);
+    }
+
     // ctypedef type mytype
     private _parseCTypeDef() {
         const typeDefToken = this._getKeywordToken(KeywordType.Ctypedef);
@@ -5571,7 +5576,10 @@ export class Parser {
         const nameOrError = this._parseCVarName(typeNode, /*allowReference*/ false);
         const result: CDeclResult = { node: leftExpr, pointers: false };
 
-        if (nameOrError.nodeType !== ParseNodeType.Error) {
+        if (nameOrError.nodeType === ParseNodeType.CFunctionDecl) {
+            result.node = nameOrError;
+            return result;
+        } else if (nameOrError.nodeType !== ParseNodeType.Error) {
             leftExpr = TypeAnnotationNode.create(nameOrError, typeNode.expression);
             nameOrError.typeNode = typeNode;
             result.pointers = typeNode.operators.length > 0;
@@ -5643,8 +5651,13 @@ export class Parser {
                 returnType.operators = operators;
                 extendRange(returnType, operators[operators.length - 1]);
             }
-            const functionNode = this._parseCFunction(name, returnType);
-            return functionNode;
+            // Check if this is a callback function
+            const maybeOpenParen = this._peekToken();
+            const isPointer = this._isPointerToken(this._peekToken(1));
+            if (!(maybeOpenParen.type === TokenType.OpenParenthesis && isPointer)) {
+                const functionNode = this._parseCFunction(name, returnType);
+                return functionNode;
+            }
         }
         this._tokenIndex = tokenIndex;
         return undefined;
@@ -5667,6 +5680,12 @@ export class Parser {
             }
 
             let result = this._parseSharedDecl(typeNode);
+            if (result.node.nodeType === ParseNodeType.CFunctionDecl) {
+                const node = TypeAnnotationNode.create(result.node.name, result.node);
+                const statements = StatementListNode.create(startToken);
+                this._pushStatements(statements, node);
+                return statements;
+            }
             nodes.push(result.node);
             if (result.pointers) {
                 hasPointers = true;

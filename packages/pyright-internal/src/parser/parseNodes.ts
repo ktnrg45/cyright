@@ -2769,6 +2769,18 @@ export namespace CFunctionDeclNode {
 
         return node;
     }
+
+    export function parameters(node: CFunctionDeclNode) {
+        const list = ListNode.create(TextRange.create(0, 0));
+        node.parameters.forEach((n) => {
+            if (n.typeAnnotation) {
+                const param = { ...n.typeAnnotation };
+                param.parent = list;
+                list.entries.push(param);
+            }
+        });
+        return list;
+    }
 }
 
 export interface CParameterNode extends ParseNodeBase {

@@ -37,6 +37,7 @@ import {
     CallNode,
     CaseNode,
     CCastNode,
+    CFunctionDeclNode,
     CFunctionNode,
     ClassNode,
     ConstantNode,
@@ -24065,6 +24066,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 case ParseNodeType.CTupleType:
                     typeResult = getTypeOfCTupleNode(node, flags, expectedType);
                     break;
+                case ParseNodeType.CFunctionDecl:
+                    typeResult = getTypeOfCFunctionDecl(node, flags, expectedType);
+                    break;
                 default:
                     break;
             }
@@ -24154,6 +24158,51 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             };
         }
         return typeResult;
+    }
+
+    function getTypeOfCFunctionDecl(node: CFunctionDeclNode, flags?: EvaluatorFlags, expectedType?: Type) {
+        const cachedType = readTypeCache(node, flags);
+        if (cachedType) {
+            return { type: cachedType };
+        }
+
+        const parameters = CFunctionDeclNode.parameters(node);
+        const paramType: TypeResultWithNode = {
+            type: UnknownType.create(),
+            node: parameters,
+            isIncomplete: false,
+            typeList: parameters.entries.map((p) => {
+                return { node: p, ...getTypeOfExpression(p) } as TypeResultWithNode;
+            }),
+        };
+        let typeArgs: TypeResultWithNode[] | undefined = [paramType];
+        if (node.returnTypeAnnotation) {
+            typeArgs.push({
+                node: node.returnTypeAnnotation,
+                ...getTypeOfExpression(node.returnTypeAnnotation),
+            } as TypeResultWithNode);
+        }
+        if (typeArgs.length === 0) {
+            typeArgs = undefined;
+        }
+        const type = createCallableType(typeArgs, node);
+        type.cythonDetails = {
+            isPointer: false, // TODO: Check if this matters
+            ptrRefCount: 0,
+            isVolatile: false,
+            numMods: [],
+            trailType: CTrailType.None,
+
+            // TODO: might need to be used
+            isConst: false,
+            isPublic: false,
+            isReadOnly: false,
+
+            cpdef: false,
+            nogil: false,
+        };
+        assignTypeToNameNode(node.name, type, false, false);
+        return { type: type };
     }
 
     function isPointer(type: Type) {
