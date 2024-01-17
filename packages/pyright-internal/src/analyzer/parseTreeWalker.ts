@@ -391,7 +391,7 @@ export class ParseTreeWalker {
 
             // ! Cython
             case ParseNodeType.CTypeDef:
-                return this.visitCTypeDef(node) ? [node.name, node.typeNode] : [];
+                return this.visitCTypeDef(node) ? [node.name, node.expression] : [];
             case ParseNodeType.CType:
                 return this.visitCType(node) ? [node.expression, node.typeTrailNode, node.varTrailNode] : [];
             case ParseNodeType.CVarTrail:

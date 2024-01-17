@@ -2283,7 +2283,6 @@ export class Binder extends ParseTreeWalker {
             range: convertOffsetsToRange(node.name.start, TextRange.getEnd(node.name), this._fileInfo.lines),
             moduleName: this._fileInfo.moduleName,
             isInExceptSuite: this._isInExceptSuite,
-            cTypeNode: node.typeNode,
         };
 
         const symbol = this._bindNameToScope(this._currentScope, node.name);
@@ -2296,7 +2295,7 @@ export class Binder extends ParseTreeWalker {
 
         this._createAssignmentTargetFlowNodes(node.name, /* walkTargets */ true, /* unbound */ false);
 
-        this.walk(node.typeNode.expression); // this.walk(node.expression);
+        this.walk(node.expression);
 
         if (node.typeParameters) {
             this._removeActiveTypeParameters(node.typeParameters);

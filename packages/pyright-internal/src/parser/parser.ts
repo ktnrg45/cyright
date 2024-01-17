@@ -5269,6 +5269,9 @@ export class Parser {
             if (nameOrError.nodeType === ParseNodeType.Name) {
                 this._expectNewLine();
                 return CTypeDefNode.create(typeDefToken, node, nameOrError);
+            } else if (nameOrError.nodeType === ParseNodeType.CFunctionDecl) {
+                this._expectNewLine();
+                return CTypeDefNode.create(typeDefToken, nameOrError, {...nameOrError.name});
             }
             this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
             node = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration, node);

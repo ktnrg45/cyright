@@ -13,7 +13,6 @@ import { Range } from '../common/textRange';
 import {
     ClassNode,
     CTypeDefNode,
-    CTypeNode,
     ExpressionNode,
     FunctionNode,
     ImportAsNode,
@@ -71,9 +70,6 @@ export interface DeclarationBase {
     // The declaration is within an except clause of a try
     // statement. We may want to ignore such declarations.
     isInExceptSuite: boolean;
-
-    // ! Cython Declaratiom
-    cTypeNode?: CTypeNode;
 }
 
 export interface IntrinsicDeclaration extends DeclarationBase {

@@ -2549,12 +2549,12 @@ export interface CTypeDefNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CTypeDef;
     typeDefToken: KeywordToken;
     name: NameNode;
-    typeNode: CTypeNode;
+    expression: CTypeNode | CFunctionDeclNode;
     typeParameters?: TypeParameterListNode;
 }
 
 export namespace CTypeDefNode {
-    export function create(typeDefToken: KeywordToken, typeNode: CTypeNode, name: NameNode) {
+    export function create(typeDefToken: KeywordToken, expression: CTypeNode | CFunctionDeclNode, name: NameNode) {
         const node: CTypeDefNode = {
             start: typeDefToken.start,
             length: typeDefToken.length,
@@ -2562,15 +2562,20 @@ export namespace CTypeDefNode {
             id: _nextNodeId++,
             typeDefToken: typeDefToken,
             name: name,
-            typeNode: typeNode,
+            expression: expression,
         };
         extendRange(node, name);
-        typeNode.parent = node;
+        extendRange(node, expression);
+        expression.parent = node;
         name.parent = node;
         return node;
     }
+
     export function alias(node: CTypeDefNode) {
-        const expr = CTypeNode.alias(node.typeNode);
+        const expr =
+            node.expression.nodeType === ParseNodeType.CType
+                ? CTypeNode.alias(node.expression)
+                : { ...node.expression };
         const aliasNode = TypeAliasNode.create(node.typeDefToken, { ...node.name }, expr);
         aliasNode.id = node.id;
         aliasNode.parent = node.parent;
