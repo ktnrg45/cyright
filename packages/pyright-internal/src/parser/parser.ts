@@ -6528,6 +6528,7 @@ export class Parser {
         let longCount = 0;
         const errorNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration);
         const validTypes = [TokenType.Keyword, TokenType.Identifier];
+        let expression: ExpressionNode | undefined = undefined;
 
         if (this._peekTokenType() === TokenType.OpenParenthesis) {
             return this._parseCTuple();
@@ -6584,6 +6585,23 @@ export class Parser {
             const longTypes = ['int', 'short', 'double', 'complex']; // Types that can be prefixed with long
 
             if (nextOp || nextToken.type === TokenType.OpenBracket) {
+                break;
+            }
+
+            if (nextToken.type === TokenType.Dot) {
+                if (identifiers.length < 1) {
+                    this._addError(Localizer.Diagnostic.expectedIdentifier(), nextToken);
+                    return errorNode;
+                }
+                expression = NameNode.create(identifiers[identifiers.length - 1]);
+                while (this._consumeTokenIfType(TokenType.Dot)) {
+                    const member = this._getTokenIfIdentifier();
+                    if (!member) {
+                        this._addError(Localizer.Diagnostic.expectedMemberName(), this._peekToken());
+                        break;
+                    }
+                    expression = MemberAccessNode.create(expression, NameNode.create(member));
+                }
                 break;
             }
 
@@ -6646,22 +6664,27 @@ export class Parser {
             }
         }
 
-        if (identifiers.length === 0) {
-            if (longCount > 0) {
-                // Type ending with `long`
-                // Remove the last `long` from num modifiers
-                // Add to identifiers
-                identifiers.push(numModifiers.pop()!);
+        if (!expression) {
+            if (identifiers.length === 0) {
+                if (longCount > 0) {
+                    // Type ending with `long`
+                    // Remove the last `long` from num modifiers
+                    // Add to identifiers
+                    identifiers.push(numModifiers.pop()!);
+                }
+            } else if (identifiers.length > 1) {
+                // Compound type. Remove the first identifier and append it to numModifiers
+                numModifiers.push(identifiers[0]);
+                identifiers.splice(0, 1);
             }
-        } else if (identifiers.length > 1) {
-            // Compound type. Remove the first identifier and append it to numModifiers
-            numModifiers.push(identifiers[0]);
-            identifiers.splice(0, 1);
+
+            if (identifiers.length > 0) {
+                expression = NameNode.create(identifiers[identifiers.length - 1]);
+            }
         }
 
-        if (identifiers.length > 0) {
-            const name = NameNode.create(identifiers[identifiers.length - 1]);
-            const node = CTypeNode.create(name, modifiers, numModifiers, []);
+        if (expression) {
+            const node = CTypeNode.create(expression, modifiers, numModifiers, []);
             this._parseCTypeTrailer(node);
             return node;
         }

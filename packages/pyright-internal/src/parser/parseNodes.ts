@@ -2425,7 +2425,7 @@ export namespace PatternValueNode {
 
 export interface CTypeNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CType;
-    expression: NameNode | CTupleTypeNode;
+    expression: NameNode | CTupleTypeNode | MemberAccessNode;
     varModifiers: KeywordToken[];
     numModifiers: IdentifierToken[];
     operators: OperatorToken[]; // *(Pointer), &(Address Of)
@@ -2435,7 +2435,7 @@ export interface CTypeNode extends ParseNodeBase {
 
 export namespace CTypeNode {
     export function create(
-        expression: NameNode | CTupleTypeNode,
+        expression: NameNode | CTupleTypeNode | MemberAccessNode,
         varModifiers: KeywordToken[],
         numModifiers: IdentifierToken[],
         operators: OperatorToken[]

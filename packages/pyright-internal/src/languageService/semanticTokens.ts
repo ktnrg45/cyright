@@ -19,6 +19,7 @@ import {
     CTypeNode,
     ExpressionNode,
     FunctionNode,
+    ModuleNameNode,
     NameNode,
     ParseNode,
     ParseNodeType,
@@ -323,6 +324,11 @@ class SemanticTokensWalker extends ParseTreeWalker {
         if (node.name) {
             this.pushRange(node.name, LegendType.Parameter);
         }
+        return false;
+    }
+
+    override visitModuleName(node: ModuleNameNode): boolean {
+        node.nameParts.forEach((n) => this.pushRange(n, LegendType.Namespace));
         return false;
     }
 }
