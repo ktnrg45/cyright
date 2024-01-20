@@ -6716,7 +6716,12 @@ export class Parser {
                 const stringNode = this._makeStringNode(this._getNextToken() as StringToken);
                 this._pushStatements(node.statements, stringNode);
             } else {
-                const decl = this._parseCVarDecl();
+                let decl: ParseNode | undefined;
+                if (this._peekKeywordType() === KeywordType.Ctypedef) {
+                    decl = this._parseCTypeDef();
+                } else {
+                    decl = this._parseCVarDecl();
+                }
                 this._pushStatements(node.statements, decl);
                 if (decl.nodeType === ParseNodeType.CEnum && decl.indented) {
                     continue;

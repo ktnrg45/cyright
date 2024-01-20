@@ -18419,7 +18419,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                     const declNode =
                         decl.type === DeclarationType.Class ||
                         decl.type === DeclarationType.Function ||
-                        decl.type === DeclarationType.TypeAlias
+                        decl.type === DeclarationType.TypeAlias ||
+                        decl.type === DeclarationType.CTypeDef // ! Cython
                             ? decl.node.name
                             : decl.node;
                     const declScope = ParseTreeUtils.getExecutionScopeNode(declNode);
