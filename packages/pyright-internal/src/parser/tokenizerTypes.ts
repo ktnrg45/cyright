@@ -173,6 +173,8 @@ export const enum KeywordType {
     Volatile,
     Enum,
     Struct,
+    Union,
+    Fused,
     // Macros
     DEF,
     IF,
@@ -220,6 +222,8 @@ export const softKeywords = [
     KeywordType.Volatile,
     KeywordType.Enum,
     KeywordType.Struct,
+    KeywordType.Union,
+    KeywordType.Fused,
     KeywordType.Namespace,
     KeywordType.Cppclass,
     KeywordType.Operator,

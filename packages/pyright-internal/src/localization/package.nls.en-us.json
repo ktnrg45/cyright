@@ -673,6 +673,7 @@
         "expectedCastClose": "Expected \">\"",
         "expectedComma": "Expected \",\"",
         "expectedStruct": "Expected \"struct\"",
+        "expectedStructType": "Expected one of \"struct\", \"union\", \"fused\" or \"class\"",
         "deprecatedCStyleArray": "C style array declaration deprecated; \"[]\" after variable name",
         "cStyleArrayInitNotAllowed": "Initialization of C style array not allowed",
         "invalidNDimDeclaration": "Multiple dimensions only allowed for array declarations",

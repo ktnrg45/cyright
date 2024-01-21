@@ -109,6 +109,8 @@ const _keywords: Map<string, KeywordType> = new Map([
     ['volatile', KeywordType.Volatile],
     ['enum', KeywordType.Enum],
     ['struct', KeywordType.Struct],
+    ['union', KeywordType.Union],
+    ['fused', KeywordType.Fused],
     // Macros
     ['DEF', KeywordType.DEF],
     ['IF', KeywordType.IF],

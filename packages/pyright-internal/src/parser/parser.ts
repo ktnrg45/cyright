@@ -50,6 +50,7 @@ import {
     CParameterNode,
     CSizeOfNode,
     CStructNode,
+    CStructType,
     CTrailType,
     CTupleTypeNode,
     CTypeDefNode,
@@ -5422,18 +5423,45 @@ export class Parser {
     }
 
     private _parseCStruct() {
-        const startToken = this._peekToken();
         let packedToken: KeywordToken | undefined = undefined;
         if (this._peekKeywordType() === KeywordType.Packed) {
             packedToken = this._getKeywordToken(KeywordType.Packed);
         }
 
-        if (!this._consumeTokenIfKeyword(KeywordType.Struct)) {
+        let structType: CStructType | undefined = undefined;
+        const startToken = this._peekToken();
+        const kwType = this._peekKeywordType();
+        switch (kwType) {
+            case KeywordType.Struct:
+                structType = CStructType.Struct;
+                break;
+            case KeywordType.Union:
+                structType = CStructType.Union;
+                break;
+            case KeywordType.Fused:
+                structType = CStructType.Fused;
+                break;
+            case KeywordType.Class:
+                // TODO: Check
+                structType = CStructType.Class;
+                break;
+            default:
+                break;
+        }
+        if (packedToken && structType !== CStructType.Struct) {
             return this._handleExpressionParseError(
                 ErrorExpressionCategory.InvalidDeclaration,
                 Localizer.DiagnosticCython.expectedStruct()
             );
         }
+        if (structType === undefined) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.DiagnosticCython.expectedStructType()
+            );
+        }
+        this._getNextToken();
+
         const iden = this._getTokenIfIdentifier();
         const name = iden ? NameNode.create(iden) : undefined;
         if (!name) {
@@ -5446,7 +5474,7 @@ export class Parser {
         this._isParsingCStruct = true;
         const suite = this._parseSuite(false, false, undefined, /*isCdefSuite*/ true);
         this._isParsingCStruct = wasParsingCStruct;
-        const node = CStructNode.create(startToken, name, suite, packedToken, undefined);
+        const node = CStructNode.create(startToken, name, suite, structType, packedToken, undefined);
         return node;
     }
 
@@ -5506,25 +5534,29 @@ export class Parser {
                     return node;
                 }
                 break;
-            case TokenType.Keyword:
+            case TokenType.Keyword: {
                 if (varModifiers.includes(kwToken.keywordType) || numericModifiers.includes(kwToken.keywordType)) {
                     // Var modifier (var declaration)
                     node = this._parseCVarDecl();
                     if (node.nodeType === ParseNodeType.CFunction) {
                         return node;
                     }
-                } else if (kwToken.keywordType === KeywordType.Nogil) {
-                    return this._parseCDefSuite(cdefToken, /*nogil*/ true);
-                } else if (kwToken.keywordType === KeywordType.Extern) {
-                    return this._parseExtern(cdefToken);
-                } else if (kwToken.keywordType === KeywordType.Enum) {
-                    return this._parseEnum(false);
-                } else if (kwToken.keywordType === KeywordType.Packed) {
-                    return this._parseCStruct();
-                } else if (kwToken.keywordType === KeywordType.Struct) {
-                    return this._parseCStruct();
+                } else {
+                    switch (kwToken.keywordType) {
+                        case KeywordType.Nogil:
+                            return this._parseCDefSuite(cdefToken, /*nogil*/ true);
+                        case KeywordType.Extern:
+                            return this._parseExtern(cdefToken);
+                        case KeywordType.Enum:
+                            return this._parseEnum(false);
+                        case KeywordType.Packed:
+                        case KeywordType.Struct:
+                        case KeywordType.Union:
+                            return this._parseCStruct();
+                    }
                 }
                 break;
+            }
             case TokenType.Colon:
                 return this._parseCDefSuite(cdefToken, /*nogil*/ true);
             default:

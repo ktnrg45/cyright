@@ -2943,6 +2943,13 @@ export namespace CEnumNode {
     }
 }
 
+export const enum CStructType {
+    Struct,
+    Union,
+    Fused,
+    Class,
+}
+
 export interface CStructNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CStruct;
     decorators: DecoratorNode[];
@@ -2951,6 +2958,7 @@ export interface CStructNode extends ParseNodeBase {
     arguments: ArgumentNode[];
     suite: SuiteNode;
     packedToken?: Token;
+    structType: CStructType;
 }
 
 export namespace CStructNode {
@@ -2958,6 +2966,7 @@ export namespace CStructNode {
         classToken: Token,
         name: NameNode,
         suite: SuiteNode,
+        structType: CStructType,
         packedToken?: Token,
         typeParameters?: TypeParameterListNode
     ) {
@@ -2971,6 +2980,7 @@ export namespace CStructNode {
             typeParameters: typeParameters,
             arguments: [],
             suite: suite,
+            structType: structType,
             packedToken: packedToken,
         };
 
