@@ -6354,13 +6354,21 @@ export class Parser {
 
         if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
             this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
-            this._consumeTokensUntilType([TokenType.Colon]);
         }
+
         let nogil = false;
         if (!this._consumeIfWithGil()) {
             nogil = this._consumeTokenIfKeyword(KeywordType.Nogil);
         }
-        const suite = this._parseSuite(/* isFunction */ true, this._parseOptions.skipFunctionAndClassBody);
+
+        let suite: SuiteNode;
+        if (this._peekTokenType() === TokenType.Colon) {
+            suite = this._parseSuite(/* isFunction */ true, this._parseOptions.skipFunctionAndClassBody);
+        } else {
+            // This is a forward declaration
+            suite = SuiteNode.create(this._peekToken());
+        }
+
         const functionNode = CFunctionNode.create(openParenToken, name, suite);
         functionNode.nogil = nogil;
         functionNode.parameters = paramList;

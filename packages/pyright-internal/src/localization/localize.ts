@@ -1308,8 +1308,6 @@ export namespace Localizer {
     // ! Cython
     export namespace DiagnosticCython {
         export const referenceNotAllowed = () => getRawString('DiagnosticCython.referenceNotAllowed');
-        export const modifierNotAllowed = () =>
-            new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.modifierNotAllowed'));
         export const expectedIndexOrIdentifier = () => getRawString('DiagnosticCython.expectedIndexOrIdentifier');
         export const trailingCommaNotAllowed = () => getRawString('DiagnosticCython.trailingCommaNotAllowed');
         export const viewExpectedSlice = () => getRawString('DiagnosticCython.viewExpectedSlice');
@@ -1329,5 +1327,10 @@ export namespace Localizer {
         export const deprecatedCStyleArray = () => getRawString('DiagnosticCython.deprecatedCStyleArray');
         export const cStyleArrayInitNotAllowed = () => getRawString('DiagnosticCython.cStyleArrayInitNotAllowed');
         export const invalidNDimDeclaration = () => getRawString('DiagnosticCython.invalidNDimDeclaration');
+
+        export const modifierNotAllowed = () =>
+            new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.modifierNotAllowed'));
+        export const nonExternCFunctionNotDefined = () =>
+            new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.nonExternCFunctionNotDefined'));
     }
 }

@@ -657,7 +657,6 @@
 
     "DiagnosticCython": {
         "referenceNotAllowed": "Reference Operator \"&\" not allowed here",
-        "modifierNotAllowed": "Modifier \"{name}\" not allowed here",
         "expectedIndexOrIdentifier": "Expected integer index or identifier",
         "trailingCommaNotAllowed": "Trailing comma not allowed here",
         "viewExpectedSlice": "Expected a slice argument for memory view",
@@ -676,6 +675,8 @@
         "expectedStruct": "Expected \"struct\"",
         "deprecatedCStyleArray": "C style array declaration deprecated; \"[]\" after variable name",
         "cStyleArrayInitNotAllowed": "Initialization of C style array not allowed",
-        "invalidNDimDeclaration": "Multiple dimensions only allowed for array declarations"
+        "invalidNDimDeclaration": "Multiple dimensions only allowed for array declarations",
+        "modifierNotAllowed": "Modifier \"{name}\" not allowed here",
+        "nonExternCFunctionNotDefined": "Non-extern C function \"{name}\" declared but not defined"
     }
 }
