@@ -2700,22 +2700,21 @@ export namespace CVarTrailNode {
 
 export interface CDefSuiteNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CDefSuite;
-    statements: StatementListNode;
+    suite: SuiteNode;
     nogil?: boolean;
 }
 
 export namespace CDefSuiteNode {
-    export function create(startToken: Token) {
-        const statements = StatementListNode.create(startToken);
+    export function create(startToken: Token, suite: SuiteNode) {
         const node: CDefSuiteNode = {
             start: startToken.start,
             length: startToken.length,
             nodeType: ParseNodeType.CDefSuite,
             id: _nextNodeId++,
-            statements: statements,
+            suite: suite,
         };
-        statements.parent = node;
-
+        suite.parent = node;
+        extendRange(node, suite);
         return node;
     }
 }

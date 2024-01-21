@@ -254,6 +254,9 @@ export class Parser {
     private _typingImportAliases: string[] = [];
     private _typingSymbolAliases: Map<string, string> = new Map<string, string>();
 
+    // ! Cython
+    private _isParsingCExtern = false;
+
     parseSourceFile(fileContents: string, parseOptions: ParseOptions, diagSink: DiagnosticSink): ParseResults {
         timingStats.tokenizeFileTime.timeOperation(() => {
             this._startNewParse(fileContents, 0, fileContents.length, parseOptions, diagSink);
@@ -1378,7 +1381,12 @@ export class Parser {
     }
 
     // suite: ':' (simple_stmt | NEWLINE INDENT stmt+ DEDENT)
-    private _parseSuite(isFunction = false, skipBody = false, postColonCallback?: () => void): SuiteNode {
+    private _parseSuite(
+        isFunction = false,
+        skipBody = false,
+        postColonCallback?: () => void,
+        isCdefSuite?: boolean
+    ): SuiteNode {
         const nextToken = this._peekToken();
         const suite = SuiteNode.create(nextToken);
 
@@ -1470,7 +1478,9 @@ export class Parser {
                     }
                 }
 
-                const statement = this._parseStatement();
+                // ! Cython
+                // Parse cython cdef statements only if isCdefSuite
+                const statement = isCdefSuite ? this._parseCDefStatementInSuite() : this._parseStatement();
                 if (!statement) {
                     // Perform basic error recovery to get to the next line.
                     this._consumeTokensUntilType([TokenType.NewLine]);
@@ -5271,7 +5281,7 @@ export class Parser {
                 return CTypeDefNode.create(typeDefToken, node, nameOrError);
             } else if (nameOrError.nodeType === ParseNodeType.CFunctionDecl) {
                 this._expectNewLine();
-                return CTypeDefNode.create(typeDefToken, nameOrError, {...nameOrError.name});
+                return CTypeDefNode.create(typeDefToken, nameOrError, { ...nameOrError.name });
             }
             this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
             node = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration, node);
@@ -5358,7 +5368,12 @@ export class Parser {
         // Fields can be on same line. This runs counter to most python syntax that requires indented block after colon.
         let indented = false;
         if (this._consumeTokenIfType(TokenType.NewLine)) {
-            if (!this._consumeTokenIfType(TokenType.Indent)) {
+            const indentToken = this._peekToken() as IndentToken;
+            if (this._consumeTokenIfType(TokenType.Indent)) {
+                if (indentToken.isIndentAmbiguous) {
+                    this._addError(Localizer.Diagnostic.inconsistentTabs(), indentToken);
+                }
+            } else {
                 return this._handleExpressionParseError(
                     ErrorExpressionCategory.InvalidDeclaration,
                     Localizer.Diagnostic.expectedIndentedBlock()
@@ -5373,7 +5388,15 @@ export class Parser {
             while (this._peekTokenType() === TokenType.NewLine) {
                 this._consumeTokenIfType(TokenType.NewLine);
             }
-            this._consumeTokenIfType(TokenType.Dedent);
+            const dedentToken = this._peekToken() as DedentToken;
+            if (this._consumeTokenIfType(TokenType.Dedent)) {
+                if (!dedentToken.matchesIndent) {
+                    this._addError(Localizer.Diagnostic.inconsistentIndent(), dedentToken);
+                }
+                if (dedentToken.isDedentAmbiguous) {
+                    this._addError(Localizer.Diagnostic.inconsistentTabs(), dedentToken);
+                }
+            }
         }
         if (fields.length === 0) {
             return this._handleExpressionParseError(
@@ -6700,49 +6723,63 @@ export class Parser {
         return errorNode;
     }
 
-    private _parseCDefSuite(token: Token, nogil?: boolean, isExtern?: boolean) {
-        const node = CDefSuiteNode.create(token);
-        if (nogil && this._consumeTokenIfKeyword(KeywordType.Nogil)) {
-            node.nogil = true;
-        }
-        if (!this._consumeTokenIfType(TokenType.Colon)) {
-            this._addError(Localizer.Diagnostic.expectedColon(), this._peekToken());
-            this._consumeTokensUntilType([TokenType.NewLine]);
-        }
-        if (!this._consumeTokenIfType(TokenType.NewLine)) {
-            this._addError(Localizer.Diagnostic.expectedNewline(), this._peekToken());
-            this._consumeTokensUntilType([TokenType.NewLine]);
-            return node;
-        }
-        if (!this._consumeTokenIfType(TokenType.Indent)) {
-            this._addError(Localizer.Diagnostic.expectedIndentedBlock(), this._peekToken());
-            return node;
-        }
-        const stopTypes = [TokenType.Dedent, TokenType.Indent, TokenType.NewLine];
-        while (!stopTypes.includes(this._peekTokenType())) {
-            if (isExtern && this._peekTokenType() === TokenType.String) {
+    private _parseCDefStatementInSuite() {
+        let statement: StatementNode;
+        // Handle keywords that are unexpected
+        // cdef is optional here so keyword can be type modifiers
+        const validKeyWords = [
+            ...varModifiers,
+            ...numericModifiers,
+            KeywordType.Enum,
+            KeywordType.Struct,
+            KeywordType.Ctypedef,
+            KeywordType.Cdef,
+            KeywordType.Cpdef,
+        ];
+        const kwType = this._peekKeywordType();
+        if (!kwType || validKeyWords.includes(kwType)) {
+            if (kwType === KeywordType.Ctypedef) {
+                statement = this._parseCTypeDef();
+            } else if (!kwType && this._isParsingCExtern && this._peekTokenType() === TokenType.String) {
+                // Parse the inline code comment
+                statement = StatementListNode.create(this._peekToken());
                 const stringNode = this._makeStringNode(this._getNextToken() as StringToken);
-                this._pushStatements(node.statements, stringNode);
+                this._pushStatements(statement, stringNode);
             } else {
-                let decl: ParseNode | undefined;
-                if (this._peekKeywordType() === KeywordType.Ctypedef) {
-                    decl = this._parseCTypeDef();
-                } else {
-                    decl = this._parseCVarDecl();
-                }
-                this._pushStatements(node.statements, decl);
-                if (decl.nodeType === ParseNodeType.CEnum && decl.indented) {
-                    continue;
-                }
+                statement = this._parseCVarDecl();
             }
-            this._expectNewLine();
-            this._consumeTokenIfType(TokenType.NewLine);
+        } else {
+            // Unexpected keyword
+            const error = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration);
+            this._addError(Localizer.Diagnostic.expectedIdentifier(), error);
+            statement = StatementListNode.create(this._peekToken());
+            this._pushStatements(statement, error);
+            // Go to newline
+            this._consumeTokensUntilType([TokenType.NewLine]);
         }
-        this._consumeTokenIfType(TokenType.Dedent);
-        extendRange(node, node.statements);
+        if (!(statement.nodeType === ParseNodeType.CEnum && (statement as CEnumNode).indented)) {
+            // TODO: remove this
+            // We currently consume the new line when parsing a CEnum
+            this._expectNewLine();
+        }
+        this._consumeTokenIfType(TokenType.NewLine);
+        return statement;
+    }
+
+    private _parseCDefSuite(token: Token, nogil?: boolean) {
+        let hasNoGil = false;
+        if (nogil && this._consumeTokenIfKeyword(KeywordType.Nogil)) {
+            hasNoGil = true;
+        }
+        const suite = this._parseSuite(false, false, undefined, /*isCdefSuite*/ true);
+        const node = CDefSuiteNode.create(token, suite);
+        node.nogil = hasNoGil;
         return node;
     }
+
     private _parseExtern(token: Token) {
+        const wasParsingCExtern = this._isParsingCExtern;
+        this._isParsingCExtern = true;
         let error = false;
         let fileNameToken: StringToken | OperatorToken | undefined = undefined;
         let nameSpaceToken: StringToken | undefined = undefined;
@@ -6779,10 +6816,11 @@ export class Parser {
         if (error) {
             this._consumeTokensUntilType([TokenType.Colon, TokenType.NewLine]);
         }
-        const suite = this._parseCDefSuite(this._peekToken(), /*nogil*/ true, /*isExtern*/ true);
+        const suite = this._parseCDefSuite(this._peekToken(), /*nogil*/ true);
         const node = CExternNode.create(token, suite);
         node.fileNameToken = fileNameToken;
         node.nameSpaceToken = nameSpaceToken;
+        this._isParsingCExtern = wasParsingCExtern;
         return node;
     }
 

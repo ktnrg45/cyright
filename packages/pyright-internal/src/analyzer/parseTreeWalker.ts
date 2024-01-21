@@ -399,7 +399,7 @@ export class ParseTreeWalker {
             case ParseNodeType.CTypeTrail:
                 return this.visitCTypeTrail(node) ? node.nodes : [];
             case ParseNodeType.CDefSuite:
-                return this.visitCDefSuite(node) ? [node.statements] : [];
+                return this.visitCDefSuite(node) ? [node.suite] : [];
             case ParseNodeType.CExtern:
                 return this.visitCExtern(node) ? [node.suite] : [];
             case ParseNodeType.CTupleType:
