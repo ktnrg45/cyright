@@ -177,6 +177,12 @@ export class Symbol {
     }
 
     addDeclaration(declaration: Declaration) {
+        // ! Cython
+        // If declaration was in extern then it should never be unbound
+        if (declaration.isInCExtern) {
+            this._flags &= ~SymbolFlags.InitiallyUnbound;
+        }
+
         if (this._declarations) {
             // See if this node was already identified as a declaration. If so,
             // replace it. Otherwise, add it as a new declaration to the end of

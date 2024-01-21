@@ -70,6 +70,12 @@ export interface DeclarationBase {
     // The declaration is within an except clause of a try
     // statement. We may want to ignore such declarations.
     isInExceptSuite: boolean;
+
+    // ! Cython
+    // If declaration is in extern suite
+    // These should always be treated as bound since
+    // they should be bound in external source
+    isInCExtern: boolean;
 }
 
 export interface IntrinsicDeclaration extends DeclarationBase {
