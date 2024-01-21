@@ -2950,7 +2950,7 @@ export interface CStructNode extends ParseNodeBase {
     typeParameters?: TypeParameterListNode;
     arguments: ArgumentNode[];
     suite: SuiteNode;
-    packed: boolean;
+    packedToken?: Token;
 }
 
 export namespace CStructNode {
@@ -2958,7 +2958,7 @@ export namespace CStructNode {
         classToken: Token,
         name: NameNode,
         suite: SuiteNode,
-        packed: boolean,
+        packedToken?: Token,
         typeParameters?: TypeParameterListNode
     ) {
         const node: CStructNode = {
@@ -2971,7 +2971,7 @@ export namespace CStructNode {
             typeParameters: typeParameters,
             arguments: [],
             suite: suite,
-            packed: packed,
+            packedToken: packedToken,
         };
 
         if (name) {

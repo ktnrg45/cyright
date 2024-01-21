@@ -256,6 +256,7 @@ export class Parser {
 
     // ! Cython
     private _isParsingCExtern = false;
+    private _isParsingCStruct = false;
 
     parseSourceFile(fileContents: string, parseOptions: ParseOptions, diagSink: DiagnosticSink): ParseResults {
         timingStats.tokenizeFileTime.timeOperation(() => {
@@ -5421,7 +5422,6 @@ export class Parser {
     }
 
     private _parseCStruct() {
-        const fields: ParseNode[] = [];
         const startToken = this._peekToken();
         let packedToken: KeywordToken | undefined = undefined;
         if (this._peekKeywordType() === KeywordType.Packed) {
@@ -5442,66 +5442,11 @@ export class Parser {
                 Localizer.Diagnostic.expectedIdentifier()
             );
         }
-        if (!this._consumeTokenIfType(TokenType.Colon)) {
-            return this._handleExpressionParseError(
-                ErrorExpressionCategory.InvalidDeclaration,
-                Localizer.Diagnostic.expectedColon()
-            );
-        }
-        if (!this._consumeTokenIfType(TokenType.NewLine)) {
-            return this._handleExpressionParseError(
-                ErrorExpressionCategory.InvalidDeclaration,
-                Localizer.Diagnostic.expectedNewline()
-            );
-        }
-        if (!this._consumeTokenIfType(TokenType.Indent)) {
-            return this._handleExpressionParseError(
-                ErrorExpressionCategory.InvalidDeclaration,
-                Localizer.Diagnostic.expectedIndentedBlock()
-            );
-        }
-
-        const suiteStart = this._peekToken();
-        const stopTypes = [TokenType.EndOfStream, TokenType.Dedent];
-        while (!stopTypes.includes(this._peekTokenType())) {
-            const typeNode = this._parseCType();
-            if (typeNode.nodeType === ParseNodeType.Error) {
-                this._consumeTokensUntilType([TokenType.NewLine]);
-                this._consumeTokenIfType(TokenType.NewLine);
-                continue;
-            }
-            const expr = this._parseCVarName(typeNode);
-            if (expr.nodeType === ParseNodeType.Error) {
-                this._consumeTokensUntilType([TokenType.NewLine]);
-                this._consumeTokenIfType(TokenType.NewLine);
-                continue;
-            }
-            const field = TypeAnnotationNode.create(expr, typeNode);
-            fields.push(field);
-            this._expectNewLine();
-            this._consumeTokenIfType(TokenType.NewLine);
-        }
-
-        while (this._peekTokenType() === TokenType.NewLine) {
-            this._consumeTokenIfType(TokenType.NewLine);
-        }
-        this._consumeTokenIfType(TokenType.Dedent);
-
-        if (fields.length === 0) {
-            return this._handleExpressionParseError(
-                ErrorExpressionCategory.InvalidDeclaration,
-                Localizer.Diagnostic.expectedIdentifier()
-            );
-        }
-        const suite = SuiteNode.create(suiteStart);
-        const statements = StatementListNode.create(suiteStart);
-        fields.forEach((f) => {
-            this._pushStatements(statements, f);
-        });
-        suite.statements.push(statements);
-        statements.parent = suite;
-        extendRange(suite, statements);
-        const node = CStructNode.create(startToken, name, suite, !!packedToken, undefined);
+        const wasParsingCStruct = this._isParsingCStruct;
+        this._isParsingCStruct = true;
+        const suite = this._parseSuite(false, false, undefined, /*isCdefSuite*/ true);
+        this._isParsingCStruct = wasParsingCStruct;
+        const node = CStructNode.create(startToken, name, suite, packedToken, undefined);
         return node;
     }
 
@@ -5691,10 +5636,19 @@ export class Parser {
 
     private _parseCVarDecl() {
         const startToken = this._peekToken();
-        if (this._peekKeywordType() === KeywordType.Enum) {
-            // Only possible in cdef suite
-            return this._parseEnum(false);
+
+        // Only possible in cdef suite
+        const kwType = this._peekKeywordType();
+        switch (kwType) {
+            case KeywordType.Enum:
+                return this._parseEnum(false);
+            case KeywordType.Packed:
+            case KeywordType.Struct:
+                return this._parseCStruct();
+            default:
+                break;
         }
+
         const typeNode = this._parseCType();
         const nodes: ParseNode[] = [];
         let hasPointers = false;
@@ -6723,19 +6677,24 @@ export class Parser {
         return errorNode;
     }
 
+    // Special parsing when parsing cdef statements in suite
     private _parseCDefStatementInSuite() {
         let statement: StatementNode;
+
         // Handle keywords that are unexpected
-        // cdef is optional here so keyword can be type modifiers
-        const validKeyWords = [
-            ...varModifiers,
-            ...numericModifiers,
-            KeywordType.Enum,
+        // cdef is optional here so keyword can also be type modifiers
+        const validKeyWords = [...varModifiers, ...numericModifiers];
+        const otherKeyWords = [
             KeywordType.Struct,
+            KeywordType.Packed,
+            KeywordType.Enum,
             KeywordType.Ctypedef,
             KeywordType.Cdef,
             KeywordType.Cpdef,
         ];
+        if (!this._isParsingCStruct) {
+            validKeyWords.push(...otherKeyWords);
+        }
         const kwType = this._peekKeywordType();
         if (!kwType || validKeyWords.includes(kwType)) {
             if (kwType === KeywordType.Ctypedef) {
@@ -6757,12 +6716,24 @@ export class Parser {
             // Go to newline
             this._consumeTokensUntilType([TokenType.NewLine]);
         }
-        if (!(statement.nodeType === ParseNodeType.CEnum && (statement as CEnumNode).indented)) {
+        if (
+            statement.nodeType !== ParseNodeType.CStruct &&
+            !(statement.nodeType === ParseNodeType.CEnum && (statement as CEnumNode).indented)
+        ) {
             // TODO: remove this
-            // We currently consume the new line when parsing a CEnum
+            // We currently consume the new line when parsing a CEnum or CStruct so no need to do so here
             this._expectNewLine();
+            this._consumeTokenIfType(TokenType.NewLine);
         }
-        this._consumeTokenIfType(TokenType.NewLine);
+        if (this._isParsingCStruct) {
+            if (statement.nodeType === ParseNodeType.StatementList) {
+                for (const expr of statement.statements) {
+                    if (expr.nodeType === ParseNodeType.Assignment) {
+                        this._addError(Localizer.DiagnosticCython.defaultValuesNotAllowed(), expr.rightExpression);
+                    }
+                }
+            }
+        }
         return statement;
     }
 
