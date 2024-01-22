@@ -258,6 +258,7 @@ export class Parser {
     // ! Cython
     private _isParsingCExtern = false;
     private _isParsingCStruct = false;
+    private _isParsingCFused = false;
 
     parseSourceFile(fileContents: string, parseOptions: ParseOptions, diagSink: DiagnosticSink): ParseResults {
         timingStats.tokenizeFileTime.timeOperation(() => {
@@ -5422,6 +5423,7 @@ export class Parser {
         return node;
     }
 
+    // Parse cython structure
     private _parseCStruct() {
         let packedToken: KeywordToken | undefined = undefined;
         if (this._peekKeywordType() === KeywordType.Packed) {
@@ -5441,10 +5443,10 @@ export class Parser {
             case KeywordType.Fused:
                 structType = CStructType.Fused;
                 break;
-            case KeywordType.Class:
-                // TODO: Check
-                structType = CStructType.Class;
-                break;
+            // TODO: Check
+            // case KeywordType.Class:
+            //     structType = CStructType.Class;
+            //     break;
             default:
                 break;
         }
@@ -5470,10 +5472,16 @@ export class Parser {
                 Localizer.Diagnostic.expectedIdentifier()
             );
         }
+
         const wasParsingCStruct = this._isParsingCStruct;
         this._isParsingCStruct = true;
+        const wasParsingCFused = this._isParsingCFused;
+        if (structType === CStructType.Fused) {
+            this._isParsingCFused = true;
+        }
         const suite = this._parseSuite(false, false, undefined, /*isCdefSuite*/ true);
         this._isParsingCStruct = wasParsingCStruct;
+        this._isParsingCFused = wasParsingCFused;
         const node = CStructNode.create(startToken, name, suite, structType, packedToken, undefined);
         return node;
     }
@@ -5552,6 +5560,7 @@ export class Parser {
                         case KeywordType.Packed:
                         case KeywordType.Struct:
                         case KeywordType.Union:
+                        case KeywordType.Fused:
                             return this._parseCStruct();
                     }
                 }
@@ -5676,6 +5685,8 @@ export class Parser {
                 return this._parseEnum(false);
             case KeywordType.Packed:
             case KeywordType.Struct:
+            case KeywordType.Union:
+            case KeywordType.Fused:
                 return this._parseCStruct();
             default:
                 break;
@@ -6720,6 +6731,8 @@ export class Parser {
             KeywordType.Struct,
             KeywordType.Packed,
             KeywordType.Enum,
+            KeywordType.Union,
+            KeywordType.Fused,
             KeywordType.Ctypedef,
             KeywordType.Cdef,
             KeywordType.Cpdef,
@@ -6736,7 +6749,15 @@ export class Parser {
                 statement = StatementListNode.create(this._peekToken());
                 const stringNode = this._makeStringNode(this._getNextToken() as StringToken);
                 this._pushStatements(statement, stringNode);
+            } else if (this._isParsingCFused) {
+                const param = this._parseCPrototypeParam();
+                statement = StatementListNode.create(this._peekToken());
+                this._pushStatements(statement, param);
             } else {
+                if (validKeyWords.includes(KeywordType.Cdef)) {
+                    // Consume redundant 'cdef'
+                    this._consumeTokenIfKeyword(KeywordType.Cdef);
+                }
                 statement = this._parseCVarDecl();
             }
         } else {
