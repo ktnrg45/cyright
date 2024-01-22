@@ -15,6 +15,7 @@ import { WorkspaceServiceInstance } from '../languageServerBase';
 import {
     CFunctionDeclNode,
     CParameterNode,
+    CStructNode,
     CTypeDefNode,
     CTypeNode,
     ExpressionNode,
@@ -330,5 +331,13 @@ class SemanticTokensWalker extends ParseTreeWalker {
     override visitModuleName(node: ModuleNameNode): boolean {
         node.nameParts.forEach((n) => this.pushRange(n, LegendType.Namespace));
         return false;
+    }
+
+    override visitCStruct(node: CStructNode): boolean {
+        if (node.packedToken) {
+            this.pushRange(node.packedToken, LegendType.Keyword, LegendMod.Modification);
+        }
+        this.pushRange(node.structToken, LegendType.Keyword, LegendMod.Modification);
+        return true;
     }
 }

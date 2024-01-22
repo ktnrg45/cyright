@@ -42,6 +42,8 @@ import {
     ClassNode,
     ConstantNode,
     CSizeOfNode,
+    CStructNode,
+    CStructType,
     CTrailType,
     CTupleTypeNode,
     CTypeDefNode,
@@ -4027,6 +4029,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                     !!effectiveType && isInstantiableClass(effectiveType) && ClassType.isSpecialBuiltIn(effectiveType);
 
                 type = effectiveType;
+
+                // ! Cython
+                if (type.cythonDetails) {
+                    // If type is cython then the declaration will be bound
+                    symbol.setInitiallyBound();
+                }
 
                 if (useCodeFlowAnalysis && !isSpecialBuiltIn) {
                     // See if code flow analysis can tell us anything more about the type.
@@ -17370,6 +17378,14 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             // ! Cython
             if (node.parent.nodeType === ParseNodeType.CTypeDef && node.parent.name === node) {
                 getTypeOfTypeAlias(CTypeDefNode.alias(node.parent));
+                return;
+            }
+
+            if (node.parent.nodeType === ParseNodeType.CStruct && node.parent.name === node) {
+                // TODO: Handle fused
+                if (node.parent.structType !== CStructType.Fused) {
+                    getTypeOfClass(CStructNode.alias(node.parent));
+                }
                 return;
             }
         }

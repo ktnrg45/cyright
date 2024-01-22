@@ -2958,7 +2958,9 @@ export interface CStructNode extends ParseNodeBase {
     arguments: ArgumentNode[];
     suite: SuiteNode;
     packedToken?: Token;
+    structToken: Token;
     structType: CStructType;
+    alias?: ClassNode;
 }
 
 export namespace CStructNode {
@@ -2981,6 +2983,7 @@ export namespace CStructNode {
             arguments: [],
             suite: suite,
             structType: structType,
+            structToken: classToken,
             packedToken: packedToken,
         };
 
@@ -2996,6 +2999,36 @@ export namespace CStructNode {
         extendRange(node, suite);
 
         return node;
+    }
+    export function alias(node: CStructNode) {
+        if (node.alias) {
+            return node.alias;
+        }
+        const typeParameters = node.typeParameters ? { ...node.typeParameters } : undefined;
+        const alias = ClassNode.create(
+            Token.create(TokenType.Invalid, 0, 0, undefined),
+            { ...node.name },
+            { ...node.suite },
+            typeParameters
+        );
+        alias.parent = node.parent;
+        alias.id = node.id;
+        alias.start = node.start;
+        alias.length = node.length;
+        const decorators: DecoratorNode[] = node.decorators.map((d) => {
+            const dec = { ...d };
+            dec.parent = alias;
+            return dec;
+        });
+        const args: ArgumentNode[] = node.arguments.map((a) => {
+            const arg = { ...a };
+            arg.parent = node.parent;
+            return arg;
+        });
+
+        alias.decorators = decorators;
+        alias.arguments = args;
+        return alias;
     }
 }
 

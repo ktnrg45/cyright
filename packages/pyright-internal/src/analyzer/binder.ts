@@ -38,10 +38,10 @@ import {
     BreakNode,
     CallNode,
     CaseNode,
-    CExternNode,
     CFunctionNode,
     ClassNode,
     ContinueNode,
+    CStructNode,
     CTypeDefNode,
     DelNode,
     ExceptNode,
@@ -252,9 +252,6 @@ export class Binder extends ParseTreeWalker {
     // the current function.
     private _codeFlowComplexity = 0;
 
-    // ! Cython
-    private _isInCExtern = false;
-
     constructor(fileInfo: AnalyzerFileInfo, private _moduleSymbolOnly = false) {
         super();
 
@@ -406,7 +403,6 @@ export class Binder extends ParseTreeWalker {
             range: convertOffsetsToRange(node.name.start, TextRange.getEnd(node.name), this._fileInfo.lines),
             moduleName: this._fileInfo.moduleName,
             isInExceptSuite: this._isInExceptSuite,
-            isInCExtern: this._isInCExtern, // ! Cython
         };
 
         const symbol = this._bindNameToScope(this._currentScope, node.name);
@@ -465,7 +461,6 @@ export class Binder extends ParseTreeWalker {
             range: convertOffsetsToRange(node.name.start, TextRange.getEnd(node.name), this._fileInfo.lines),
             moduleName: this._fileInfo.moduleName,
             isInExceptSuite: this._isInExceptSuite,
-            isInCExtern: this._isInCExtern, // ! Cython
         };
 
         if (symbol) {
@@ -537,7 +532,6 @@ export class Binder extends ParseTreeWalker {
                                 ),
                                 moduleName: this._fileInfo.moduleName,
                                 isInExceptSuite: this._isInExceptSuite,
-                                isInCExtern: this._isInCExtern, // ! Cython
                             };
 
                             symbol.addDeclaration(paramDeclaration);
@@ -615,7 +609,6 @@ export class Binder extends ParseTreeWalker {
                                 ),
                                 moduleName: this._fileInfo.moduleName,
                                 isInExceptSuite: this._isInExceptSuite,
-                                isInCExtern: this._isInCExtern, // ! Cython
                             };
 
                             symbol.addDeclaration(paramDeclaration);
@@ -760,7 +753,6 @@ export class Binder extends ParseTreeWalker {
                 range: convertOffsetsToRange(node.start, TextRange.getEnd(node), this._fileInfo.lines),
                 moduleName: this._fileInfo.moduleName,
                 isInExceptSuite: this._isInExceptSuite,
-                isInCExtern: this._isInCExtern, // ! Cython
             };
 
             symbol.addDeclaration(paramDeclaration);
@@ -796,7 +788,6 @@ export class Binder extends ParseTreeWalker {
             range: convertOffsetsToRange(node.name.start, TextRange.getEnd(node.name), this._fileInfo.lines),
             moduleName: this._fileInfo.moduleName,
             isInExceptSuite: this._isInExceptSuite,
-            isInCExtern: this._isInCExtern, // ! Cython
         };
 
         const symbol = this._bindNameToScope(this._currentScope, node.name);
@@ -1378,7 +1369,6 @@ export class Binder extends ParseTreeWalker {
                     range: convertOffsetsToRange(node.name.start, TextRange.getEnd(node.name), this._fileInfo.lines),
                     moduleName: this._fileInfo.moduleName,
                     isInExceptSuite: this._isInExceptSuite,
-                    isInCExtern: this._isInCExtern, // ! Cython
                 };
                 symbol.addDeclaration(declaration);
             }
@@ -1772,7 +1762,6 @@ export class Binder extends ParseTreeWalker {
                                     symbolName: name,
                                     moduleName: this._fileInfo.moduleName,
                                     isInExceptSuite: this._isInExceptSuite,
-                                    isInCExtern: this._isInCExtern, // ! Cython
                                 };
                                 localSymbol.addDeclaration(aliasDecl);
                                 names.push(name);
@@ -1794,7 +1783,6 @@ export class Binder extends ParseTreeWalker {
                                             usesLocalName: false,
                                             moduleName: this._fileInfo.moduleName,
                                             isInExceptSuite: this._isInExceptSuite,
-                                            isInCExtern: this._isInCExtern, // ! Cython
                                         };
 
                                         const aliasDecl: AliasDeclaration = {
@@ -1808,7 +1796,6 @@ export class Binder extends ParseTreeWalker {
                                             range: getEmptyRange(),
                                             moduleName: this._fileInfo.moduleName,
                                             isInExceptSuite: this._isInExceptSuite,
-                                            isInCExtern: this._isInCExtern, // ! Cython
                                         };
 
                                         localSymbol.addDeclaration(aliasDecl);
@@ -1884,7 +1871,6 @@ export class Binder extends ParseTreeWalker {
                             usesLocalName: false,
                             moduleName: this._fileInfo.moduleName,
                             isInExceptSuite: this._isInExceptSuite,
-                            isInCExtern: this._isInCExtern, // ! Cython
                         };
 
                         // Handle the case of "from . import X" within an __init__ file.
@@ -1910,7 +1896,6 @@ export class Binder extends ParseTreeWalker {
                         range: getEmptyRange(),
                         moduleName: this._fileInfo.moduleName,
                         isInExceptSuite: this._isInExceptSuite,
-                        isInCExtern: this._isInCExtern, // ! Cython
                         isNativeLib: importInfo?.isNativeLib,
                     };
 
@@ -2257,7 +2242,6 @@ export class Binder extends ParseTreeWalker {
                     ),
                     moduleName: this._fileInfo.moduleName,
                     isInExceptSuite: this._isInExceptSuite,
-                    isInCExtern: this._isInCExtern, // ! Cython
                 };
                 symbol.addDeclaration(declaration);
             }
@@ -2300,7 +2284,6 @@ export class Binder extends ParseTreeWalker {
             range: convertOffsetsToRange(node.name.start, TextRange.getEnd(node.name), this._fileInfo.lines),
             moduleName: this._fileInfo.moduleName,
             isInExceptSuite: this._isInExceptSuite,
-            isInCExtern: this._isInCExtern, // ! Cython
         };
 
         const symbol = this._bindNameToScope(this._currentScope, node.name);
@@ -2384,7 +2367,6 @@ export class Binder extends ParseTreeWalker {
                 ),
                 moduleName: this._fileInfo.moduleName,
                 isInExceptSuite: this._isInExceptSuite,
-                isInCExtern: this._isInCExtern, // ! Cython
             };
             symbol.addDeclaration(declaration);
         }
@@ -2434,7 +2416,6 @@ export class Binder extends ParseTreeWalker {
                 range: convertOffsetsToRange(target.start, TextRange.getEnd(target), this._fileInfo.lines),
                 moduleName: this._fileInfo.moduleName,
                 isInExceptSuite: this._isInExceptSuite,
-                isInCExtern: this._isInCExtern, // ! Cython
             };
             symbol.addDeclaration(declaration);
         }
@@ -2534,7 +2515,6 @@ export class Binder extends ParseTreeWalker {
                 moduleName: importInfo.importName,
                 firstNamePart: firstNamePartValue,
                 isInExceptSuite: this._isInExceptSuite,
-                isInCExtern: this._isInCExtern, // ! Cython
             };
         } else {
             // If we couldn't resolve the import, create a dummy declaration with a
@@ -2551,7 +2531,6 @@ export class Binder extends ParseTreeWalker {
                 firstNamePart: firstNamePartValue,
                 isUnresolved: true,
                 isInExceptSuite: this._isInExceptSuite,
-                isInCExtern: this._isInCExtern, // ! Cython
             };
         }
 
@@ -3434,7 +3413,6 @@ export class Binder extends ParseTreeWalker {
                 range: getEmptyRange(),
                 moduleName: this._fileInfo.moduleName,
                 isInExceptSuite: this._isInExceptSuite,
-                isInCExtern: this._isInCExtern, // ! Cython
             });
             symbol.setIsIgnoredForProtocolMatch();
         }
@@ -3510,7 +3488,6 @@ export class Binder extends ParseTreeWalker {
                         range: convertOffsetsToRange(name.start, TextRange.getEnd(name), this._fileInfo.lines),
                         moduleName: this._fileInfo.moduleName,
                         isInExceptSuite: this._isInExceptSuite,
-                        isInCExtern: this._isInCExtern, // ! Cython
                         docString: this._getVariableDocString(target),
                     };
                     symbolWithScope.symbol.addDeclaration(declaration);
@@ -3563,7 +3540,6 @@ export class Binder extends ParseTreeWalker {
                         ),
                         moduleName: this._fileInfo.moduleName,
                         isInExceptSuite: this._isInExceptSuite,
-                        isInCExtern: this._isInCExtern, // ! Cython
                         docString: this._getVariableDocString(target),
                     };
                     symbol.addDeclaration(declaration);
@@ -3678,7 +3654,6 @@ export class Binder extends ParseTreeWalker {
                         range: convertOffsetsToRange(name.start, TextRange.getEnd(name), this._fileInfo.lines),
                         moduleName: this._fileInfo.moduleName,
                         isInExceptSuite: this._isInExceptSuite,
-                        isInCExtern: this._isInCExtern, // ! Cython
                         docString: this._getVariableDocString(target),
                     };
                     symbolWithScope.symbol.addDeclaration(declaration);
@@ -3756,7 +3731,6 @@ export class Binder extends ParseTreeWalker {
                         ),
                         moduleName: this._fileInfo.moduleName,
                         isInExceptSuite: this._isInExceptSuite,
-                        isInCExtern: this._isInCExtern, // ! Cython
                         docString: this._getVariableDocString(target),
                     };
                     symbol.addDeclaration(declaration);
@@ -4174,7 +4148,6 @@ export class Binder extends ParseTreeWalker {
                 ),
                 moduleName: this._fileInfo.moduleName,
                 isInExceptSuite: this._isInExceptSuite,
-                isInCExtern: this._isInCExtern, // ! Cython
             });
         }
         return true;
@@ -4309,11 +4282,8 @@ export class Binder extends ParseTreeWalker {
         return result;
     }
 
-    override visitCExtern(node: CExternNode): boolean {
-        const wasInExtern = this._isInCExtern;
-        this._isInCExtern = true;
-        this.walk(node.suite);
-        this._isInCExtern = wasInExtern;
+    override visitCStruct(node: CStructNode): boolean {
+        this.visitClass(CStructNode.alias(node));
         return false;
     }
 }
