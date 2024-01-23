@@ -12,6 +12,7 @@
 import { Range } from '../common/textRange';
 import {
     ClassNode,
+    CStructType,
     CTypeDefNode,
     ExpressionNode,
     FunctionNode,
@@ -81,6 +82,8 @@ export interface IntrinsicDeclaration extends DeclarationBase {
 export interface ClassDeclaration extends DeclarationBase {
     type: DeclarationType.Class;
     node: ClassNode;
+    // ! Cython
+    structType?: CStructType;
 }
 
 // This declaration form is used only for a few special

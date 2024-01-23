@@ -4283,7 +4283,29 @@ export class Binder extends ParseTreeWalker {
     }
 
     override visitCStruct(node: CStructNode): boolean {
-        this.visitClass(CStructNode.alias(node));
+        const alias = CStructNode.alias(node);
+        this.visitClass(alias);
+
+        // copy the NodeInfo from alias
+        const decl = AnalyzerNodeInfo.getDeclaration(alias);
+        if (decl && decl.type === DeclarationType.Class) {
+            AnalyzerNodeInfo.setDeclaration(node, decl);
+            decl.structType = node.structType;
+        }
+        const scope = AnalyzerNodeInfo.getScope(alias);
+        if (scope) {
+            for (const key of ['__doc__', '__module__']) {
+                // Remove dunder methods
+                scope.symbolTable.delete(key);
+            }
+            AnalyzerNodeInfo.setScope(node, scope);
+        }
+        const flowNode = AnalyzerNodeInfo.getFlowNode(alias.name);
+        if (flowNode) {
+            AnalyzerNodeInfo.setFlowNode(node.name, flowNode);
+        }
+        // ! HACK Re-evaluate the suite now that scope and flow are set
+        this.walk(node.suite);
         return false;
     }
 }
