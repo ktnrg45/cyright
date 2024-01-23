@@ -15190,6 +15190,22 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             unionType = ClassType.cloneAsInstance(classType);
         }
 
+        // ! Cython
+        if (node.structType) {
+            classType.cythonDetails = {
+                isPointer: false,
+                ptrRefCount: 0,
+                isVolatile: false,
+                numMods: [],
+                trailType: CTrailType.None,
+                isConst: false,
+                isPublic: false,
+                isReadOnly: false,
+
+                structType: node.structType,
+            };
+        }
+
         return { classType, decoratedType };
     }
 

@@ -511,6 +511,8 @@ export interface ClassNode extends ParseNodeBase {
     typeParameters?: TypeParameterListNode;
     arguments: ArgumentNode[];
     suite: SuiteNode;
+    // ! Cython
+    structType?: CStructType;
 }
 
 export namespace ClassNode {
@@ -2944,6 +2946,7 @@ export namespace CEnumNode {
 }
 
 export const enum CStructType {
+    None,
     Struct,
     Union,
     Fused,
@@ -3015,6 +3018,7 @@ export namespace CStructNode {
         alias.id = node.id;
         alias.start = node.start;
         alias.length = node.length;
+        alias.structType = node.structType;
         const decorators: DecoratorNode[] = node.decorators.map((d) => {
             const dec = { ...d };
             dec.parent = alias;

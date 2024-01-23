@@ -8,7 +8,7 @@
  */
 
 import { assert } from '../common/debug';
-import { CTrailType, CTypeNode, ExpressionNode, ParameterCategory } from '../parser/parseNodes';
+import { CStructType, CTrailType, CTypeNode, ExpressionNode, ParameterCategory } from '../parser/parseNodes';
 import { FunctionDeclaration } from './declaration';
 import { Symbol, SymbolTable } from './symbol';
 
@@ -540,6 +540,9 @@ export interface CythonDetails {
     // Function details
     cpdef?: boolean;
     except?: string;
+
+    // Class details
+    structType?: CStructType;
 
     // Misc details
     nogil?: boolean;
