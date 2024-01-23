@@ -6744,10 +6744,10 @@ export class Parser {
         if (!kwType || validKeyWords.includes(kwType)) {
             if (kwType === KeywordType.Ctypedef) {
                 statement = this._parseCTypeDef();
-            } else if (!kwType && this._isParsingCExtern && this._peekTokenType() === TokenType.String) {
-                // Parse the inline code comment
+            } else if (!kwType && this._peekTokenType() === TokenType.String) {
+                // Parse the inline code comment or docstring
                 statement = StatementListNode.create(this._peekToken());
-                const stringNode = this._makeStringNode(this._getNextToken() as StringToken);
+                const stringNode = this._parseAtom();
                 this._pushStatements(statement, stringNode);
             } else if (this._isParsingCFused) {
                 const param = this._parseCPrototypeParam();
