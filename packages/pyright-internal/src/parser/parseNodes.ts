@@ -2906,26 +2906,36 @@ export namespace CCastNode {
 export interface CEnumNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CEnum;
     decorators: DecoratorNode[];
-    name?: NameNode;
+    name: NameNode;
     typeParameters?: TypeParameterListNode;
     arguments: ArgumentNode[];
     suite: SuiteNode;
+    readonly structType: CStructType.Enum;
+    enumToken: Token;
+    classToken?: Token;
     indented: boolean;
     cpdef: boolean;
+    anonymous: boolean;
+    alias?: ClassNode;
 }
 
 export namespace CEnumNode {
     export function create(
-        classToken: Token,
+        enumToken: Token,
         name: NameNode | undefined,
         suite: SuiteNode,
         indented: boolean,
         cpdef: boolean,
-        typeParameters?: TypeParameterListNode
+        typeParameters?: TypeParameterListNode,
+        classToken?: Token,
     ) {
+        const anonymous = !name;
+        if (!name) {
+            name = NameNode.create(IdentifierToken.create(0, 0, '', undefined));
+        }
         const node: CEnumNode = {
-            start: classToken.start,
-            length: classToken.length,
+            start: enumToken.start,
+            length: enumToken.length,
             nodeType: ParseNodeType.CEnum,
             id: _nextNodeId++,
             decorators: [],
@@ -2933,8 +2943,12 @@ export namespace CEnumNode {
             typeParameters: typeParameters,
             arguments: [],
             suite: suite,
+            structType: CStructType.Enum,
+            enumToken: enumToken,
             indented: indented,
             cpdef: cpdef,
+            anonymous: anonymous,
+            classToken: classToken,
         };
 
         if (name) {
@@ -2950,6 +2964,38 @@ export namespace CEnumNode {
 
         return node;
     }
+
+    export function alias(node: CEnumNode) {
+        if (node.alias) {
+            return node.alias;
+        }
+        const typeParameters = node.typeParameters ? { ...node.typeParameters } : undefined;
+        const alias = ClassNode.create(
+            Token.create(TokenType.Invalid, 0, 0, undefined),
+            { ...node.name },
+            { ...node.suite },
+            typeParameters
+        );
+        alias.parent = node.parent;
+        alias.id = node.id;
+        alias.start = node.start;
+        alias.length = node.length;
+        alias.structType = node.structType;
+        const decorators: DecoratorNode[] = node.decorators.map((d) => {
+            const dec = { ...d };
+            dec.parent = alias;
+            return dec;
+        });
+        const args: ArgumentNode[] = node.arguments.map((a) => {
+            const arg = { ...a };
+            arg.parent = node.parent;
+            return arg;
+        });
+
+        alias.decorators = decorators;
+        alias.arguments = args;
+        return alias;
+    }
 }
 
 export const enum CStructType {
@@ -2957,6 +3003,7 @@ export const enum CStructType {
     Struct,
     Union,
     Fused,
+    Enum,
     Class,
 }
 

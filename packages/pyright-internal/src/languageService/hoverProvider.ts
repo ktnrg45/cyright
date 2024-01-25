@@ -259,6 +259,9 @@ export class HoverProvider {
                         case CStructType.Fused:
                             prefix = '(fused)';
                             break;
+                        case CStructType.Enum:
+                            prefix = '(enum)';
+                            break;
                         default:
                             break;
                     }

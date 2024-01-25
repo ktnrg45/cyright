@@ -13,6 +13,7 @@ import { convertOffsetToPosition } from '../common/positionUtils';
 import { TextRange } from '../common/textRange';
 import { WorkspaceServiceInstance } from '../languageServerBase';
 import {
+    CEnumNode,
     CFunctionDeclNode,
     CParameterNode,
     CStructNode,
@@ -338,6 +339,11 @@ class SemanticTokensWalker extends ParseTreeWalker {
             this.pushRange(node.packedToken, LegendType.Keyword, LegendMod.Modification);
         }
         this.pushRange(node.structToken, LegendType.Keyword, LegendMod.Modification);
+        return true;
+    }
+
+    override visitCEnum(node: CEnumNode): boolean {
+        this.pushRange(node.enumToken, LegendType.Keyword, LegendMod.Modification);
         return true;
     }
 }

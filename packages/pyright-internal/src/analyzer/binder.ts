@@ -38,6 +38,7 @@ import {
     BreakNode,
     CallNode,
     CaseNode,
+    CEnumNode,
     CFunctionNode,
     ClassNode,
     ContinueNode,
@@ -4321,6 +4322,80 @@ export class Binder extends ParseTreeWalker {
         }
         // ! HACK Re-evaluate the suite now that scope and flow are set
         this.walk(node.suite);
+        return false;
+    }
+
+    override visitCEnum(node: CEnumNode): boolean {
+        this.walkMultiple(node.decorators);
+
+        // Bind fields to current scope
+        // Fields are accessible by name outside of the enum scope
+        if (!node.cpdef) {
+            for (const statement of node.suite.statements) {
+                if (statement.nodeType === ParseNodeType.StatementList) {
+                    this.walkMultiple(statement.statements);
+                }
+            }
+        }
+
+        if (!node.anonymous) {
+            // Bind like a class
+            const alias = CEnumNode.alias(node);
+            const classDeclaration: ClassDeclaration = {
+                type: DeclarationType.Class,
+                node: alias,
+                path: this._fileInfo.filePath,
+                range: convertOffsetsToRange(alias.name.start, TextRange.getEnd(alias.name), this._fileInfo.lines),
+                moduleName: this._fileInfo.moduleName,
+                isInExceptSuite: this._isInExceptSuite,
+                structType: node.structType,
+            };
+
+            const symbol = this._bindNameToScope(this._currentScope, alias.name);
+            if (symbol) {
+                symbol.addDeclaration(classDeclaration);
+            }
+
+            // Stash the declaration in the parse alias for later access.
+            AnalyzerNodeInfo.setDeclaration(alias, classDeclaration);
+            AnalyzerNodeInfo.setDeclaration(node, classDeclaration);
+
+            if (alias.typeParameters) {
+                this.walk(alias.typeParameters);
+            }
+
+            this.walkMultiple(alias.arguments);
+
+            this._createNewScope(ScopeType.Class, this._getNonClassParentScope(), () => {
+                AnalyzerNodeInfo.setScope(alias, this._currentScope);
+                AnalyzerNodeInfo.setScope(node, this._currentScope);
+
+                this._addImplicitSymbolToCurrentScope('__doc__', alias, 'str | None');
+                this._addImplicitSymbolToCurrentScope('__module__', alias, 'str');
+
+                this._dunderSlotsEntries = undefined;
+                if (!this._moduleSymbolOnly) {
+                    // Analyze the suite.
+                    this.walk(alias.suite);
+                }
+
+                if (this._dunderSlotsEntries) {
+                    this._addSlotsToCurrentScope(this._dunderSlotsEntries);
+                }
+                this._dunderSlotsEntries = undefined;
+            });
+
+            this._createAssignmentTargetFlowNodes(alias.name, /* walkTargets */ false, /* unbound */ false);
+            const flow = AnalyzerNodeInfo.getFlowNode(alias.name);
+            if (flow) {
+                AnalyzerNodeInfo.setFlowNode(node.name, flow);
+            }
+
+            if (alias.typeParameters) {
+                this._removeActiveTypeParameters(alias.typeParameters);
+            }
+        }
+
         return false;
     }
 }

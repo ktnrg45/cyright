@@ -2834,7 +2834,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
     function isDiagnosticSuppressedForNode(node: ParseNode) {
         return (
             suppressedNodeStack.some((suppressedNode) => ParseTreeUtils.isNodeContainedWithin(node, suppressedNode)) ||
-            speculativeTypeTracker.isSpeculative(node)
+            speculativeTypeTracker.isSpeculative(node) ||
+            // ! Cython Suppress diagnostics for invalid ranges
+            (node.start <= 0 && node.length <= 0)
         );
     }
 

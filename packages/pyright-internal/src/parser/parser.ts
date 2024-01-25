@@ -5299,7 +5299,7 @@ export class Parser {
 
     // parse fields. Similar to arglist. Can be single line or multiline with indent.
     private _parseEnumFields(indented: boolean) {
-        const argList: ArgumentNode[] = [];
+        const argList: AssignmentNode[] = [];
         let trailingComma = false;
         const stopTypes = [TokenType.EndOfStream];
         if (indented) {
@@ -5307,13 +5307,33 @@ export class Parser {
         } else {
             stopTypes.push(TokenType.NewLine);
         }
+        let index = 0;
         while (!stopTypes.includes(this._peekTokenType())) {
             trailingComma = false;
             const arg = this._parseArgument();
+
+            // We'll store each argument as an assignment
+            let assign: AssignmentNode;
+            if (arg.valueExpression.nodeType === ParseNodeType.Name) {
+                // Assign enum value
+                // Values are incremented if not specified
+                assign = AssignmentNode.create(
+                    arg.valueExpression,
+                    NumberNode.create(NumberToken.create(0, 0, index, true, false, undefined))
+                );
+                index++;
+            } else if (arg.name && arg.valueExpression) {
+                assign = AssignmentNode.create(arg.name, arg.valueExpression);
+            } else {
+                // Shouldn't get here
+                this._addError(Localizer.Diagnostic.expectedAssignRightHandExpr(), this._peekToken());
+                continue;
+            }
+
             if (arg.argumentCategory !== ArgumentCategory.Simple) {
                 this._addError(Localizer.Diagnostic.unpackNotAllowed(), arg);
             } else {
-                argList.push(arg);
+                argList.push(assign);
             }
 
             if (!this._consumeTokenIfType(TokenType.Comma)) {
