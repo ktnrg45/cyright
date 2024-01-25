@@ -3434,7 +3434,7 @@ export class Parser {
             ) {
                 // sizeof cannot be redefined so we can evaluate it before the type evaluator
                 this._getNextToken();
-                const param = this._parseCPrototypeParam();
+                const param = this._parseCParameterAnnotation();
                 const closeParen = this._peekToken();
                 const sizeOf = CSizeOfNode.create(atomExpression, param);
                 if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
@@ -6174,54 +6174,96 @@ export class Parser {
         return operators;
     }
 
-    // parse param used in prototype function
-    // Type must be given but names are optional
-    private _parseCPrototypeParam() {
+    // parse param but only allow annotation
+    private _parseCParameterAnnotation() {
         return this._parseCParameter(true);
     }
 
-    private _parseCParameter(isPrototype = false) {
+    // Parse c parameter. One of name or annotation can be undefined
+    private _parseCParameter(onlyAnnotation = false, index = 0) {
         const startToken = this._peekToken();
         const typeNode = this._parseCType();
-        let typeAnnotation: ExpressionNode | undefined = typeNode;
         let name: NameNode | undefined = undefined;
-        const operators: OperatorToken[] = typeAnnotation ? this._parsePointersOrRef(/*allowReference*/ true) : [];
-        if (!isPrototype) {
-            // Check for param name. Type annotation is optional.
-            if (!this._peekIdentifier()) {
-                typeAnnotation = undefined;
-                if (typeNode.nodeType === ParseNodeType.CType && typeNode.expression.nodeType === ParseNodeType.Name) {
-                    name = typeNode.expression;
-                }
-            }
+        const operators: OperatorToken[] = this._parsePointersOrRef(/*allowReference*/ true);
+
+        let isNameAmbiguous = true;
+        if (typeNode.nodeType === ParseNodeType.CType) {
+            typeNode.operators = operators;
+            isNameAmbiguous = !(
+                typeNode.expression.nodeType !== ParseNodeType.Name ||
+                typeNode.numModifiers.length > 0 ||
+                typeNode.varModifiers.length > 0 ||
+                typeNode.operators.length > 0 ||
+                typeNode.typeTrailNode !== undefined
+            );
         }
-        const param = CParameterNode.create(startToken, typeAnnotation);
-        if (typeNode.nodeType === ParseNodeType.Error) {
+
+        const param = CParameterNode.create(startToken, typeNode);
+        if (onlyAnnotation) {
+            param.isNameAmbiguous = false;
             return param;
         }
-        if (param.typeAnnotation) {
-            typeNode.operators = operators;
-        }
+        // if (typeNode.nodeType === ParseNodeType.Error) {
+        //     return param;
+        // }
 
         if (!name) {
             const iden = this._getTokenIfIdentifier();
             if (iden) {
                 name = NameNode.create(iden);
+                param.name = name;
+                param.name.parent = param;
+                extendRange(param, param.name);
+                isNameAmbiguous = false;
             }
         }
 
-        if (name) {
-            param.name = name;
-            param.name.parent = param;
-            extendRange(param, param.name);
-        }
-        if (!isPrototype) {
-            if (this._consumeTokenIfOperator(OperatorType.Assign)) {
-                param.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
+        const possibleAssign = this._peekToken();
+        if (this._consumeTokenIfOperator(OperatorType.Assign)) {
+            if (!isNameAmbiguous && !name) {
+                this._addError(Localizer.Diagnostic.expectedParamName(), possibleAssign);
+            }
+            const defaultToken = this._peekToken();
+            let defaultValue: ExpressionNode | undefined = undefined;
+            if (
+                defaultToken.type === TokenType.QuestionMark ||
+                (defaultToken.type === TokenType.Operator &&
+                    (defaultToken as OperatorToken).operatorType === OperatorType.Multiply)
+            ) {
+                // ! Note these are not allowed in function implementations
+                defaultValue = EllipsisNode.create(this._getNextToken());
+            } else {
+                defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
+            }
+
+            if (defaultValue) {
+                param.defaultValue = defaultValue;
                 param.defaultValue.parent = param;
                 extendRange(param, param.defaultValue);
             }
         }
+
+        if (isNameAmbiguous && !param.name) {
+            if (
+                param.typeAnnotation?.nodeType === ParseNodeType.CType &&
+                param.typeAnnotation.expression.nodeType === ParseNodeType.Name
+            ) {
+                if (param.defaultValue && param.typeAnnotation.expression.nodeType === ParseNodeType.Name) {
+                    isNameAmbiguous = false;
+                    param.name = param.typeAnnotation.expression;
+                    param.typeAnnotation = undefined;
+                }
+            }
+        }
+
+        if (!param.name && param.typeAnnotation) {
+            param.name = NameNode.create(IdentifierToken.create(0, 0, `_p${index}`, undefined));
+            param.name.parent = param;
+        }
+
+        // name can be ambiguous if the entire param consists of a single identifier
+        param.isNameAmbiguous = !param.defaultValue && isNameAmbiguous;
+
         return param;
     }
 
@@ -6235,13 +6277,15 @@ export class Parser {
         let sawKeywordOnlyParamAfterSeparator = false;
         let sawArgs = false;
         let sawKwArgs = false;
+        let index = 0;
 
         while (true) {
             if (this._peekTokenType() === terminator) {
                 break;
             }
 
-            const param = this._parseCParameter();
+            const param = this._parseCParameter(false, index);
+            index++;
             if (!param) {
                 this._consumeTokensUntilType([terminator]);
                 break;
@@ -6382,14 +6426,16 @@ export class Parser {
         }
 
         let suite: SuiteNode;
+        let isForwardDecl = false;
         if (this._peekTokenType() === TokenType.Colon) {
             suite = this._parseSuite(/* isFunction */ true, this._parseOptions.skipFunctionAndClassBody);
         } else {
             // This is a forward declaration
             suite = SuiteNode.create(this._peekToken());
+            isForwardDecl = true;
         }
 
-        const functionNode = CFunctionNode.create(openParenToken, name, suite);
+        const functionNode = CFunctionNode.create(openParenToken, name, suite, isForwardDecl);
         functionNode.nogil = nogil;
         functionNode.parameters = paramList;
         paramList.forEach((param) => {
@@ -6460,13 +6506,13 @@ export class Parser {
 
         const params: CParameterNode[] = [];
         if (this._peekTokenType() !== TokenType.CloseParenthesis) {
-            let param = this._parseCPrototypeParam();
+            let param = this._parseCParameter();
             if (param.typeAnnotation && param.typeAnnotation.nodeType !== ParseNodeType.Error) {
                 params.push(param);
             }
             while (this._peekTokenType() === TokenType.Comma) {
                 this._getNextToken();
-                param = this._parseCPrototypeParam();
+                param = this._parseCParameter();
                 if (param.typeAnnotation && param.typeAnnotation.nodeType !== ParseNodeType.Error) {
                     params.push(param);
                 }
@@ -6750,7 +6796,7 @@ export class Parser {
                 const stringNode = this._parseAtom();
                 this._pushStatements(statement, stringNode);
             } else if (this._isParsingCFused) {
-                const param = this._parseCPrototypeParam();
+                const param = this._parseCParameterAnnotation();
                 statement = StatementListNode.create(this._peekToken());
                 this._pushStatements(statement, param);
             } else {

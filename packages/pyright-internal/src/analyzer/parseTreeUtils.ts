@@ -718,7 +718,11 @@ export function getEvaluationScopeNode(node: ParseNode): EvaluationScopeNode {
     let isParamNameNode = false;
 
     while (curNode) {
-        if (curNode.nodeType === ParseNodeType.Parameter && prevNode === curNode.name) {
+        // ! Cython
+        if (
+            (curNode.nodeType === ParseNodeType.Parameter || curNode.nodeType === ParseNodeType.CParameter) &&
+            prevNode === curNode.name
+        ) {
             // Note that we passed through a parameter name node.
             isParamNameNode = true;
         }

@@ -2796,6 +2796,8 @@ export interface CParameterNode extends ParseNodeBase {
     typeAnnotation?: ExpressionNode | undefined;
     typeAnnotationComment?: ExpressionNode | undefined;
     defaultValue?: ExpressionNode | undefined;
+    isNameAmbiguous: boolean;
+    alias?: ParameterNode;
 }
 
 export namespace CParameterNode {
@@ -2811,6 +2813,7 @@ export namespace CParameterNode {
             id: _nextNodeId++,
             category: paramCategory,
             typeAnnotation: typeAnnotation,
+            isNameAmbiguous: true,
         };
         if (typeAnnotation) {
             extendRange(node, typeAnnotation);
@@ -2821,6 +2824,9 @@ export namespace CParameterNode {
     }
 
     export function alias(node: CParameterNode) {
+        if (node.alias) {
+            return node.alias;
+        }
         const token = Token.create(TokenType.Invalid, 0, 0, undefined);
         const alias = ParameterNode.create(token, node.category);
         alias.id = node.id;
@@ -2843,6 +2849,7 @@ export namespace CParameterNode {
             alias.defaultValue = { ...node.defaultValue };
             alias.defaultValue.parent = alias;
         }
+        node.alias = alias;
         return alias;
     }
 }
@@ -3049,10 +3056,11 @@ export interface CFunctionNode extends ParseNodeBase {
     alias?: FunctionNode;
     cpdef?: boolean;
     nogil?: boolean;
+    isForwardDeclaration: boolean;
 }
 
 export namespace CFunctionNode {
-    export function create(defToken: Token, name: NameNode, suite: SuiteNode) {
+    export function create(defToken: Token, name: NameNode, suite: SuiteNode, isForwardDeclaration: boolean) {
         const node: CFunctionNode = {
             start: defToken.start,
             length: defToken.length,
@@ -3064,6 +3072,7 @@ export namespace CFunctionNode {
             parameters: [],
             suite,
             isAsync: false,
+            isForwardDeclaration: isForwardDeclaration,
         };
 
         name.parent = node;

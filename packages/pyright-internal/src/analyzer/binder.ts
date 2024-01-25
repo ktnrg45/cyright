@@ -41,6 +41,7 @@ import {
     CFunctionNode,
     ClassNode,
     ContinueNode,
+    CParameterNode,
     CStructNode,
     CTypeDefNode,
     DelNode,
@@ -4280,6 +4281,20 @@ export class Binder extends ParseTreeWalker {
             AnalyzerNodeInfo.setCodeFlowComplexity(node, complexity);
         }
         return result;
+    }
+
+    override visitCParameter(node: CParameterNode): boolean {
+        if (node.alias?.name && node.name) {
+            const decl = AnalyzerNodeInfo.getDeclaration(node.alias.name);
+            if (decl) {
+                AnalyzerNodeInfo.setDeclaration(node.name, decl);
+            }
+            const flow = AnalyzerNodeInfo.getFlowNode(node.alias.name);
+            if (flow) {
+                AnalyzerNodeInfo.setFlowNode(node.name, flow);
+            }
+        }
+        return true;
     }
 
     override visitCStruct(node: CStructNode): boolean {
