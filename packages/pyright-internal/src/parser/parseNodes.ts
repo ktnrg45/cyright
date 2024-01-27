@@ -513,6 +513,7 @@ export interface ClassNode extends ParseNodeBase {
     suite: SuiteNode;
     // ! Cython
     structType?: CStructType;
+    isCython?: boolean; // If this is a cython cdef class
 }
 
 export namespace ClassNode {

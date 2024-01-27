@@ -2296,7 +2296,7 @@ export class Parser {
     }
 
     // classdef: 'class' NAME ['(' [arglist] ')'] suite
-    private _parseClassDef(decorators?: DecoratorNode[]): ClassNode {
+    private _parseClassDef(decorators?: DecoratorNode[], isCython = false): ClassNode {
         const classToken = this._getKeywordToken(KeywordType.Class);
 
         let nameToken = this._getTokenIfIdentifier();
@@ -2325,9 +2325,16 @@ export class Parser {
             }
         }
 
-        const suite = this._parseSuite(/* isFunction */ false, this._parseOptions.skipFunctionAndClassBody);
+        // ! Cython
+        const suite = this._parseSuite(
+            /* isFunction */ false,
+            this._parseOptions.skipFunctionAndClassBody,
+            undefined,
+            isCython
+        );
 
         const classNode = ClassNode.create(classToken, NameNode.create(nameToken), suite, typeParameters);
+        classNode.isCython = isCython;
         classNode.arguments = argList;
         argList.forEach((arg) => {
             arg.parent = classNode;
@@ -5250,6 +5257,10 @@ export class Parser {
 
     // Check for new line. Consumes semicolon if present
     private _expectNewLine() {
+        if (this._tokenIndex > 0 && this._peekToken(-1).type === TokenType.NewLine) {
+            // If the last token was a new line then we can assume that there was a new line
+            return;
+        }
         const nextToken = this._peekTokenType();
         const valid = [TokenType.NewLine, TokenType.EndOfStream];
         let error = false;
@@ -5582,6 +5593,8 @@ export class Parser {
                         case KeywordType.Union:
                         case KeywordType.Fused:
                             return this._parseCStruct();
+                        case KeywordType.Class:
+                            return this._parseClassDef(undefined, true);
                     }
                 }
                 break;
@@ -6807,6 +6820,10 @@ export class Parser {
             validKeyWords.push(...otherKeyWords);
         }
         const kwType = this._peekKeywordType();
+        if (kwType === KeywordType.Def || kwType === KeywordType.Class) {
+            return this._parseStatement();
+        }
+
         if (!kwType || validKeyWords.includes(kwType)) {
             if (kwType === KeywordType.Ctypedef) {
                 statement = this._parseCTypeDef();
@@ -6835,15 +6852,8 @@ export class Parser {
             // Go to newline
             this._consumeTokensUntilType([TokenType.NewLine]);
         }
-        if (
-            statement.nodeType !== ParseNodeType.CStruct &&
-            !(statement.nodeType === ParseNodeType.CEnum && (statement as CEnumNode).indented)
-        ) {
-            // TODO: remove this
-            // We currently consume the new line when parsing a CEnum or CStruct so no need to do so here
-            this._expectNewLine();
-            this._consumeTokenIfType(TokenType.NewLine);
-        }
+
+        this._consumeTokenIfType(TokenType.NewLine);
         if (this._isParsingCStruct) {
             if (statement.nodeType === ParseNodeType.StatementList) {
                 for (const expr of statement.statements) {
