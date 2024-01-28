@@ -15,6 +15,7 @@ import { WorkspaceServiceInstance } from '../languageServerBase';
 import {
     CEnumNode,
     CFunctionDeclNode,
+    CFunctionNode,
     CParameterNode,
     CStructNode,
     CTypeDefNode,
@@ -345,5 +346,11 @@ class SemanticTokensWalker extends ParseTreeWalker {
     override visitCEnum(node: CEnumNode): boolean {
         this.pushRange(node.enumToken, LegendType.Keyword, LegendMod.Modification);
         return true;
+    }
+
+    override visitCFunction(node: CFunctionNode): boolean {
+        this.walkMultiple([...node.decorators, node.returnTypeAnnotation, node.functionAnnotationComment]);
+        this.walkMultiple([node.name, node.typeParameters, ...node.parameters, node.suite]);
+        return false;
     }
 }
