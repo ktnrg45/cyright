@@ -176,6 +176,7 @@ export const enum KeywordType {
     Union,
     Fused,
     // Macros
+    NULL,
     DEF,
     IF,
     ELIF,

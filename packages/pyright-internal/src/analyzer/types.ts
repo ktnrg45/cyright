@@ -51,6 +51,9 @@ export const enum TypeCategory {
 
     // Type variable (defined with TypeVar)
     TypeVar,
+
+    // ! Cython
+    Null, // NULL, a pointer of any type
 }
 
 export const enum TypeFlags {
@@ -79,7 +82,8 @@ export type UnionableType =
     | OverloadedFunctionType
     | ClassType
     | ModuleType
-    | TypeVarType;
+    | TypeVarType
+    | NullType; // ! Cython
 
 export type Type = UnionableType | NeverType | UnionType;
 
@@ -249,18 +253,18 @@ export namespace TypeBase {
     }
 
     // ! Cython
-    export function cloneForCType(node: CTypeNode, type: Type) {
+    export function cloneForCType(node: CTypeNode | undefined, type: Type) {
         const cType = TypeBase.cloneType(type);
         if (!cType.cythonDetails) {
             cType.cythonDetails = {
-                isPointer: CTypeNode.isPointer(node),
-                ptrRefCount: CTypeNode.ptrRefCount(node),
-                isConst: CTypeNode.isConstant(node),
-                isVolatile: CTypeNode.isVolatile(node),
-                isPublic: CTypeNode.isPublic(node),
-                isReadOnly: CTypeNode.isReadOnly(node),
-                numMods: CTypeNode.numModifiers(node),
-                trailType: CTypeNode.trailType(node),
+                isPointer: node ? CTypeNode.isPointer(node) : false,
+                ptrRefCount: node ? CTypeNode.ptrRefCount(node) : 0,
+                isConst: node ? CTypeNode.isConstant(node) : false,
+                isVolatile: node ? CTypeNode.isVolatile(node) : false,
+                isPublic: node ? CTypeNode.isPublic(node) : false,
+                isReadOnly: node ? CTypeNode.isReadOnly(node) : false,
+                numMods: node ? CTypeNode.numModifiers(node) : [],
+                trailType: node ? CTypeNode.trailType(node) : CTrailType.None,
             };
         }
         return cType;
@@ -524,18 +528,16 @@ interface ClassDetails {
 
 // ! Cython
 export interface CythonDetails {
-    // true if pointer; false if reference; undefined if neither
-    isPointer?: boolean;
-
     // count of '*' or '&' symbols
     ptrRefCount: number;
-
-    isConst: boolean;
-    isVolatile: boolean;
-    isReadOnly: boolean;
-    isPublic: boolean;
-    numMods: string[];
-    trailType: CTrailType;
+    // true if pointer; false if reference; undefined if neither
+    isPointer?: boolean;
+    isConst?: boolean;
+    isVolatile?: boolean;
+    isReadOnly?: boolean;
+    isPublic?: boolean;
+    numMods?: string[];
+    trailType?: CTrailType;
 
     // Function details
     cpdef?: boolean;
@@ -3015,4 +3017,24 @@ function _addTypeIfUnique(unionType: UnionType, typeToAdd: UnionableType) {
     }
 
     UnionType.addType(unionType, typeToAdd);
+}
+
+// ! Cython
+export interface NullType extends TypeBase {
+    category: TypeCategory.Null;
+}
+
+export namespace NullType {
+    const _nullInstance: NullType = {
+        category: TypeCategory.Null,
+        flags: TypeFlags.Instance,
+        cythonDetails: {
+            isPointer: true,
+            ptrRefCount: 1,
+        },
+    };
+
+    export function createInstance(): NullType {
+        return _nullInstance;
+    }
 }

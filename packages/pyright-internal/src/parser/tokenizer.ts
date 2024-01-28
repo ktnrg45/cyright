@@ -112,6 +112,7 @@ const _keywords: Map<string, KeywordType> = new Map([
     ['union', KeywordType.Union],
     ['fused', KeywordType.Fused],
     // Macros
+    ['NULL', KeywordType.NULL],
     ['DEF', KeywordType.DEF],
     ['IF', KeywordType.IF],
     ['ELIF', KeywordType.ELIF],

@@ -97,6 +97,10 @@ export function createTracePrinter(roots: string[]): TracePrinter {
                 case TypeCategory.Unknown:
                     return `Unknown ${wrap(type.typeAliasInfo?.fullName)}`;
 
+                // ! Cython
+                case TypeCategory.Null:
+                    return `NULL ${wrap(type.typeAliasInfo?.fullName)}`;
+
                 default:
                     assertNever(type);
             }

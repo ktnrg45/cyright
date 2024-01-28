@@ -3918,7 +3918,9 @@ export class Parser {
                 keywordToken.keywordType === KeywordType.False ||
                 keywordToken.keywordType === KeywordType.True ||
                 keywordToken.keywordType === KeywordType.Debug ||
-                keywordToken.keywordType === KeywordType.None
+                keywordToken.keywordType === KeywordType.None ||
+                // ! Cython
+                keywordToken.keywordType === KeywordType.NULL
             ) {
                 return ConstantNode.create(this._getNextToken() as KeywordToken);
             }

@@ -525,6 +525,11 @@ export function printType(
                 const anyType = type;
                 return anyType.isEllipsis ? '...' : 'Any';
             }
+
+            // ! Cython
+            case TypeCategory.Null: {
+                return 'NULL';
+            }
         }
 
         return '';
@@ -611,7 +616,7 @@ export function printObjectTypeForClass(
         if (details.isVolatile) {
             prefixes.push('volatile');
         }
-        prefixes.push(...details.numMods);
+        prefixes.push(...(details.numMods ?? []));
         const prefix = prefixes.join(' ');
 
         objName = `${objName}${op}`;

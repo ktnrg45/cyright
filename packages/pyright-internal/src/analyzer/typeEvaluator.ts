@@ -218,6 +218,7 @@ import {
     ModuleType,
     NeverType,
     NoneType,
+    NullType,
     OverloadedFunctionType,
     ParamSpecEntry,
     removeFromUnion,
@@ -1669,7 +1670,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             case TypeCategory.Unknown:
             case TypeCategory.Any:
             case TypeCategory.Never:
-            case TypeCategory.None: {
+            case TypeCategory.None:
+            case TypeCategory.Null: {
+                // ! Cython
                 return true;
             }
 
@@ -1757,7 +1760,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             }
 
             case TypeCategory.Unbound:
-            case TypeCategory.None: {
+            case TypeCategory.None:
+            case TypeCategory.Null: {
+                // ! Cython
                 return false;
             }
 
@@ -11009,6 +11014,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                     type = ClassType.cloneWithLiteral(type, /* value */ false);
                 }
             }
+        } else if (node.constType === KeywordType.NULL) {
+            type = NullType.createInstance();
         }
 
         if (!type) {
@@ -14369,7 +14376,13 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 }
 
                 // If this is an enum, transform the type as required.
-                rightHandType = srcType;
+                // ! Cython
+                if (srcType.category === TypeCategory.Null && declaredType) {
+                    // Use lefthand type
+                    rightHandType = declaredType;
+                } else {
+                    rightHandType = srcType;
+                }
                 if (node.leftExpression.nodeType === ParseNodeType.Name && !node.typeAnnotationComment) {
                     rightHandType =
                         transformTypeForPossibleEnumClass(
