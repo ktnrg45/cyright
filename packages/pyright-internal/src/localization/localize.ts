@@ -1329,6 +1329,7 @@ export namespace Localizer {
         export const cStyleArrayInitNotAllowed = () => getRawString('DiagnosticCython.cStyleArrayInitNotAllowed');
         export const invalidNDimDeclaration = () => getRawString('DiagnosticCython.invalidNDimDeclaration');
         export const defaultValuesNotAllowed = () => getRawString('DiagnosticCython.defaultValuesNotAllowed');
+        export const expectedStringForInclude = () => getRawString('DiagnosticCython.expectedStringForInclude');
 
         export const modifierNotAllowed = () =>
             new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.modifierNotAllowed'));

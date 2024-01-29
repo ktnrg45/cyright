@@ -18,6 +18,7 @@ import { appendArray } from '../common/collectionUtils';
 import { assert } from '../common/debug';
 import { Diagnostic, DiagnosticAddendum } from '../common/diagnostic';
 import { DiagnosticSink } from '../common/diagnosticSink';
+import { getFileExtension, stripFileExtension } from '../common/pathUtils';
 import { convertOffsetsToRange, convertPositionToOffset } from '../common/positionUtils';
 import { latestStablePythonVersion, PythonVersion } from '../common/pythonVersion';
 import { TextRange } from '../common/textRange';
@@ -476,6 +477,8 @@ export class Parser {
                 return this._parseCDefine();
             case KeywordType.IF:
                 return this._parseCIfStatement();
+            case KeywordType.Include:
+                return this._parseInclude();
         }
 
         return this._parseSimpleStatement();
@@ -6972,6 +6975,89 @@ export class Parser {
         }
 
         return ifNode;
+    }
+
+    // include "path/to/file.pxd"
+    private _parseInclude() {
+        // TODO: Technically this should include the entire contents of the file
+        return this._parseIncludeAsImport();
+    }
+
+    private _parseIncludeAsImport() {
+        // Parse as a wild card import.
+        const includeToken = this._getKeywordToken(KeywordType.Include);
+        const statement = StatementListNode.create(this._peekToken());
+        const stringToken = this._peekToken();
+        const stringList = this._parseAtom();
+        const stringNode =
+            stringList.nodeType === ParseNodeType.StringList && stringList.strings.length === 1
+                ? stringList.strings[stringList.strings.length - 1]
+                : undefined;
+        if (!stringNode || stringNode.nodeType === ParseNodeType.FormatString) {
+            const errorNode = this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.DiagnosticCython.expectedStringForInclude(),
+                stringToken
+            );
+            this._pushStatements(statement, errorNode);
+            return statement;
+        }
+
+        const value = stringNode.value;
+
+        let leadingDots = 0;
+        for (const char of value) {
+            if (char !== '.') {
+                break;
+            }
+            leadingDots++;
+        }
+
+        const ext = getFileExtension(value);
+        const text = stripFileExtension(value);
+        // Parse tokens inside string
+        const tokenizer = new Tokenizer();
+        const tokens = tokenizer.tokenize(text).tokens;
+        const offset = stringNode.token.prefixLength + stringNode.token.quoteMarkLength;
+
+        const moduleName = ModuleNameNode.create(stringList);
+        moduleName.leadingDots = leadingDots;
+
+        for (let i = 0; i < tokens.count; i++) {
+            let token = tokens.getItemAt(i);
+            if (token.type === TokenType.Keyword) {
+                token = IdentifierToken.create(
+                    token.start,
+                    token.length,
+                    text.slice(token.start, token.start + token.length),
+                    undefined
+                );
+            }
+            if (token.type === TokenType.Identifier) {
+                token.start += stringNode.start + offset; // offset for first quotation at start of string
+                const name = NameNode.create(token as IdentifierToken);
+                moduleName.nameParts.push(name);
+                name.parent = moduleName;
+            }
+        }
+        if (moduleName.nameParts.length > 0) {
+            moduleName.nameParts[moduleName.nameParts.length - 1].length += ext.length;
+        }
+
+        const importFromNode = ImportFromNode.create(includeToken, moduleName);
+        importFromNode.isWildcardImport = true;
+        importFromNode.wildcardToken = OperatorToken.create(0, 0, OperatorType.Multiply, undefined);
+        const pxdImport = {
+            nameNode: importFromNode.module,
+            leadingDots: importFromNode.module.leadingDots,
+            nameParts: importFromNode.module.nameParts.map((p) => p.value),
+            importedSymbols: importFromNode.imports.map((imp) => imp.name.value),
+            isCython: true,
+            cythonExt: ext.replace(/^\./, ''),
+        };
+        this._importedModules.push(pxdImport);
+        this._pushStatements(statement, importFromNode);
+        return statement;
     }
 
     // Create wildcard import for a matching 'pxd' import. These do not have to be explicitly imported for 'pyx' files.

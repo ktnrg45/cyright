@@ -678,6 +678,8 @@
         "cStyleArrayInitNotAllowed": "Initialization of C style array not allowed",
         "invalidNDimDeclaration": "Multiple dimensions only allowed for array declarations",
         "defaultValuesNotAllowed": "Cannot assign default value to fields in cdef classes, structs or unions",
+        "expectedStringForInclude": "Expected a non-fstring",
+
         "modifierNotAllowed": "Modifier \"{name}\" not allowed here",
         "nonExternCFunctionNotDefined": "Non-extern C function \"{name}\" declared but not defined"
     }
