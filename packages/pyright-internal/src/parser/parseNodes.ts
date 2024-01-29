@@ -2798,7 +2798,6 @@ export interface CParameterNode extends ParseNodeBase {
     typeAnnotationComment?: ExpressionNode | undefined;
     defaultValue?: ExpressionNode | undefined;
     isNameAmbiguous: boolean;
-    alias?: ParameterNode;
 }
 
 export namespace CParameterNode {
@@ -2824,34 +2823,15 @@ export namespace CParameterNode {
         return node;
     }
 
-    export function alias(node: CParameterNode) {
-        if (node.alias) {
-            return node.alias;
-        }
-        const token = Token.create(TokenType.Invalid, 0, 0, undefined);
-        const alias = ParameterNode.create(token, node.category);
-        alias.id = node.id;
-        alias.parent = node.parent;
-        alias.start = node.start;
-        alias.length = node.length;
-        if (node.name) {
-            alias.name = { ...node.name };
-            alias.name.parent = alias;
-        }
-        if (node.typeAnnotation) {
-            alias.typeAnnotation = { ...node.typeAnnotation };
-            alias.typeAnnotation.parent = alias;
-        }
-        if (node.typeAnnotationComment) {
-            alias.typeAnnotationComment = { ...node.typeAnnotationComment };
-            alias.typeAnnotationComment.parent = alias;
-        }
-        if (node.defaultValue) {
-            alias.defaultValue = { ...node.defaultValue };
-            alias.defaultValue.parent = alias;
-        }
-        node.alias = alias;
+    export function alias(node: CParameterNode): ParameterNode {
+        // Copy node and return a python node alias
+        const alias: any = Object.assign({}, node, { nodeType: ParseNodeType.Parameter });
         return alias;
+    }
+
+    export function mergeAlias(node: CParameterNode, alias: ParameterNode) {
+        // Update node with values from alias
+        Object.assign(node, alias, { nodeType: ParseNodeType.CParameter });
     }
 }
 
@@ -2917,7 +2897,6 @@ export interface CEnumNode extends ParseNodeBase {
     indented: boolean;
     cpdef: boolean;
     anonymous: boolean;
-    alias?: ClassNode;
 }
 
 export namespace CEnumNode {
@@ -2928,7 +2907,7 @@ export namespace CEnumNode {
         indented: boolean,
         cpdef: boolean,
         typeParameters?: TypeParameterListNode,
-        classToken?: Token,
+        classToken?: Token
     ) {
         const anonymous = !name;
         if (!name) {
@@ -2966,36 +2945,13 @@ export namespace CEnumNode {
         return node;
     }
 
-    export function alias(node: CEnumNode) {
-        if (node.alias) {
-            return node.alias;
-        }
-        const typeParameters = node.typeParameters ? { ...node.typeParameters } : undefined;
-        const alias = ClassNode.create(
-            Token.create(TokenType.Invalid, 0, 0, undefined),
-            { ...node.name },
-            { ...node.suite },
-            typeParameters
-        );
-        alias.parent = node.parent;
-        alias.id = node.id;
-        alias.start = node.start;
-        alias.length = node.length;
-        alias.structType = node.structType;
-        const decorators: DecoratorNode[] = node.decorators.map((d) => {
-            const dec = { ...d };
-            dec.parent = alias;
-            return dec;
-        });
-        const args: ArgumentNode[] = node.arguments.map((a) => {
-            const arg = { ...a };
-            arg.parent = node.parent;
-            return arg;
-        });
-
-        alias.decorators = decorators;
-        alias.arguments = args;
+    export function alias(node: CEnumNode): ClassNode {
+        const alias: any = Object.assign({}, node, { nodeType: ParseNodeType.Class });
         return alias;
+    }
+
+    export function mergeAlias(node: CEnumNode, alias: ClassNode) {
+        Object.assign(node, alias, { nodeType: ParseNodeType.CEnum });
     }
 }
 
@@ -3018,7 +2974,6 @@ export interface CStructNode extends ParseNodeBase {
     packedToken?: Token;
     structToken: Token;
     structType: CStructType;
-    alias?: ClassNode;
 }
 
 export namespace CStructNode {
@@ -3058,36 +3013,14 @@ export namespace CStructNode {
 
         return node;
     }
-    export function alias(node: CStructNode) {
-        if (node.alias) {
-            return node.alias;
-        }
-        const typeParameters = node.typeParameters ? { ...node.typeParameters } : undefined;
-        const alias = ClassNode.create(
-            Token.create(TokenType.Invalid, 0, 0, undefined),
-            { ...node.name },
-            { ...node.suite },
-            typeParameters
-        );
-        alias.parent = node.parent;
-        alias.id = node.id;
-        alias.start = node.start;
-        alias.length = node.length;
-        alias.structType = node.structType;
-        const decorators: DecoratorNode[] = node.decorators.map((d) => {
-            const dec = { ...d };
-            dec.parent = alias;
-            return dec;
-        });
-        const args: ArgumentNode[] = node.arguments.map((a) => {
-            const arg = { ...a };
-            arg.parent = node.parent;
-            return arg;
-        });
 
-        alias.decorators = decorators;
-        alias.arguments = args;
+    export function alias(node: CStructNode): ClassNode {
+        const alias: any = Object.assign({}, node, { nodeType: ParseNodeType.Class });
         return alias;
+    }
+
+    export function mergeAlias(node: CStructNode, alias: ClassNode) {
+        Object.assign(node, alias, { nodeType: ParseNodeType.CStruct });
     }
 }
 
@@ -3101,7 +3034,6 @@ export interface CFunctionNode extends ParseNodeBase {
     returnTypeAnnotation?: ExpressionNode | undefined;
     functionAnnotationComment?: FunctionAnnotationNode | undefined;
     suite: SuiteNode;
-    alias?: FunctionNode;
     cpdef?: boolean;
     nogil?: boolean;
     isForwardDeclaration: boolean;
@@ -3132,38 +3064,13 @@ export namespace CFunctionNode {
         return node;
     }
 
-    export function alias(node: CFunctionNode) {
-        if (node.alias) {
-            // Return alias if cached
-            return node.alias;
-        }
-        const token = Token.create(TokenType.Invalid, 0, 0, undefined);
-        // TODO: See if we have to copy suite
-        const alias = FunctionNode.create(token, { ...node.name }, { ...node.suite });
-        alias.id = node.id;
-        alias.parent = node.parent;
-        alias.start = node.start;
-        alias.length = node.length;
-        if (node.returnTypeAnnotation) {
-            alias.returnTypeAnnotation = { ...node.returnTypeAnnotation };
-            alias.returnTypeAnnotation.parent = alias;
-        }
-        if (node.typeParameters) {
-            alias.typeParameters = { ...node.typeParameters };
-            alias.typeParameters.parent = alias;
-        }
-        node.decorators.forEach((n) => {
-            const decorator = { ...n };
-            decorator.parent = alias;
-            alias.decorators.push(decorator);
-        });
-        node.parameters.forEach((n) => {
-            const param = CParameterNode.alias(n);
-            param.parent = alias;
-            alias.parameters.push(param);
-        });
-        node.alias = alias;
+    export function alias(node: CFunctionNode): FunctionNode {
+        const alias: any = Object.assign({}, node, { nodeType: ParseNodeType.Function });
         return alias;
+    }
+
+    export function mergeAlias(node: CFunctionNode, alias: FunctionNode) {
+        Object.assign(node, alias, { nodeType: ParseNodeType.CFunction });
     }
 }
 export interface CDefineNode extends ParseNodeBase {

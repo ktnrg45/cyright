@@ -4259,75 +4259,29 @@ export class Binder extends ParseTreeWalker {
     override visitCFunction(node: CFunctionNode): boolean {
         const alias = CFunctionNode.alias(node);
         const result = this.visitFunction(alias);
-
-        // copy the NodeInfo from alias
-        const decl = AnalyzerNodeInfo.getDeclaration(alias);
-        if (decl) {
-            AnalyzerNodeInfo.setDeclaration(node, decl);
-        }
-        const scope = AnalyzerNodeInfo.getScope(alias);
-        if (scope) {
-            AnalyzerNodeInfo.setScope(node, scope);
-        }
-        const after = AnalyzerNodeInfo.getAfterFlowNode(alias);
-        if (after) {
-            AnalyzerNodeInfo.setAfterFlowNode(node, after);
-        }
-        const exprs = AnalyzerNodeInfo.getCodeFlowExpressions(alias);
-        if (exprs) {
-            AnalyzerNodeInfo.setCodeFlowExpressions(node, exprs);
-        }
-        const complexity = AnalyzerNodeInfo.getCodeFlowComplexity(alias);
-        if (complexity) {
-            AnalyzerNodeInfo.setCodeFlowComplexity(node, complexity);
-        }
+        CFunctionNode.mergeAlias(node, alias);
         return result;
     }
 
     override visitCParameter(node: CParameterNode): boolean {
-        if (node.alias?.name && node.name) {
-            const decl = AnalyzerNodeInfo.getDeclaration(node.alias.name);
-            if (decl) {
-                AnalyzerNodeInfo.setDeclaration(node.name, decl);
-            }
-            const flow = AnalyzerNodeInfo.getFlowNode(node.alias.name);
-            if (flow) {
-                AnalyzerNodeInfo.setFlowNode(node.name, flow);
-            }
-        }
-        return true;
+        const alias = CParameterNode.alias(node);
+        const result = this.visitParameter(alias);
+        CParameterNode.mergeAlias(node, alias);
+        return result;
     }
 
     override visitCStruct(node: CStructNode): boolean {
         const alias = CStructNode.alias(node);
         this.visitClass(alias);
-
-        // copy the NodeInfo from alias
-        const decl = AnalyzerNodeInfo.getDeclaration(alias);
-        if (decl && decl.type === DeclarationType.Class) {
-            AnalyzerNodeInfo.setDeclaration(node, decl);
-            decl.structType = node.structType;
-        }
-        const scope = AnalyzerNodeInfo.getScope(alias);
-        if (scope) {
-            for (const key of ['__doc__', '__module__']) {
-                // Remove dunder methods
-                scope.symbolTable.delete(key);
-            }
-            AnalyzerNodeInfo.setScope(node, scope);
-        }
-        const flowNode = AnalyzerNodeInfo.getFlowNode(alias.name);
-        if (flowNode) {
-            AnalyzerNodeInfo.setFlowNode(node.name, flowNode);
-        }
-        // ! HACK Re-evaluate the suite now that scope and flow are set
+        CStructNode.mergeAlias(node, alias);
+        // ! Re-evaluate the suite now that scope and flow are set
+        // Not sure why this is needed but fields do not seem to bind properly
+        // if this is not done
         this.walk(node.suite);
         return false;
     }
 
     override visitCEnum(node: CEnumNode): boolean {
-        this.walkMultiple(node.decorators);
-
         // Bind fields to current scope
         // Fields are accessible by name outside of the enum scope
         if (!node.cpdef) {
@@ -4339,61 +4293,9 @@ export class Binder extends ParseTreeWalker {
         }
 
         if (!node.anonymous) {
-            // Bind like a class
             const alias = CEnumNode.alias(node);
-            const classDeclaration: ClassDeclaration = {
-                type: DeclarationType.Class,
-                node: alias,
-                path: this._fileInfo.filePath,
-                range: convertOffsetsToRange(alias.name.start, TextRange.getEnd(alias.name), this._fileInfo.lines),
-                moduleName: this._fileInfo.moduleName,
-                isInExceptSuite: this._isInExceptSuite,
-                structType: node.structType,
-            };
-
-            const symbol = this._bindNameToScope(this._currentScope, alias.name);
-            if (symbol) {
-                symbol.addDeclaration(classDeclaration);
-            }
-
-            // Stash the declaration in the parse alias for later access.
-            AnalyzerNodeInfo.setDeclaration(alias, classDeclaration);
-            AnalyzerNodeInfo.setDeclaration(node, classDeclaration);
-
-            if (alias.typeParameters) {
-                this.walk(alias.typeParameters);
-            }
-
-            this.walkMultiple(alias.arguments);
-
-            this._createNewScope(ScopeType.Class, this._getNonClassParentScope(), () => {
-                AnalyzerNodeInfo.setScope(alias, this._currentScope);
-                AnalyzerNodeInfo.setScope(node, this._currentScope);
-
-                this._addImplicitSymbolToCurrentScope('__doc__', alias, 'str | None');
-                this._addImplicitSymbolToCurrentScope('__module__', alias, 'str');
-
-                this._dunderSlotsEntries = undefined;
-                if (!this._moduleSymbolOnly) {
-                    // Analyze the suite.
-                    this.walk(alias.suite);
-                }
-
-                if (this._dunderSlotsEntries) {
-                    this._addSlotsToCurrentScope(this._dunderSlotsEntries);
-                }
-                this._dunderSlotsEntries = undefined;
-            });
-
-            this._createAssignmentTargetFlowNodes(alias.name, /* walkTargets */ false, /* unbound */ false);
-            const flow = AnalyzerNodeInfo.getFlowNode(alias.name);
-            if (flow) {
-                AnalyzerNodeInfo.setFlowNode(node.name, flow);
-            }
-
-            if (alias.typeParameters) {
-                this._removeActiveTypeParameters(alias.typeParameters);
-            }
+            this.visitClass(alias);
+            CEnumNode.mergeAlias(node, alias);
         }
 
         return false;
