@@ -5292,6 +5292,13 @@ export class Parser {
     // ctypedef type mytype
     private _parseCTypeDef() {
         const typeDefToken = this._getKeywordToken(KeywordType.Ctypedef);
+        const keyword = this._peekKeywordType();
+        switch (keyword) {
+            case KeywordType.Struct:
+                return this._parseCStruct();
+            case KeywordType.Enum:
+                return this._parseEnum(/*cpdef*/ false);
+        }
         let node = this._parseCType();
         if (node.nodeType === ParseNodeType.CType) {
             const nameOrError = this._parseCVarName(node, /*allowReference*/ false);
@@ -5352,13 +5359,12 @@ export class Parser {
                 argList.push(assign);
             }
 
-            if (!this._consumeTokenIfType(TokenType.Comma)) {
-                break;
-            }
+            // Enum fields can be separated by commas or new lines
+            trailingComma = this._consumeTokenIfType(TokenType.Comma);
+
             if (indented) {
                 this._consumeTokenIfType(TokenType.NewLine);
             }
-            trailingComma = true;
         }
 
         return { args: argList, trailingComma };

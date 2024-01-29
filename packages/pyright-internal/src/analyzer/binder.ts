@@ -4274,6 +4274,10 @@ export class Binder extends ParseTreeWalker {
         const alias = CStructNode.alias(node);
         this.visitClass(alias);
         CStructNode.mergeAlias(node, alias);
+        const decl = AnalyzerNodeInfo.getDeclaration(node);
+        if (decl && decl.type === DeclarationType.Class) {
+            decl.structType = node.structType;
+        }
         // ! Re-evaluate the suite now that scope and flow are set
         // Not sure why this is needed but fields do not seem to bind properly
         // if this is not done
@@ -4296,6 +4300,10 @@ export class Binder extends ParseTreeWalker {
             const alias = CEnumNode.alias(node);
             this.visitClass(alias);
             CEnumNode.mergeAlias(node, alias);
+            const decl = AnalyzerNodeInfo.getDeclaration(node);
+            if (decl && decl.type === DeclarationType.Class) {
+                decl.structType = node.structType;
+            }
         }
 
         return false;
