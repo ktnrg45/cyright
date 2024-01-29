@@ -761,6 +761,11 @@ export class CompletionProvider {
             }
         }
 
+        // ! Cython completions
+        if (curNode.parent.nodeType === ParseNodeType.CParameter && curNode === curNode.parent.name) {
+            return undefined;
+        }
+
         return false;
     }
 

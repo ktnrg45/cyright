@@ -6484,6 +6484,19 @@ export class Parser {
         functionNode.parameters = paramList;
         paramList.forEach((param) => {
             param.parent = functionNode;
+            if (!isForwardDecl && param.isNameAmbiguous && param.typeAnnotation) {
+                // If this is not a forward declaration and name is ambiguous
+                // assume that the annotation was the name
+                const annotation = param.typeAnnotation;
+                if (
+                    annotation.nodeType === ParseNodeType.CType &&
+                    annotation.expression.nodeType === ParseNodeType.Name
+                ) {
+                    param.name = annotation.expression;
+                    param.name.parent = param;
+                    param.typeAnnotation = undefined;
+                }
+            }
         });
 
         if (decorators) {
