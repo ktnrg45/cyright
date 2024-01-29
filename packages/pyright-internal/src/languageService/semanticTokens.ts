@@ -322,7 +322,13 @@ class SemanticTokensWalker extends ParseTreeWalker {
     }
 
     override visitCParameter(node: CParameterNode): boolean {
-        //this.walkMultiple([node.typeAnnotation, node.name]);
+        if (node.typeAnnotation && node.typeAnnotation.nodeType === ParseNodeType.CFunctionDecl) {
+            const annotation = node.typeAnnotation;
+            this.walkMultiple([annotation.returnTypeAnnotation]);
+            this.pushRange(annotation.name, LegendType.Parameter);
+            this.walkMultiple(annotation.parameters);
+            return false;
+        }
         this.walkMultiple([node.typeAnnotation]);
         if (node.name) {
             this.pushRange(node.name, LegendType.Parameter);

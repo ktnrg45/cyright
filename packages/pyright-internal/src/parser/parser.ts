@@ -6122,7 +6122,7 @@ export class Parser {
     }
 
     // parse from ptr or ref and name only; `**name`
-    private _parseCVarName(typeNode: CTypeNode, allowReference = false) {
+    private _parseCVarName(typeNode: CTypeNode, allowReference = false, skipPointersAndRefs = false) {
         const operators: OperatorToken[] = [];
         const errorNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration);
         const validTypes = [TokenType.Identifier, TokenType.Operator, TokenType.Keyword];
@@ -6130,14 +6130,16 @@ export class Parser {
         let name: NameNode | undefined = undefined;
 
         while (validTypes.includes(this._peekTokenType()) && !name) {
-            const opType = this._peekOperatorType();
-            if (opType) {
-                if (ptrRefTypes.includes(opType)) {
-                    operators.push(...this._parsePointersOrRef(allowReference));
-                    continue;
-                } else {
-                    this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
-                    return errorNode;
+            if (!skipPointersAndRefs) {
+                const opType = this._peekOperatorType();
+                if (opType) {
+                    if (ptrRefTypes.includes(opType)) {
+                        operators.push(...this._parsePointersOrRef(allowReference));
+                        continue;
+                    } else {
+                        this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
+                        return errorNode;
+                    }
                 }
             }
             const token = this._getNextToken();
@@ -6227,7 +6229,6 @@ export class Parser {
     private _parseCParameter(onlyAnnotation = false, index = 0) {
         const startToken = this._peekToken();
         const typeNode = this._parseCType();
-        let name: NameNode | undefined = undefined;
         const operators: OperatorToken[] = this._parsePointersOrRef(/*allowReference*/ true);
 
         let isNameAmbiguous = true;
@@ -6251,20 +6252,31 @@ export class Parser {
         //     return param;
         // }
 
-        if (!name) {
-            const iden = this._getTokenIfIdentifier();
-            if (iden) {
-                name = NameNode.create(iden);
-                param.name = name;
-                param.name.parent = param;
-                extendRange(param, param.name);
-                isNameAmbiguous = false;
+        if (!param.name && typeNode.nodeType !== ParseNodeType.Error) {
+            if (this._peekIdentifier() || this._peekTokenType() === TokenType.OpenParenthesis) {
+                const maybeName = this._parseCVarName(typeNode, false, /*skipPointersAndRefs*/ true);
+                if (maybeName.nodeType === ParseNodeType.Name) {
+                    param.name = maybeName;
+                    param.name.parent = param;
+                    isNameAmbiguous = false;
+                    extendRange(param, param.name);
+                } else if (maybeName.nodeType === ParseNodeType.CFunctionDecl) {
+                    param.name = { ...maybeName.name };
+                    // TODO: Invalidate name
+                    param.name.start = 0;
+                    param.name.length = 0;
+                    param.typeAnnotation = maybeName;
+                    param.name.parent = param;
+                    param.typeAnnotation.parent = param;
+                    isNameAmbiguous = false;
+                    extendRange(param, maybeName);
+                }
             }
         }
 
         const possibleAssign = this._peekToken();
         if (this._consumeTokenIfOperator(OperatorType.Assign)) {
-            if (!isNameAmbiguous && !name) {
+            if (!isNameAmbiguous && !param.name) {
                 this._addError(Localizer.Diagnostic.expectedParamName(), possibleAssign);
             }
             const defaultToken = this._peekToken();
