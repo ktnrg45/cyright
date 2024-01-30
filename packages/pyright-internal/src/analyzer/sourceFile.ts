@@ -13,6 +13,7 @@ import {
     DocumentHighlight,
     DocumentSymbol,
     MarkupKind,
+    SemanticTokens,
 } from 'vscode-languageserver';
 import { TextDocument, TextDocumentContentChangeEvent } from 'vscode-languageserver-textdocument';
 import { isMainThread } from 'worker_threads';
@@ -43,6 +44,7 @@ import { DocumentSymbolProvider, IndexOptions, IndexResults } from '../languageS
 import { HoverProvider, HoverResults } from '../languageService/hoverProvider';
 import { performQuickAction } from '../languageService/quickActions';
 import { ReferenceCallback, ReferencesProvider, ReferencesResult } from '../languageService/referencesProvider';
+import { CythonSemanticTokenProvider } from '../languageService/semanticTokens';
 import { SignatureHelpProvider, SignatureHelpResults } from '../languageService/signatureHelpProvider';
 import { Localizer } from '../localization/localize';
 import { ModuleNode, NameNode } from '../parser/parseNodes';
@@ -1467,5 +1469,18 @@ export class SourceFile {
         }
 
         return filepath;
+    }
+
+    // ! Cython
+    provideSemanticTokensFull(
+        sourceMapper: SourceMapper,
+        evaluator: TypeEvaluator,
+        token: CancellationToken
+    ): SemanticTokens | undefined {
+        // If this file hasn't been bound, no semantic tokens are available.
+        if (this._isBindingNeeded || !this._parseResults) {
+            return undefined;
+        }
+        return CythonSemanticTokenProvider.provideSemanticTokensFull(this._parseResults, evaluator, token);
     }
 }

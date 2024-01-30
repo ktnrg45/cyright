@@ -18,6 +18,7 @@ import {
     CompletionList,
     DocumentHighlight,
     MarkupKind,
+    SemanticTokens,
 } from 'vscode-languageserver-types';
 
 import { OperationCanceledException, throwIfCancellationRequested } from '../common/cancellationUtils';
@@ -2818,5 +2819,24 @@ export class Program {
 
         this._sourceFileList.push(fileInfo);
         this._sourceFileMap.set(filePath, fileInfo);
+    }
+
+    // ! Cython
+    provideSemanticTokensFull(filePath: string, token: CancellationToken): SemanticTokens | undefined {
+        return this._runEvaluatorWithCancellationToken(token, () => {
+            const sourceFileInfo = this._getSourceFileInfoFromPath(filePath);
+            if (!sourceFileInfo) {
+                return undefined;
+            }
+
+            this._bindFile(sourceFileInfo);
+
+            const execEnv = this._configOptions.findExecEnvironment(filePath);
+            return sourceFileInfo.sourceFile.provideSemanticTokensFull(
+                this._createSourceMapper(execEnv),
+                this._evaluator!,
+                token
+            );
+        });
     }
 }

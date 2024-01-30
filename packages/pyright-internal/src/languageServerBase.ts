@@ -60,6 +60,7 @@ import {
     ReferenceParams,
     RemoteWindow,
     RenameParams,
+    SemanticTokensParams,
     SignatureHelp,
     SignatureHelpParams,
     SignatureHelpTriggerKind,
@@ -522,6 +523,11 @@ export abstract class LanguageServerBase implements LanguageServerInterface {
 
         this._connection.onExecuteCommand(async (params, token, reporter) =>
             this.onExecuteCommand(params, token, reporter)
+        );
+
+        // ! Cython
+        this._connection.onRequest('textDocument/semanticTokens/full', async (params, token) =>
+            this.onSemanticTokensFull(params, token)
         );
     }
 
@@ -1616,4 +1622,11 @@ export abstract class LanguageServerBase implements LanguageServerInterface {
     }
 
     protected abstract createProgressReporter(): ProgressReporter;
+
+    // ! Cython
+    protected async onSemanticTokensFull(params: SemanticTokensParams, token: CancellationToken) {
+        const filePath = this._uriParser.decodeTextDocumentUri(params.textDocument.uri);
+        const workspace = await this.getWorkspaceForFile(filePath);
+        return workspace.serviceInstance.provideSemanticTokensFull(filePath, token);
+    }
 }

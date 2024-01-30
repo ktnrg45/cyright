@@ -1721,4 +1721,9 @@ export class AnalyzerService {
 
         return false;
     }
+
+    // ! Cython
+    provideSemanticTokensFull(filePath: string, token: CancellationToken) {
+        return this._program.provideSemanticTokensFull(filePath, token);
+    }
 }

@@ -1,17 +1,12 @@
 import { CancellationToken, SemanticTokens, SemanticTokensBuilder } from 'vscode-languageserver';
 
-import { AnalyzerFileInfo } from '../analyzer/analyzerFileInfo';
-import { getFileInfo } from '../analyzer/analyzerNodeInfo';
 import { DeclarationType } from '../analyzer/declaration';
 import { ParseTreeWalker } from '../analyzer/parseTreeWalker';
-import { AnalyzerService } from '../analyzer/service';
 import { TypeEvaluator } from '../analyzer/typeEvaluatorTypes';
 import { isClass, isFunction, isModule, TypeCategory } from '../analyzer/types';
 import { throwIfCancellationRequested } from '../common/cancellationUtils';
-import { ConsoleInterface } from '../common/console';
 import { convertOffsetToPosition } from '../common/positionUtils';
 import { TextRange } from '../common/textRange';
-import { WorkspaceServiceInstance } from '../languageServerBase';
 import {
     CEnumNode,
     CFunctionDeclNode,
@@ -29,7 +24,6 @@ import {
     TypeAnnotationNode,
 } from '../parser/parseNodes';
 import { ParseResults } from '../parser/parser';
-import { PyrightServer } from '../server';
 
 enum LegendType {
     Class = 'class',
@@ -99,69 +93,45 @@ function encodeModifiers(tokenModifiers?: LegendModType) {
 // const _regexCppOperator = /^operator[+\-*/=!><]|(\+\+|--|>=|<=|==|!=|\[\]|bool)$/;
 
 export class CythonSemanticTokenProvider {
-    private _ls: PyrightServer;
-
-    constructor(ls: PyrightServer) {
-        this._ls = ls;
-    }
-
-    async provideSemanticTokensFull(filePath: string, workspace: WorkspaceServiceInstance, token: CancellationToken) {
-        const results = workspace.serviceInstance.getParseResult(filePath);
-        let builder = new SemanticTokensBuilder();
-        if (results) {
-            const fileInfo: AnalyzerFileInfo = getFileInfo(results.parseTree);
-            builder = new CythonSemanticTokensBuilder(
-                workspace.serviceInstance,
-                this._ls.console,
-                fileInfo,
-                results,
-                token
-            );
-            return builder.build();
-        }
+    static provideSemanticTokensFull(parseResults: ParseResults, evaluator: TypeEvaluator, token: CancellationToken) {
+        throwIfCancellationRequested(token);
+        const builder = new CythonSemanticTokensBuilder(parseResults, evaluator, token);
         return builder.build();
     }
 }
 
 class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
-    private _service: AnalyzerService;
-    private _console: ConsoleInterface;
-    private _fileInfo: AnalyzerFileInfo;
-    private _results: ParseResults | undefined;
-    private _cancellationToken: CancellationToken;
-    private _finished: boolean;
+    private _parseResults: ParseResults;
+    private _evaluator: TypeEvaluator;
+    private _token: CancellationToken;
 
-    constructor(
-        service: AnalyzerService,
-        console: ConsoleInterface,
-        fileInfo: AnalyzerFileInfo,
-        results: ParseResults,
-        cancellationToken: CancellationToken
-    ) {
+    constructor(parseResults: ParseResults, evaluator: TypeEvaluator, token: CancellationToken) {
         super();
-        this._service = service;
-        this._console = console;
-        this._fileInfo = fileInfo;
-        this._results = results;
-        this._cancellationToken = cancellationToken;
-        this._finished = false;
+        this._parseResults = parseResults;
+        this._evaluator = evaluator;
+        this._token = token;
     }
 
     override build(): SemanticTokens {
-        const evaluator = this._service.getEvaluator();
-        if (this._results?.parseTree && evaluator) {
-            const parseTreeWalker = new SemanticTokensWalker(this, evaluator, this._cancellationToken);
-            try {
-                parseTreeWalker.walk(this._results.parseTree);
-            } catch (error) {
-                this._console.error(`SemanticTokens cancelled for file: ${this._fileInfo.filePath}`);
-            }
-        }
+        const parseTreeWalker = new SemanticTokensWalker(this);
+        parseTreeWalker.walk(this._parseResults.parseTree);
         return super.build();
     }
 
+    getEvaluator() {
+        return this._evaluator;
+    }
+
+    getParseResults() {
+        return this._parseResults;
+    }
+
+    getCancellationToken() {
+        return this._token;
+    }
+
     getPosition(range: TextRange) {
-        return convertOffsetToPosition(range.start, this._fileInfo.lines);
+        return convertOffsetToPosition(range.start, this._parseResults.tokenizerOutput.lines);
     }
 
     pushRange(range: TextRange, legendType: LegendTypeType, legendModifiers?: LegendModType) {
@@ -172,14 +142,18 @@ class CythonSemanticTokensBuilder extends SemanticTokensBuilder {
 
 class SemanticTokensWalker extends ParseTreeWalker {
     private _builder: CythonSemanticTokensBuilder;
-    private _evaluator: TypeEvaluator;
-    private _cancellationToken: CancellationToken;
 
-    constructor(builder: CythonSemanticTokensBuilder, evaluator: TypeEvaluator, cancellationToken: CancellationToken) {
+    constructor(builder: CythonSemanticTokensBuilder) {
         super();
         this._builder = builder;
-        this._evaluator = evaluator;
-        this._cancellationToken = cancellationToken;
+    }
+
+    private get _evaluator() {
+        return this._builder.getEvaluator();
+    }
+
+    private get _cancellationToken() {
+        return this._builder.getCancellationToken();
     }
 
     getTokenTypeForName(node: NameNode) {

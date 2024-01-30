@@ -12,7 +12,6 @@ import {
     Command,
     Connection,
     ExecuteCommandParams,
-    SemanticTokensParams,
     WorkDoneProgressServerReporter,
 } from 'vscode-languageserver';
 
@@ -36,14 +35,12 @@ import { ProgressReporter } from './common/progressReporter';
 import { createFromRealFileSystem, WorkspaceFileWatcherProvider } from './common/realFileSystem';
 import { LanguageServerBase, ServerSettings, WorkspaceServiceInstance } from './languageServerBase';
 import { CodeActionProvider } from './languageService/codeActionProvider';
-import { CythonSemanticTokenProvider } from './languageService/semanticTokens';
 import { WorkspaceMap } from './workspaceMap';
 
 const maxAnalysisTimeInForeground = { openFilesTimeInMs: 50, noOpenFilesTimeInMs: 200 };
 
 export class PyrightServer extends LanguageServerBase {
     private _controller: CommandController;
-    private _semanticTokensProvider: CythonSemanticTokenProvider;
 
     constructor(connection: Connection) {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -77,9 +74,6 @@ export class PyrightServer extends LanguageServerBase {
         );
 
         this._controller = new CommandController(this);
-
-        // ! Cython
-        this._semanticTokensProvider = new CythonSemanticTokenProvider(this);
     }
 
     async getSettings(workspace: WorkspaceServiceInstance): Promise<ServerSettings> {
@@ -326,20 +320,5 @@ export class PyrightServer extends LanguageServerBase {
                 }
             },
         };
-    }
-
-    // ! Cython
-
-    override setupConnection(supportedCommands: string[], supportedCodeActions: string[]): void {
-        super.setupConnection(supportedCommands, supportedCodeActions);
-        this._connection.onRequest('textDocument/semanticTokens/full', async (params, token) =>
-            this.provideSemanticTokens(params, token)
-        );
-    }
-
-    protected async provideSemanticTokens(params: SemanticTokensParams, token: CancellationToken) {
-        const filePath = this._uriParser.decodeTextDocumentUri(params.textDocument.uri);
-        const workspace = await this.getWorkspaceForFile(filePath);
-        return await this._semanticTokensProvider.provideSemanticTokensFull(filePath, workspace, token);
     }
 }
