@@ -5636,7 +5636,7 @@ export class Parser {
             result.node = nameOrError;
             return result;
         } else if (nameOrError.nodeType !== ParseNodeType.Error) {
-            leftExpr = TypeAnnotationNode.create(nameOrError, typeNode.expression);
+            leftExpr = TypeAnnotationNode.create(nameOrError, typeNode);
             nameOrError.typeNode = typeNode;
             result.pointers = typeNode.operators.length > 0;
         } else {
@@ -6051,6 +6051,7 @@ export class Parser {
             const trailNode = CTypeTrailNode.create(startOfTrailerToken, trailNodes, trailType, !error, closingToken);
             node.typeTrailNode = trailNode;
             trailNode.parent = node;
+            extendRange(node, trailNode);
         }
     }
 
