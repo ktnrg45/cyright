@@ -6229,7 +6229,7 @@ export class Parser {
     // Parse c parameter. One of name or annotation can be undefined
     private _parseCParameter(onlyAnnotation = false, index = 0) {
         const startToken = this._peekToken();
-        const typeNode = this._parseCType();
+        const typeNode = this._parseCType(/*allowInline*/ false, /*allowEllipsis*/ true);
         const operators: OperatorToken[] = this._parsePointersOrRef(/*allowReference*/ true);
 
         let isNameAmbiguous = true;
@@ -6248,10 +6248,14 @@ export class Parser {
         if (onlyAnnotation) {
             param.isNameAmbiguous = false;
             return param;
+        } else if (
+            typeNode.nodeType === ParseNodeType.CType &&
+            typeNode.expression.nodeType === ParseNodeType.Ellipsis
+        ) {
+            param.category = ParameterCategory.VarArgList;
+            param.isNameAmbiguous = false;
+            return param;
         }
-        // if (typeNode.nodeType === ParseNodeType.Error) {
-        //     return param;
-        // }
 
         if (!param.name && typeNode.nodeType !== ParseNodeType.Error) {
             if (this._peekIdentifier() || this._peekTokenType() === TokenType.OpenParenthesis) {
@@ -6289,6 +6293,7 @@ export class Parser {
             ) {
                 // ! Note these are not allowed in function implementations
                 defaultValue = EllipsisNode.create(this._getNextToken());
+                param.category = ParameterCategory.VarArgList;
             } else {
                 defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
             }
@@ -6440,7 +6445,10 @@ export class Parser {
         if (paramList.length > 0) {
             const lastParam = paramList[paramList.length - 1];
             if (lastParam.category === ParameterCategory.VarArgList && !lastParam.name) {
-                this._addError(Localizer.Diagnostic.expectedNamedParameter(), lastParam);
+                const annotation = lastParam.typeAnnotation;
+                if (!(annotation?.nodeType === ParseNodeType.CType && annotation.expression.nodeType === ParseNodeType.Ellipsis)) {
+                    this._addError(Localizer.Diagnostic.expectedNamedParameter(), lastParam);
+                }
             }
         }
 
@@ -6665,7 +6673,7 @@ export class Parser {
         return node;
     }
 
-    private _parseCType(allowInline = false) {
+    private _parseCType(allowInline = false, allowEllipsis = false) {
         const identifiers: IdentifierToken[] = [];
         const modifiers: KeywordToken[] = [];
         const numModifiers: IdentifierToken[] = [];
@@ -6676,6 +6684,9 @@ export class Parser {
 
         if (this._peekTokenType() === TokenType.OpenParenthesis) {
             return this._parseCTuple();
+        }
+        if (allowEllipsis && this._peekTokenType() === TokenType.Ellipsis) {
+            return CTypeNode.create(EllipsisNode.create(this._getNextToken()), modifiers, numModifiers, []);
         }
         while (validTypes.includes(this._peekTokenType())) {
             const token = this._getNextToken();

@@ -7,7 +7,7 @@
  * Converts a type into a string representation.
  */
 
-import { ParameterCategory } from '../parser/parseNodes';
+import { ParameterCategory, ParseNodeType } from '../parser/parseNodes';
 import * as ParseTreeUtils from './parseTreeUtils';
 import {
     ClassType,
@@ -786,7 +786,15 @@ export function printFunctionParts(
 
         let paramString = '';
         if (param.category === ParameterCategory.VarArgList) {
-            if (!param.name || !param.isNameSynthesized) {
+            // ! Cython
+            const annotation = param.typeAnnotation;
+            if (
+                annotation?.nodeType === ParseNodeType.CType &&
+                annotation.expression.nodeType === ParseNodeType.Ellipsis
+            ) {
+                // VA_ARGS
+                paramString += '...';
+            } else if (!param.name || !param.isNameSynthesized) {
                 paramString += '*';
             }
         } else if (param.category === ParameterCategory.VarArgDictionary) {
