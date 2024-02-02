@@ -117,7 +117,7 @@ export const enum ParseNodeType {
     CTypeTrail,
     CDefSuite,
     CExtern,
-    CFunctionDecl,
+    CCallback,
     CParameter,
     CAddressOf,
     CCast,
@@ -750,7 +750,7 @@ export type ExpressionNode =
     // ! Cython
     | CTypeNode
     | CTupleTypeNode
-    | CFunctionDeclNode
+    | CCallbackNode
     | CAddressOfNode
     | CCastNode
     | CSizeOfNode;
@@ -2552,12 +2552,12 @@ export interface CTypeDefNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CTypeDef;
     typeDefToken: KeywordToken;
     name: NameNode;
-    expression: CTypeNode | CFunctionDeclNode;
+    expression: CTypeNode | CCallbackNode;
     typeParameters?: TypeParameterListNode;
 }
 
 export namespace CTypeDefNode {
-    export function create(typeDefToken: KeywordToken, expression: CTypeNode | CFunctionDeclNode, name: NameNode) {
+    export function create(typeDefToken: KeywordToken, expression: CTypeNode | CCallbackNode, name: NameNode) {
         const node: CTypeDefNode = {
             start: typeDefToken.start,
             length: typeDefToken.length,
@@ -2745,8 +2745,8 @@ export namespace CExternNode {
 }
 
 // Function declaration without implementation / prototype
-export interface CFunctionDeclNode extends ParseNodeBase {
-    readonly nodeType: ParseNodeType.CFunctionDecl;
+export interface CCallbackNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CCallback;
     decorators: DecoratorNode[];
     name: NameNode;
     typeParameters?: TypeParameterListNode;
@@ -2755,12 +2755,12 @@ export interface CFunctionDeclNode extends ParseNodeBase {
     functionAnnotationComment?: FunctionAnnotationNode | undefined;
 }
 
-export namespace CFunctionDeclNode {
+export namespace CCallbackNode {
     export function create(startToken: Token, name: NameNode, typeParameters?: TypeParameterListNode) {
-        const node: CFunctionDeclNode = {
+        const node: CCallbackNode = {
             start: startToken.start,
             length: startToken.length,
-            nodeType: ParseNodeType.CFunctionDecl,
+            nodeType: ParseNodeType.CCallback,
             id: _nextNodeId++,
             decorators: [],
             name,
@@ -2777,7 +2777,7 @@ export namespace CFunctionDeclNode {
         return node;
     }
 
-    export function parameters(node: CFunctionDeclNode) {
+    export function parameters(node: CCallbackNode) {
         const list = ListNode.create(TextRange.create(0, 0));
         node.parameters.forEach((n) => {
             if (n.typeAnnotation) {
@@ -3218,7 +3218,7 @@ export type ParseNode =
     | CTupleTypeNode
     | CDefSuiteNode
     | CExternNode
-    | CFunctionDeclNode
+    | CCallbackNode
     | CParameterNode
     | CAddressOfNode
     | CCastNode
@@ -3245,7 +3245,7 @@ export type TypeParameterScopeNode =
     | TypeAliasNode
     // ! Cython
     | CTypeDefNode
-    | CFunctionDeclNode
+    | CCallbackNode
     | CEnumNode
     | CStructNode
     | CFunctionNode;

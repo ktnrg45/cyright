@@ -1944,8 +1944,8 @@ export function printParseNodeType(type: ParseNodeType) {
             return 'CExtern';
         case ParseNodeType.CTupleType:
             return 'CTupleType';
-        case ParseNodeType.CFunctionDecl:
-            return 'CFunctionDecl';
+        case ParseNodeType.CCallback:
+            return 'CCallback';
         case ParseNodeType.CParameter:
             return 'CParameter';
         case ParseNodeType.CAddressOf:

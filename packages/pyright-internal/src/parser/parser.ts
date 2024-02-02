@@ -38,12 +38,12 @@ import {
     CAddressOfNode,
     CallNode,
     CaseNode,
+    CCallbackNode,
     CCastNode,
     CDefineNode,
     CDefSuiteNode,
     CEnumNode,
     CExternNode,
-    CFunctionDeclNode,
     CFunctionNode,
     ClassNode,
     ConstantNode,
@@ -5067,8 +5067,8 @@ export class Parser {
         return this._tokenizerOutput!.tokens.getItemAt(this._tokenIndex + count);
     }
 
-    private _peekTokenType(count?: number): TokenType {
-        return this._peekToken(count).type;
+    private _peekTokenType(): TokenType {
+        return this._peekToken().type;
     }
 
     private _peekKeywordType(): KeywordType | undefined {
@@ -5305,7 +5305,7 @@ export class Parser {
             if (nameOrError.nodeType === ParseNodeType.Name) {
                 this._expectNewLine();
                 return CTypeDefNode.create(typeDefToken, node, nameOrError);
-            } else if (nameOrError.nodeType === ParseNodeType.CFunctionDecl) {
+            } else if (nameOrError.nodeType === ParseNodeType.CCallback) {
                 this._expectNewLine();
                 return CTypeDefNode.create(typeDefToken, nameOrError, { ...nameOrError.name });
             }
@@ -5364,6 +5364,12 @@ export class Parser {
 
             if (indented) {
                 this._consumeTokenIfType(TokenType.NewLine);
+            } else {
+                if (!trailingComma && this._peekTokenType() !== TokenType.NewLine) {
+                    this._addError(Localizer.Diagnostic.expectedNewlineOrSemicolon(), this._peekToken());
+                    this._consumeTokensUntilType([TokenType.NewLine]);
+                    break;
+                }
             }
         }
 
@@ -5632,7 +5638,7 @@ export class Parser {
         const nameOrError = this._parseCVarName(typeNode, /*allowReference*/ false);
         const result: CDeclResult = { node: leftExpr, pointers: false };
 
-        if (nameOrError.nodeType === ParseNodeType.CFunctionDecl) {
+        if (nameOrError.nodeType === ParseNodeType.CCallback) {
             result.node = nameOrError;
             return result;
         } else if (nameOrError.nodeType !== ParseNodeType.Error) {
@@ -5688,7 +5694,7 @@ export class Parser {
         const operators = !cpdef ? this._parsePointersOrRef(/*allowReference*/ true) : [];
         let name: NameNode | undefined = undefined;
         let returnType: CTypeNode | undefined = typeNode;
-        if (this._peekIdentifier() && this._peekTokenType(1) === TokenType.OpenParenthesis) {
+        if (this._peekIdentifier() && this._peekToken(1).type === TokenType.OpenParenthesis) {
             // Return type annotation present and function name and open paren present
             const iden = this._getTokenIfIdentifier();
             if (iden) {
@@ -5747,7 +5753,7 @@ export class Parser {
             }
 
             let result = this._parseSharedDecl(typeNode);
-            if (result.node.nodeType === ParseNodeType.CFunctionDecl) {
+            if (result.node.nodeType === ParseNodeType.CCallback) {
                 const node = TypeAnnotationNode.create(result.node.name, result.node);
                 const statements = StatementListNode.create(startToken);
                 this._pushStatements(statements, node);
@@ -6265,7 +6271,7 @@ export class Parser {
                     param.name.parent = param;
                     isNameAmbiguous = false;
                     extendRange(param, param.name);
-                } else if (maybeName.nodeType === ParseNodeType.CFunctionDecl) {
+                } else if (maybeName.nodeType === ParseNodeType.CCallback) {
                     param.name = { ...maybeName.name };
                     // TODO: Invalidate name
                     param.name.start = 0;
@@ -6446,7 +6452,12 @@ export class Parser {
             const lastParam = paramList[paramList.length - 1];
             if (lastParam.category === ParameterCategory.VarArgList && !lastParam.name) {
                 const annotation = lastParam.typeAnnotation;
-                if (!(annotation?.nodeType === ParseNodeType.CType && annotation.expression.nodeType === ParseNodeType.Ellipsis)) {
+                if (
+                    !(
+                        annotation?.nodeType === ParseNodeType.CType &&
+                        annotation.expression.nodeType === ParseNodeType.Ellipsis
+                    )
+                ) {
                     this._addError(Localizer.Diagnostic.expectedNamedParameter(), lastParam);
                 }
             }
@@ -6498,6 +6509,7 @@ export class Parser {
             // This is a forward declaration
             suite = SuiteNode.create(this._peekToken());
             isForwardDecl = true;
+            this._expectNewLine();
         }
 
         const functionNode = CFunctionNode.create(openParenToken, name, suite, isForwardDecl);
@@ -6606,7 +6618,7 @@ export class Parser {
             );
         }
 
-        const node = CFunctionDeclNode.create(startToken, name);
+        const node = CCallbackNode.create(startToken, name);
         node.returnTypeAnnotation = returnType;
         returnType.parent = node;
         extendRange(node, returnType);
@@ -6615,6 +6627,7 @@ export class Parser {
             p.parent = node;
         });
         extendRange(node, closeToken);
+        this._expectNewLine();
         return node;
     }
 

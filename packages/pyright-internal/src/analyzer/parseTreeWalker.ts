@@ -19,12 +19,12 @@ import {
     CAddressOfNode,
     CallNode,
     CaseNode,
+    CCallbackNode,
     CCastNode,
     CDefineNode,
     CDefSuiteNode,
     CEnumNode,
     CExternNode,
-    CFunctionDeclNode,
     CFunctionNode,
     ClassNode,
     ConstantNode,
@@ -404,8 +404,8 @@ export class ParseTreeWalker {
                 return this.visitCExtern(node) ? [node.suite] : [];
             case ParseNodeType.CTupleType:
                 return this.visitCTupleType(node) ? node.expressions : [];
-            case ParseNodeType.CFunctionDecl:
-                return this.visitCFunctionDecl(node)
+            case ParseNodeType.CCallback:
+                return this.visitCCallback(node)
                     ? [
                           ...node.decorators,
                           node.returnTypeAnnotation,
@@ -795,7 +795,7 @@ export class ParseTreeWalker {
         return true;
     }
 
-    visitCFunctionDecl(node: CFunctionDeclNode) {
+    visitCCallback(node: CCallbackNode) {
         return true;
     }
 

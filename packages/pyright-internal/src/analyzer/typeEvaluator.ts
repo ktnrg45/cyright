@@ -36,8 +36,8 @@ import {
     CAddressOfNode,
     CallNode,
     CaseNode,
+    CCallbackNode,
     CCastNode,
-    CFunctionDeclNode,
     CFunctionNode,
     ClassNode,
     ConstantNode,
@@ -1154,7 +1154,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             // ! Cython
             case ParseNodeType.CType:
             case ParseNodeType.CTupleType:
-            case ParseNodeType.CFunctionDecl:
+            case ParseNodeType.CCallback:
             case ParseNodeType.CAddressOf:
             case ParseNodeType.CSizeOf:
             case ParseNodeType.CCast:
@@ -24114,8 +24114,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 case ParseNodeType.CTupleType:
                     typeResult = getTypeOfCTupleNode(node, flags, expectedType);
                     break;
-                case ParseNodeType.CFunctionDecl:
-                    typeResult = getTypeOfCFunctionDecl(node, flags, expectedType);
+                case ParseNodeType.CCallback:
+                    typeResult = getTypeOfCCallback(node, flags, expectedType);
                     break;
                 default:
                     break;
@@ -24208,13 +24208,13 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         return typeResult;
     }
 
-    function getTypeOfCFunctionDecl(node: CFunctionDeclNode, flags?: EvaluatorFlags, expectedType?: Type) {
+    function getTypeOfCCallback(node: CCallbackNode, flags?: EvaluatorFlags, expectedType?: Type) {
         const cachedType = readTypeCache(node, flags);
         if (cachedType) {
             return { type: cachedType };
         }
 
-        const parameters = CFunctionDeclNode.parameters(node);
+        const parameters = CCallbackNode.parameters(node);
         const paramType: TypeResultWithNode = {
             type: UnknownType.create(),
             node: parameters,

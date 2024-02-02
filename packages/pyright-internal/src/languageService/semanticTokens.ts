@@ -8,8 +8,8 @@ import { throwIfCancellationRequested } from '../common/cancellationUtils';
 import { convertOffsetToPosition } from '../common/positionUtils';
 import { TextRange } from '../common/textRange';
 import {
+    CCallbackNode,
     CEnumNode,
-    CFunctionDeclNode,
     CFunctionNode,
     CParameterNode,
     CStructNode,
@@ -265,7 +265,7 @@ class SemanticTokensWalker extends ParseTreeWalker {
     }
 
     override visitCTypeDef(node: CTypeDefNode): boolean {
-        if (node.expression.nodeType === ParseNodeType.CFunctionDecl) {
+        if (node.expression.nodeType === ParseNodeType.CCallback) {
             this.walk(node.expression);
         } else {
             this.walkMultiple([node.expression, node.name]);
@@ -273,7 +273,7 @@ class SemanticTokensWalker extends ParseTreeWalker {
         return false;
     }
 
-    override visitCFunctionDecl(node: CFunctionDeclNode): boolean {
+    override visitCCallback(node: CCallbackNode): boolean {
         this.walkMultiple([
             ...node.decorators,
             node.returnTypeAnnotation,
@@ -296,7 +296,7 @@ class SemanticTokensWalker extends ParseTreeWalker {
     }
 
     override visitCParameter(node: CParameterNode): boolean {
-        if (node.typeAnnotation && node.typeAnnotation.nodeType === ParseNodeType.CFunctionDecl) {
+        if (node.typeAnnotation && node.typeAnnotation.nodeType === ParseNodeType.CCallback) {
             const annotation = node.typeAnnotation;
             this.walkMultiple([annotation.returnTypeAnnotation]);
             this.pushRange(annotation.name, LegendType.Parameter);
