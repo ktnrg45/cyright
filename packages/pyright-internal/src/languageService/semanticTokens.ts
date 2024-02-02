@@ -19,6 +19,7 @@ import {
     FunctionNode,
     ModuleNameNode,
     NameNode,
+    ParameterNode,
     ParseNode,
     ParseNodeType,
     TypeAnnotationNode,
@@ -332,5 +333,13 @@ class SemanticTokensWalker extends ParseTreeWalker {
         this.walkMultiple([...node.decorators, node.returnTypeAnnotation, node.functionAnnotationComment]);
         this.walkMultiple([node.name, node.typeParameters, ...node.parameters, node.suite]);
         return false;
+    }
+
+    override visitParameter(node: ParameterNode): boolean {
+        if (node.isCythonLike) {
+            this.walkMultiple([node.typeAnnotation, node.name, node.defaultValue]);
+            return false;
+        }
+        return true;
     }
 }

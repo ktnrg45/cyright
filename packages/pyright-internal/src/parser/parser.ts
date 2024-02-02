@@ -2040,6 +2040,14 @@ export class Parser {
     }
 
     private _parseParameter(allowAnnotations: boolean): ParameterNode {
+        // ! Cython
+        if (allowAnnotations) {
+            // if allowAnnotations then this is likely a function def
+            const cParam = this._tryParseCLikeParameter();
+            if (cParam) {
+                return cParam;
+            }
+        }
         let starCount = 0;
         let slashCount = 0;
         const firstToken = this._peekToken();
@@ -6233,7 +6241,7 @@ export class Parser {
     }
 
     // Parse c parameter. One of name or annotation can be undefined
-    private _parseCParameter(onlyAnnotation = false, index = 0) {
+    private _parseCParameter(onlyAnnotation = false, index = 0, isDef = false) {
         const startToken = this._peekToken();
         const typeNode = this._parseCType(/*allowInline*/ false, /*allowEllipsis*/ true);
         const operators: OperatorToken[] = this._parsePointersOrRef(/*allowReference*/ true);
@@ -6331,8 +6339,92 @@ export class Parser {
 
         // name can be ambiguous if the entire param consists of a single identifier
         param.isNameAmbiguous = !param.defaultValue && isNameAmbiguous;
-
+        this._parseParameterNoneCheck(/*isDef*/ false);
         return param;
+    }
+
+    // Parse C like parameter in python function def
+    private _tryParseCLikeParameter() {
+        if (this._peekIdentifier() && this._peekToken(1).type === TokenType.Colon) {
+            // Python type annotation
+            return undefined;
+        }
+        const wasErrorsSuppressed = this._areErrorsSuppressed;
+        this._areErrorsSuppressed = true;
+        const index = this._tokenIndex;
+        let param: ParameterNode | undefined = ParameterNode.create(this._peekToken(), ParameterCategory.Simple);
+        const cType = this._parseCType();
+
+        if (cType.nodeType === ParseNodeType.CType) {
+            this._parseCTypeTrailer(cType);
+            const name = this._parseCVarName(cType, /*allowReference*/ false);
+            if (name.nodeType === ParseNodeType.Name) {
+                param.name = name;
+                param.typeAnnotation = cType;
+                param.isCythonLike = true;
+                name.parent = param;
+                cType.parent = param;
+                extendRange(param, name);
+                extendRange(param, cType);
+                if (
+                    cType.varModifiers.length > 0 ||
+                    cType.operators.length > 0 ||
+                    (cType.typeTrailNode && cType.varTrailNode)
+                ) {
+                    param = undefined;
+                }
+            } else {
+                param = undefined;
+            }
+        } else {
+            param = undefined;
+        }
+
+        this._areErrorsSuppressed = wasErrorsSuppressed;
+        if (!param) {
+            this._tokenIndex = index;
+            // Try to parse just the param name
+            const possibleId = this._getTokenIfIdentifier();
+            if (possibleId) {
+                param = ParameterNode.create(possibleId, ParameterCategory.Simple);
+                param.name = NameNode.create(possibleId);
+                param.name.parent = param;
+                extendRange(param, param.name);
+            }
+        }
+
+        if (param) {
+            this._parseParameterNoneCheck(/*isDef*/ true);
+        }
+        if (param && this._consumeTokenIfOperator(OperatorType.Assign)) {
+            param.defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
+            param.defaultValue.parent = param;
+            extendRange(param, param.defaultValue);
+        }
+        return param;
+    }
+
+    // Parse None check. return true if found
+    private _parseParameterNoneCheck(isDef: boolean) {
+        // TODO: Parse in condition: `param: type in []` ???
+        const possibleNot = this._peekToken();
+        const seenNot = this._peekKeywordType() === KeywordType.Not;
+        const possibleNone = this._peekToken(1);
+        const seenNone =
+            possibleNone.type === TokenType.Keyword && (possibleNone as KeywordToken).keywordType === KeywordType.None;
+        if (seenNot && seenNone) {
+            if (!isDef) {
+                const range = TextRange.create(
+                    possibleNot.start,
+                    possibleNone.start - possibleNot.start + possibleNone.length
+                );
+                this._addError(Localizer.DiagnosticCython.noneCheckNotAllowed(), range);
+            }
+            this._getNextToken();
+            this._getNextToken();
+            return true;
+        }
+        return false;
     }
 
     private _parseCVarArgsList(terminator: TokenType, allowAnnotations: boolean): CParameterNode[] {

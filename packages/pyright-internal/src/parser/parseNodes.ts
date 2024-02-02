@@ -488,6 +488,9 @@ export interface ParameterNode extends ParseNodeBase {
     typeAnnotation?: ExpressionNode | undefined;
     typeAnnotationComment?: ExpressionNode | undefined;
     defaultValue?: ExpressionNode | undefined;
+
+    // ! Cython
+    isCythonLike?: boolean;
 }
 
 export namespace ParameterNode {
