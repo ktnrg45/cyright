@@ -38,6 +38,8 @@ import {
     CAddressOfNode,
     CallNode,
     CaseNode,
+    CBlockTrailNode,
+    CBlockTrailType,
     CCallbackNode,
     CCastNode,
     CDefineNode,
@@ -6575,6 +6577,34 @@ export class Parser {
         return false;
     }
 
+    private _parseCBlockTrail(allowConst = false) {
+        const token = this._peekToken();
+        const otherTokens: Token[] = [];
+        let trailType: CBlockTrailType;
+        let exceptToken: Token | undefined = undefined;
+
+        if (this._consumeIfWithGil()) {
+            otherTokens.push(this._peekToken(-1));
+            trailType = CBlockTrailType.WithGil;
+        } else if (this._consumeTokenIfKeyword(KeywordType.Nogil)) {
+            trailType = CBlockTrailType.NoGil;
+        } else if (this._consumeTokenIfKeyword(KeywordType.Noexcept)) {
+            trailType = CBlockTrailType.NoExcept;
+        } else if (this._consumeTokenIfKeyword(KeywordType.Except)) {
+            trailType = CBlockTrailType.Except;
+            const op = this._peekOperatorType();
+            if (op === OperatorType.Multiply || op === OperatorType.Add) {
+                exceptToken = this._getNextToken();
+                otherTokens.push(exceptToken);
+            }
+        } else if (allowConst && this._consumeTokenIfKeyword(KeywordType.Const)) {
+            trailType = CBlockTrailType.Const;
+        } else {
+            return undefined;
+        }
+        return CBlockTrailNode.create(token, otherTokens, trailType, exceptToken);
+    }
+
     private _parseCFunction(name: NameNode, returnType?: CTypeNode, decorators?: DecoratorNode[]) {
         const openParenToken = this._peekToken();
         if (!this._consumeTokenIfType(TokenType.OpenParenthesis)) {
@@ -6588,10 +6618,7 @@ export class Parser {
             this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
         }
 
-        let nogil = false;
-        if (!this._consumeIfWithGil()) {
-            nogil = this._consumeTokenIfKeyword(KeywordType.Nogil);
-        }
+        const trailBlock = this._parseCBlockTrail();
 
         let suite: SuiteNode;
         let isForwardDecl = false;
@@ -6605,7 +6632,10 @@ export class Parser {
         }
 
         const functionNode = CFunctionNode.create(openParenToken, name, suite, isForwardDecl);
-        functionNode.nogil = nogil;
+        if (trailBlock) {
+            functionNode.blockTrail = trailBlock;
+            extendRange(functionNode, trailBlock);
+        }
         functionNode.parameters = paramList;
         paramList.forEach((param) => {
             param.parent = functionNode;
@@ -6719,6 +6749,11 @@ export class Parser {
             p.parent = node;
         });
         extendRange(node, closeToken);
+        const trailBlock = this._parseCBlockTrail();
+        if (trailBlock) {
+            node.blockTrail = trailBlock;
+            extendRange(node, trailBlock);
+        }
         this._expectNewLine();
         return node;
     }

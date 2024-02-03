@@ -126,6 +126,7 @@ export const enum ParseNodeType {
     CFunction,
     CDefine,
     CSizeOf,
+    CBlockTrail,
 }
 
 export const enum ErrorExpressionCategory {
@@ -2756,6 +2757,7 @@ export interface CCallbackNode extends ParseNodeBase {
     parameters: CParameterNode[];
     returnTypeAnnotation?: ExpressionNode | undefined;
     functionAnnotationComment?: FunctionAnnotationNode | undefined;
+    blockTrail?: CBlockTrailNode;
 }
 
 export namespace CCallbackNode {
@@ -3038,7 +3040,7 @@ export interface CFunctionNode extends ParseNodeBase {
     functionAnnotationComment?: FunctionAnnotationNode | undefined;
     suite: SuiteNode;
     cpdef?: boolean;
-    nogil?: boolean;
+    blockTrail?: CBlockTrailNode;
     isForwardDeclaration: boolean;
 }
 
@@ -3121,6 +3123,41 @@ export namespace CSizeOfNode {
         return node;
     }
 }
+
+export const enum CBlockTrailType {
+    NoGil,
+    WithGil,
+    Except,
+    NoExcept,
+    Const,
+}
+export interface CBlockTrailNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CBlockTrail;
+    blockTrailType: CBlockTrailType;
+    tokens: Token[];
+    exceptToken?: Token;
+}
+
+export namespace CBlockTrailNode {
+    export function create(startToken: Token, tokens: Token[], blockTrailType: CBlockTrailType, exceptToken?: Token) {
+        const node: CBlockTrailNode = {
+            start: startToken.start,
+            length: startToken.length,
+            nodeType: ParseNodeType.CBlockTrail,
+            id: _nextNodeId++,
+            blockTrailType: blockTrailType,
+            tokens: [startToken, ...tokens],
+            exceptToken: exceptToken,
+        };
+        if (tokens.length > 0) {
+            const last = tokens[tokens.length - 1];
+            const range = TextRange.create(last.start, last.length);
+            extendRange(node, range);
+        }
+        return node;
+    }
+}
+
 // ! Cython End
 
 export type PatternAtomNode =
@@ -3229,7 +3266,8 @@ export type ParseNode =
     | CStructNode
     | CFunctionNode
     | CDefineNode
-    | CSizeOfNode;
+    | CSizeOfNode
+    | CBlockTrailNode;
 
 export type EvaluationScopeNode =
     | LambdaNode

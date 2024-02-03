@@ -19,6 +19,7 @@ import {
     CAddressOfNode,
     CallNode,
     CaseNode,
+    CBlockTrailNode,
     CCallbackNode,
     CCastNode,
     CDefineNode,
@@ -450,6 +451,8 @@ export class ParseTreeWalker {
 
             case ParseNodeType.CSizeOf:
                 return this.visitCSizeOf(node) ? [node.leftExpression, node.valueExpression] : [];
+            case ParseNodeType.CBlockTrail:
+                return this.visitCBlockTrail(node) ? [] : [];
         }
     }
 
@@ -828,6 +831,10 @@ export class ParseTreeWalker {
     }
 
     visitCSizeOf(node: CSizeOfNode) {
+        return true;
+    }
+
+    visitCBlockTrail(node: CBlockTrailNode) {
         return true;
     }
 }

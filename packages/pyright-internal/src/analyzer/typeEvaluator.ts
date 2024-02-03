@@ -36,6 +36,7 @@ import {
     CAddressOfNode,
     CallNode,
     CaseNode,
+    CBlockTrailType,
     CCallbackNode,
     CCastNode,
     CFunctionNode,
@@ -24196,7 +24197,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 isReadOnly: false,
 
                 cpdef: node.cpdef,
-                nogil: node.nogil,
+                nogil: node.blockTrail?.blockTrailType === CBlockTrailType.NoGil,
             };
         }
         return typeResult;
