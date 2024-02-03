@@ -5541,6 +5541,7 @@ export class Parser {
         this._isParsingCStruct = wasParsingCStruct;
         this._isParsingCFused = wasParsingCFused;
         const node = CStructNode.create(startToken, name, suite, structType, packedToken, undefined);
+        // TODO: Check if no fields with pass statement
         return node;
     }
 
@@ -7007,9 +7008,20 @@ export class Parser {
         if (!this._isParsingCStruct) {
             validKeyWords.push(...otherKeyWords);
         }
+
+        // Parse allowed python statements
         const kwType = this._peekKeywordType();
-        if (kwType === KeywordType.Def || kwType === KeywordType.Class) {
-            return this._parseStatement();
+        switch (kwType) {
+            case KeywordType.Def:
+            case KeywordType.Class:
+                return this._parseStatement();
+            case KeywordType.Pass: {
+                statement = StatementListNode.create(this._peekToken());
+                this._pushStatements(statement, this._parsePassStatement());
+                this._expectNewLine();
+                this._consumeTokenIfType(TokenType.NewLine);
+                return statement;
+            }
         }
 
         if (!kwType || validKeyWords.includes(kwType)) {
