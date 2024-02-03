@@ -177,6 +177,11 @@ export class Symbol {
     }
 
     addDeclaration(declaration: Declaration) {
+        // ! Cython
+        if (declaration.isInExtern) {
+            this.setInitiallyBound();
+        }
+
         if (this._declarations) {
             // See if this node was already identified as a declaration. If so,
             // replace it. Otherwise, add it as a new declaration to the end of

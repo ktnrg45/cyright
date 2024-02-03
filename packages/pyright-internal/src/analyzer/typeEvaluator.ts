@@ -4037,12 +4037,6 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
                 type = effectiveType;
 
-                // ! Cython
-                if (type.cythonDetails) {
-                    // If type is cython then the declaration will be bound
-                    symbol.setInitiallyBound();
-                }
-
                 if (useCodeFlowAnalysis && !isSpecialBuiltIn) {
                     // See if code flow analysis can tell us anything more about the type.
                     // If the symbol is declared outside of our execution scope, use its effective

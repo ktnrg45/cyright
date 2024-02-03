@@ -19,6 +19,7 @@ import { TypeEvaluator } from '../analyzer/typeEvaluatorTypes';
 import {
     ClassType,
     getTypeAliasInfo,
+    isClass,
     isClassInstance,
     isFunction,
     isInstantiableClass,
@@ -212,6 +213,14 @@ export class HoverProvider {
                             label = 'type alias';
                         }
                     }
+                }
+
+                // ! Cython
+                // Remove Literal if is in extern
+                // Mainly for enum fields as we don't know what the value actually is
+                // TODO: See if there is a better place for this
+                if (declaration.isInExtern && type && isClass(type)) {
+                    type.literalValue = undefined;
                 }
 
                 const typeText = typeVarName || node.value + this._getTypeText(typeNode, evaluator, expandTypeAlias);

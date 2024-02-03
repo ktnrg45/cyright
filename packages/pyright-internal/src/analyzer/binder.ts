@@ -39,6 +39,7 @@ import {
     CallNode,
     CaseNode,
     CEnumNode,
+    CExternNode,
     CFunctionNode,
     ClassNode,
     ContinueNode,
@@ -254,6 +255,9 @@ export class Binder extends ParseTreeWalker {
     // the current function.
     private _codeFlowComplexity = 0;
 
+    // ! Cython
+    private _isInExtern = false;
+
     constructor(fileInfo: AnalyzerFileInfo, private _moduleSymbolOnly = false) {
         super();
 
@@ -405,6 +409,7 @@ export class Binder extends ParseTreeWalker {
             range: convertOffsetsToRange(node.name.start, TextRange.getEnd(node.name), this._fileInfo.lines),
             moduleName: this._fileInfo.moduleName,
             isInExceptSuite: this._isInExceptSuite,
+            isInExtern: this._isInExtern, // ! Cython
         };
 
         const symbol = this._bindNameToScope(this._currentScope, node.name);
@@ -463,6 +468,7 @@ export class Binder extends ParseTreeWalker {
             range: convertOffsetsToRange(node.name.start, TextRange.getEnd(node.name), this._fileInfo.lines),
             moduleName: this._fileInfo.moduleName,
             isInExceptSuite: this._isInExceptSuite,
+            isInExtern: this._isInExtern, // ! Cython
         };
 
         if (symbol) {
@@ -790,6 +796,7 @@ export class Binder extends ParseTreeWalker {
             range: convertOffsetsToRange(node.name.start, TextRange.getEnd(node.name), this._fileInfo.lines),
             moduleName: this._fileInfo.moduleName,
             isInExceptSuite: this._isInExceptSuite,
+            isInExtern: this._isInExtern, // ! Cython
         };
 
         const symbol = this._bindNameToScope(this._currentScope, node.name);
@@ -1371,6 +1378,7 @@ export class Binder extends ParseTreeWalker {
                     range: convertOffsetsToRange(node.name.start, TextRange.getEnd(node.name), this._fileInfo.lines),
                     moduleName: this._fileInfo.moduleName,
                     isInExceptSuite: this._isInExceptSuite,
+                    isInExtern: this._isInExtern, // ! Cython
                 };
                 symbol.addDeclaration(declaration);
             }
@@ -2286,6 +2294,7 @@ export class Binder extends ParseTreeWalker {
             range: convertOffsetsToRange(node.name.start, TextRange.getEnd(node.name), this._fileInfo.lines),
             moduleName: this._fileInfo.moduleName,
             isInExceptSuite: this._isInExceptSuite,
+            isInExtern: this._isInExtern, // ! Cython
         };
 
         const symbol = this._bindNameToScope(this._currentScope, node.name);
@@ -3490,6 +3499,7 @@ export class Binder extends ParseTreeWalker {
                         range: convertOffsetsToRange(name.start, TextRange.getEnd(name), this._fileInfo.lines),
                         moduleName: this._fileInfo.moduleName,
                         isInExceptSuite: this._isInExceptSuite,
+                        isInExtern: this._isInExtern, // ! Cython
                         docString: this._getVariableDocString(target),
                     };
                     symbolWithScope.symbol.addDeclaration(declaration);
@@ -3542,6 +3552,7 @@ export class Binder extends ParseTreeWalker {
                         ),
                         moduleName: this._fileInfo.moduleName,
                         isInExceptSuite: this._isInExceptSuite,
+                        isInExtern: this._isInExtern, // ! Cython
                         docString: this._getVariableDocString(target),
                     };
                     symbol.addDeclaration(declaration);
@@ -3656,6 +3667,7 @@ export class Binder extends ParseTreeWalker {
                         range: convertOffsetsToRange(name.start, TextRange.getEnd(name), this._fileInfo.lines),
                         moduleName: this._fileInfo.moduleName,
                         isInExceptSuite: this._isInExceptSuite,
+                        isInExtern: this._isInExtern, // ! Cython
                         docString: this._getVariableDocString(target),
                     };
                     symbolWithScope.symbol.addDeclaration(declaration);
@@ -3733,6 +3745,7 @@ export class Binder extends ParseTreeWalker {
                         ),
                         moduleName: this._fileInfo.moduleName,
                         isInExceptSuite: this._isInExceptSuite,
+                        isInExtern: this._isInExtern, // ! Cython
                         docString: this._getVariableDocString(target),
                     };
                     symbol.addDeclaration(declaration);
@@ -4306,6 +4319,14 @@ export class Binder extends ParseTreeWalker {
             }
         }
 
+        return false;
+    }
+
+    override visitCExtern(node: CExternNode): boolean {
+        const wasInExtern = this._isInExtern;
+        this._isInExtern = true;
+        this.walk(node.suite);
+        this._isInExtern = wasInExtern;
         return false;
     }
 }
