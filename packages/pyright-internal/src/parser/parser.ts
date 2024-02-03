@@ -2253,6 +2253,20 @@ export class Parser {
                 return this._parseFunctionDef(undefined, decoratorList);
             } else if (nextToken.keywordType === KeywordType.Class) {
                 return this._parseClassDef(decoratorList);
+            } else if (nextToken.keywordType === KeywordType.Cdef || nextToken.keywordType === KeywordType.Cpdef) {
+                // ! Cython
+                const node = nextToken.keywordType === KeywordType.Cdef ? this._parseCDef() : this._parseCpdef();
+                if (node.nodeType === ParseNodeType.CFunction || node.nodeType === ParseNodeType.Class) {
+                    node.decorators = decoratorList;
+                    decoratorList.forEach((decorator) => {
+                        decorator.parent = node;
+                    });
+
+                    if (decoratorList.length > 0) {
+                        extendRange(node, decoratorList[0]);
+                    }
+                }
+                return node;
             }
         }
 
