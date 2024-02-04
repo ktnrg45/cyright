@@ -4270,9 +4270,17 @@ export class Binder extends ParseTreeWalker {
 
     // ! Cython
     override visitCFunction(node: CFunctionNode): boolean {
+        const scope = this._currentScope;
         const alias = CFunctionNode.alias(node);
         const result = this.visitFunction(alias);
         CFunctionNode.mergeAlias(node, alias);
+        if (node.operatorSuffix) {
+            // ! Cython CPP
+            const symbol = scope.lookUpSymbol(node.name.value);
+            // TODO: Separate flag?
+            // Don't show CPP operator methods in completions
+            symbol?.setPrivatePyTypedImport();
+        }
         return result;
     }
 
