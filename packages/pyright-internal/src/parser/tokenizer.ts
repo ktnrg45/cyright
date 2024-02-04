@@ -1425,3 +1425,40 @@ export class Tokenizer {
         }
     }
 }
+
+
+// ! Cython
+
+/* Supported operators (Cython/Compiler/Parsing.py):
+    '+', '-', '*', '/', '%',
+    '++', '--', '~', '|', '&', '^', '<<', '>>', ',',
+    '==', '!=', '>=', '>', '<=', '<',
+    '[]', '()', '!', '=',
+    'bool',
+*/
+export const enum CppOperatorSymbol {
+    Add= '+',
+    Subtract='-',
+    Multiply='*',
+    Divide='/',
+    Mod = '%',
+    IAdd= '++',
+    ISubtract='--',
+    BitwiseInvert = '~',
+    BitwiseOr = '|',
+    BitwiseAnd= '&',
+    BitwiseXor = '^',
+    RightShift = '>>',
+    LeftShift = '<<',
+    Comma = ',',
+    Equals = '==',
+    NotEquals = '!=',
+    GreaterThanOrEqual = '>=',
+    GreaterThan = '>',
+    LessThanOrEqual = '<=',
+    LessThan = '<',
+    Index = '[]',
+    Call = '()',
+    Negate = '!',
+    Assign = '=',
+}

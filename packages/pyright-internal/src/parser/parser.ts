@@ -15,7 +15,7 @@ import Char from 'typescript-char';
 
 import { IPythonMode } from '../analyzer/sourceFile';
 import { appendArray } from '../common/collectionUtils';
-import { assert } from '../common/debug';
+import { assert, assertDefined } from '../common/debug';
 import { Diagnostic, DiagnosticAddendum } from '../common/diagnostic';
 import { DiagnosticSink } from '../common/diagnosticSink';
 import { getFileExtension, stripFileExtension } from '../common/pathUtils';
@@ -140,7 +140,7 @@ import {
     YieldNode,
 } from './parseNodes';
 import * as StringTokenUtils from './stringTokenUtils';
-import { Tokenizer, TokenizerOutput } from './tokenizer';
+import { CppOperatorSymbol, Tokenizer, TokenizerOutput } from './tokenizer';
 import {
     DedentToken,
     IdentifierToken,
@@ -539,7 +539,8 @@ export class Parser {
     }
 
     // type_param_seq: '[' (type_param ',')+ ']'
-    private _parseTypeParameterList(): TypeParameterListNode {
+    // ! Cython
+    private _parseTypeParameterList(isCppClass = false): TypeParameterListNode {
         const typeVariableNodes: TypeParameterNode[] = [];
 
         const openBracketToken = this._getNextToken();
@@ -558,6 +559,22 @@ export class Parser {
             const typeVarNode = this._parseTypeParameter();
             if (!typeVarNode) {
                 break;
+            }
+
+            // ! Cython
+            // Allow default template arguments
+            // TODO: Consume for now. Need to implement evaluation
+            if (isCppClass && this._consumeTokenIfOperator(OperatorType.Assign)) {
+                let defaultValue: ExpressionNode | ParameterNode;
+                const defaultToken = this._peekToken();
+                if (this._consumeTokenIfOperator(OperatorType.Multiply)) {
+                    defaultValue = ParameterNode.create(defaultToken, ParameterCategory.Simple);
+                } else {
+                    defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
+                }
+                typeVarNode.defaultValue = defaultValue;
+                defaultValue.parent = typeVarNode;
+                extendRange(typeVarNode, defaultValue);
             }
 
             typeVariableNodes.push(typeVarNode);
@@ -5637,6 +5654,8 @@ export class Parser {
                             return this._parseCStruct();
                         case KeywordType.Class:
                             return this._parseClassDef(undefined, true);
+                        case KeywordType.Cppclass:
+                            return this._parseCppClassDef();
                     }
                 }
                 break;
@@ -5711,26 +5730,76 @@ export class Parser {
         return result;
     }
 
+    // Return the number of tokens to tokentype
+    // If not found before reaching a stop token, return -1
+    // stopTokens always includes new line and end of stream
+    private _peekToTokenType(tokenType: TokenType, stopTokens?: TokenType[]) {
+        stopTokens = stopTokens ?? [];
+        stopTokens.push(...[TokenType.NewLine, TokenType.EndOfStream]);
+        let index = 0;
+        while (!stopTokens.includes(this._peekToken(index).type)) {
+            if (this._peekToken(index).type === tokenType) {
+                return index;
+            }
+            index++;
+        }
+        return -1;
+    }
+
     // return function if function is parsed. Should be called after `parseCType()`
     // Will parse up to the first open parenthesis
     // Any pointers or refs will be parsed and added to type node as well
-    private _getCFunction(typeNode: CTypeNode, cpdef: boolean) {
+    // If function is not returned then the index will be reset to value prior call
+    private _getCFunction(typeNode: CTypeNode | undefined, cpdef: boolean) {
         const tokenIndex = this._tokenIndex;
         const operators = !cpdef ? this._parsePointersOrRef(/*allowReference*/ true) : [];
         let name: NameNode | undefined = undefined;
+        let operatorSuffix: string | undefined = undefined;
         let returnType: CTypeNode | undefined = typeNode;
-        if (this._peekIdentifier() && this._peekToken(1).type === TokenType.OpenParenthesis) {
-            // Return type annotation present and function name and open paren present
-            const iden = this._getTokenIfIdentifier();
-            if (iden) {
-                name = NameNode.create(iden);
+
+        if (this._peekIdentifier()) {
+            // Check if this is a cpp operator method
+            const operatorResult = this._parseOperatorFunctionName();
+            name = operatorResult.name;
+            if (!name) {
+                // Normal function
+                if (this._peekIdentifier()) {
+                    const iden = this._getTokenIfIdentifier();
+                    // Consume alias. Only matters during linking, so we don't need to store it.
+                    this._consumeTokenIfType(TokenType.String);
+                    let openParenIndex = 0;
+                    if (this._peekTokenType() === TokenType.OpenBracket) {
+                        // Could be a template argument list
+                        const closeBracketIndex = this._peekToTokenType(TokenType.CloseBracket);
+                        openParenIndex = closeBracketIndex > 0 ? closeBracketIndex + 1 : openParenIndex;
+                    }
+                    if (this._peekToken(openParenIndex).type === TokenType.OpenParenthesis) {
+                        // Return type annotation present and function name and open paren present
+                        if (iden) {
+                            name = NameNode.create(iden);
+                        }
+                    }
+                }
+            } else {
+                operatorSuffix = operatorResult.suffix;
             }
-        } else if (operators.length === 0 && this._peekTokenType() === TokenType.OpenParenthesis) {
-            const narrowed = this._narrowCTypeToName(typeNode);
-            if (narrowed.nodeType === ParseNodeType.Name) {
-                // Only function name present and open paren present
-                name = narrowed;
-                returnType = undefined;
+        } else if (operators.length === 0) {
+            // Return type not found. If so then we had already parsed the function name
+            // Consume alias. Only matters during linking, so we don't need to store it.
+            this._consumeTokenIfType(TokenType.String);
+            let openParenIndex = 0;
+            if (this._peekTokenType() === TokenType.OpenBracket) {
+                // Could be a template argument list
+                const closeBracketIndex = this._peekToTokenType(TokenType.CloseBracket);
+                openParenIndex = closeBracketIndex > 0 ? closeBracketIndex + 1 : openParenIndex;
+            }
+            if (this._peekToken(openParenIndex).type === TokenType.OpenParenthesis) {
+                const narrowed = typeNode ? this._narrowCTypeToName(typeNode) : name;
+                if (narrowed?.nodeType === ParseNodeType.Name) {
+                    // Only function name present and open paren present
+                    name = narrowed;
+                    returnType = undefined;
+                }
             }
         }
         if (name) {
@@ -5739,10 +5808,14 @@ export class Parser {
                 extendRange(returnType, operators[operators.length - 1]);
             }
             // Check if this is a callback function
+            // Don't parse a callback function here
             const maybeOpenParen = this._peekToken();
             const isPointer = this._isPointerToken(this._peekToken(1));
             if (!(maybeOpenParen.type === TokenType.OpenParenthesis && isPointer)) {
                 const functionNode = this._parseCFunction(name, returnType);
+                if (functionNode.nodeType === ParseNodeType.CFunction) {
+                    functionNode.operatorSuffix = operatorSuffix;
+                }
                 return functionNode;
             }
         }
@@ -5752,6 +5825,7 @@ export class Parser {
 
     private _parseCVarDecl() {
         const startToken = this._peekToken();
+        let possibleFunction: CFunctionNode | ErrorNode | undefined = undefined;
 
         // Only possible in cdef suite
         const kwType = this._peekKeywordType();
@@ -5763,8 +5837,15 @@ export class Parser {
             case KeywordType.Union:
             case KeywordType.Fused:
                 return this._parseCStruct();
-            default:
-                break;
+            case KeywordType.Cppclass:
+                return this._parseCppClassDef();
+            case KeywordType.Operator: {
+                // Possible cpp operator method without return type
+                possibleFunction = this._getCFunction(undefined, false);
+                if (possibleFunction) {
+                    return possibleFunction;
+                }
+            }
         }
 
         const typeNode = this._parseCType();
@@ -5772,7 +5853,7 @@ export class Parser {
         let hasPointers = false;
 
         if (typeNode.nodeType !== ParseNodeType.Error) {
-            const possibleFunction = this._getCFunction(typeNode, false);
+            possibleFunction = this._getCFunction(typeNode, false);
             if (possibleFunction) {
                 return possibleFunction;
             }
@@ -6431,10 +6512,8 @@ export class Parser {
             possibleNone.type === TokenType.Keyword && (possibleNone as KeywordToken).keywordType === KeywordType.None;
         if (seenNot && seenNone) {
             if (!isDef) {
-                const range = TextRange.create(
-                    possibleNot.start,
-                    possibleNone.start - possibleNot.start + possibleNone.length
-                );
+                const range = TextRange.create(possibleNot.start, possibleNot.length);
+                TextRange.extend(range, TextRange.create(possibleNone.start, possibleNone.length));
                 this._addError(Localizer.DiagnosticCython.noneCheckNotAllowed(), range);
             }
             this._getNextToken();
@@ -6621,6 +6700,10 @@ export class Parser {
     }
 
     private _parseCFunction(name: NameNode, returnType?: CTypeNode, decorators?: DecoratorNode[]) {
+        let typeParams: TypeParameterListNode | undefined = undefined;
+        if (this._peekTokenType() === TokenType.OpenBracket) {
+            typeParams = this._parseTypeParameterList();
+        }
         const openParenToken = this._peekToken();
         if (!this._consumeTokenIfType(TokenType.OpenParenthesis)) {
             this._addError(Localizer.Diagnostic.expectedOpenParen(), this._peekToken());
@@ -6684,6 +6767,11 @@ export class Parser {
             functionNode.returnTypeAnnotation = returnType;
             functionNode.returnTypeAnnotation.parent = functionNode;
             extendRange(functionNode, returnType);
+        }
+
+        if (typeParams) {
+            functionNode.typeParameters = typeParams;
+            typeParams.parent = functionNode;
         }
 
         return functionNode;
@@ -7003,7 +7091,7 @@ export class Parser {
     }
 
     // Special parsing when parsing cdef statements in suite
-    private _parseCDefStatementInSuite() {
+    private _parseCDefStatementInSuite(): StatementNode | undefined {
         let statement: StatementNode;
 
         // Handle keywords that are unexpected
@@ -7018,6 +7106,8 @@ export class Parser {
             KeywordType.Ctypedef,
             KeywordType.Cdef,
             KeywordType.Cpdef,
+            KeywordType.Cppclass,
+            KeywordType.Operator,
         ];
         if (!this._isParsingCStruct) {
             validKeyWords.push(...otherKeyWords);
@@ -7046,15 +7136,17 @@ export class Parser {
                 statement = StatementListNode.create(this._peekToken());
                 const stringNode = this._parseAtom();
                 this._pushStatements(statement, stringNode);
+            } else if (kwType === KeywordType.Cppclass) {
+                return this._parseCppClassDef();
+            } else if (kwType === KeywordType.Cdef) {
+                // Consume redundant 'cdef'
+                this._consumeTokenIfKeyword(KeywordType.Cdef);
+                return this._parseCDefStatementInSuite();
             } else if (this._isParsingCFused) {
                 const param = this._parseCParameterAnnotation();
                 statement = StatementListNode.create(this._peekToken());
                 this._pushStatements(statement, param);
             } else {
-                if (validKeyWords.includes(KeywordType.Cdef)) {
-                    // Consume redundant 'cdef'
-                    this._consumeTokenIfKeyword(KeywordType.Cdef);
-                }
                 statement = this._parseCVarDecl();
             }
         } else {
@@ -7269,6 +7361,66 @@ export class Parser {
         return statement;
     }
 
+    private _parseCppClassDef(decorators?: DecoratorNode[]): ClassNode {
+        const classToken = this._getKeywordToken(KeywordType.Cppclass);
+
+        let nameToken = this._getTokenIfIdentifier();
+        if (!nameToken) {
+            this._addError(Localizer.Diagnostic.expectedClassName(), this._peekToken());
+            nameToken = IdentifierToken.create(0, 0, '', /* comments */ undefined);
+        }
+
+        let typeParameters: TypeParameterListNode | undefined;
+        const possibleOpenBracket = this._peekToken();
+        if (possibleOpenBracket.type === TokenType.OpenBracket) {
+            typeParameters = this._parseTypeParameterList(/*isCppClass*/ true);
+        }
+
+        let argList: ArgumentNode[] = [];
+        const openParenToken = this._peekToken();
+        if (this._consumeTokenIfType(TokenType.OpenParenthesis)) {
+            argList = this._parseArgList().args;
+
+            if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
+                this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
+            }
+        }
+
+        const nextToken = this._peekToken();
+        let suite = SuiteNode.create(nextToken);
+        if (nextToken.type === TokenType.Semicolon || nextToken.type === TokenType.NewLine) {
+            this._expectNewLine();
+            this._consumeTokenIfType(TokenType.NewLine);
+        } else {
+            suite = this._parseSuite(
+                /* isFunction */ false,
+                this._parseOptions.skipFunctionAndClassBody,
+                undefined,
+                /*isCdefSuite*/ true
+            );
+        }
+
+        const classNode = ClassNode.create(classToken, NameNode.create(nameToken), suite, typeParameters);
+        classNode.isCython = true;
+        classNode.structType = CStructType.CppClass;
+        classNode.arguments = argList;
+        argList.forEach((arg) => {
+            arg.parent = classNode;
+        });
+
+        if (decorators) {
+            classNode.decorators = decorators;
+            if (decorators.length > 0) {
+                decorators.forEach((decorator) => {
+                    decorator.parent = classNode;
+                });
+                extendRange(classNode, decorators[0]);
+            }
+        }
+
+        return classNode;
+    }
+
     // Create wildcard import for a matching 'pxd' import. These do not have to be explicitly imported for 'pyx' files.
     // Example: If this file path is 'package/module.pyx', import the 'package/module.pxd' file as 'from package.module cimport *'
     static getMatchingDeclarationImport(moduleName: string) {
@@ -7316,5 +7468,123 @@ export class Parser {
         statements.start = -1;
 
         return { moduleNode: importFromNode, statements: statements, import: pxdImport };
+    }
+
+    // Parse operator function name: i.e. `operator++()`, `operator bool()`
+    private _parseOperatorFunctionName(): { name: NameNode | undefined; suffix: string } {
+        const index = this._tokenIndex;
+        if (this._peekKeywordType() === KeywordType.Operator) {
+            const opToken = this._getTokenIfIdentifier();
+            assertDefined(opToken);
+            const maybeName = this._getTokenIfIdentifier();
+            if (maybeName) {
+                // Type Cast operator
+                // TODO: Do we constrain the type? Only 'bool' appears to be valid.
+                const value = `${opToken.value} ${maybeName.value}`;
+                const range = TextRange.create(opToken.start, opToken.length);
+                TextRange.extend(range, TextRange.create(maybeName.start, maybeName.length));
+                const nameToken = IdentifierToken.create(range.start, range.length, value, undefined);
+                return { name: NameNode.create(nameToken), suffix: maybeName.value };
+            }
+            const token0 = this._peekToken(0);
+            const token1 = this._peekToken(1);
+            let suffix: string | undefined = undefined;
+            if (token0.type === TokenType.OpenBracket && token1.type === TokenType.CloseBracket) {
+                suffix = CppOperatorSymbol.Index;
+                this._getNextToken();
+            } else if (token0.type === TokenType.OpenParenthesis && token1.type === TokenType.CloseParenthesis) {
+                suffix = CppOperatorSymbol.Call;
+                this._getNextToken();
+            } else if (token0.type === TokenType.Comma) {
+                suffix = CppOperatorSymbol.Comma;
+            } else if (token0.type === TokenType.Operator) {
+                const op0 = token0 as OperatorToken;
+                const op1 = token1.type === TokenType.Operator ? (token1 as OperatorToken) : undefined;
+                switch (op0.operatorType) {
+                    case OperatorType.Add:
+                        suffix =
+                            op1?.operatorType === OperatorType.Add ? CppOperatorSymbol.IAdd : CppOperatorSymbol.Add;
+                        break;
+                    case OperatorType.Subtract:
+                        suffix =
+                            op1?.operatorType === OperatorType.Subtract
+                                ? CppOperatorSymbol.ISubtract
+                                : CppOperatorSymbol.Subtract;
+                        break;
+                    case OperatorType.Multiply:
+                        suffix = CppOperatorSymbol.Multiply;
+                        break;
+                    case OperatorType.Divide:
+                        suffix = CppOperatorSymbol.Divide;
+                        break;
+                    case OperatorType.Mod:
+                        suffix = CppOperatorSymbol.Mod;
+                        break;
+                    case OperatorType.BitwiseInvert:
+                        suffix = CppOperatorSymbol.BitwiseInvert;
+                        break;
+                    case OperatorType.BitwiseOr:
+                        suffix = CppOperatorSymbol.BitwiseOr;
+                        break;
+                    case OperatorType.BitwiseAnd:
+                        suffix = CppOperatorSymbol.BitwiseAnd;
+                        break;
+                    case OperatorType.BitwiseXor:
+                        suffix = CppOperatorSymbol.BitwiseXor;
+                        break;
+                    case OperatorType.RightShift:
+                        suffix = CppOperatorSymbol.RightShift;
+                        break;
+                    case OperatorType.LeftShift:
+                        suffix = CppOperatorSymbol.LeftShift;
+                        break;
+                    case OperatorType.Equals:
+                        suffix = CppOperatorSymbol.Equals;
+                        break;
+                    case OperatorType.NotEquals:
+                        suffix = CppOperatorSymbol.NotEquals;
+                        break;
+                    case OperatorType.GreaterThanOrEqual:
+                        suffix = CppOperatorSymbol.GreaterThanOrEqual;
+                        break;
+                    case OperatorType.GreaterThan:
+                        suffix = CppOperatorSymbol.GreaterThan;
+                        break;
+                    case OperatorType.LessThanOrEqual:
+                        suffix = CppOperatorSymbol.LessThanOrEqual;
+                        break;
+                    case OperatorType.LessThan:
+                        suffix = CppOperatorSymbol.LessThan;
+                        break;
+                    case OperatorType.Negate:
+                        suffix = CppOperatorSymbol.Negate;
+                        break;
+                    case OperatorType.Assign:
+                        suffix = CppOperatorSymbol.Assign;
+                        break;
+                    default:
+                        suffix = undefined;
+                }
+                if (suffix === CppOperatorSymbol.IAdd || suffix === CppOperatorSymbol.ISubtract) {
+                    this._getNextToken();
+                }
+            }
+            if (suffix) {
+                // Any suffixes with two tokens should already have one token consumed
+                // This should be the last token
+                const lastSuffixToken = this._getNextToken();
+                // Next tokens should be '[' or '('. If not we'll assume this is not an operator method
+                const nextToken = this._peekToken();
+                if (nextToken.type === TokenType.OpenBracket || nextToken.type === TokenType.OpenParenthesis) {
+                    const value = `${opToken.value}${suffix}`;
+                    const range = TextRange.create(opToken.start, opToken.length);
+                    TextRange.extend(range, TextRange.create(lastSuffixToken.start, lastSuffixToken.length));
+                    const nameToken = IdentifierToken.create(range.start, range.length, value, undefined);
+                    return { name: NameNode.create(nameToken), suffix: suffix };
+                }
+            }
+        }
+        this._tokenIndex = index;
+        return { name: undefined, suffix: '' };
     }
 }

@@ -971,6 +971,8 @@ export interface TypeParameterNode extends ParseNodeBase {
     name: NameNode;
     typeParamCategory: TypeParameterCategory;
     boundExpression?: ExpressionNode;
+    // ! Cython
+    defaultValue?: ExpressionNode | ParameterNode; // Template type parameters can have defaults
 }
 
 export namespace TypeParameterNode {
@@ -2967,6 +2969,7 @@ export const enum CStructType {
     Fused,
     Enum,
     Class,
+    CppClass,
 }
 
 export interface CStructNode extends ParseNodeBase {
@@ -3042,6 +3045,7 @@ export interface CFunctionNode extends ParseNodeBase {
     cpdef?: boolean;
     blockTrail?: CBlockTrailNode;
     isForwardDeclaration: boolean;
+    operatorSuffix?: string;
 }
 
 export namespace CFunctionNode {
