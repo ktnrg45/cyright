@@ -105,6 +105,9 @@ export interface FunctionDeclaration extends DeclarationBase {
     returnStatements?: ReturnNode[];
     yieldStatements?: (YieldNode | YieldFromNode)[];
     raiseStatements?: RaiseNode[];
+
+    // ! Cython CPP
+    isConstructor?: boolean;
 }
 
 export interface ParameterDeclaration extends DeclarationBase {

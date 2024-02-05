@@ -271,6 +271,9 @@ export class HoverProvider {
                         case CStructType.Enum:
                             prefix = '(enum)';
                             break;
+                        case CStructType.CppClass:
+                            prefix = '(cppclass)';
+                            break;
                         default:
                             break;
                     }
@@ -294,7 +297,10 @@ export class HoverProvider {
                 const type = evaluator.getType(node);
 
                 // ! Cython
-                if (type && type.cythonDetails) {
+                // ! Cython CPP
+                if (resolvedDecl.isConstructor) {
+                    label = 'constructor';
+                } else if (type && type.cythonDetails) {
                     const prefix = type.cythonDetails.cpdef ? 'cp' : 'c';
                     label = `${prefix}${label}`;
                     if (type.cythonDetails.nogil) {

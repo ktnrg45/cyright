@@ -18837,12 +18837,10 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 symbol = symbolWithScope?.symbol;
             }
 
-            if (symbol) {
-                appendArray(declarations, symbol.getDeclarations());
-            }
-
             // ! Cython CPP
-            if (!symbol) {
+            if (symbol) {
+                symbol = narrowCppConstructorSymbol(node, symbol, allowForwardReferences, isWithinTypeAnnotation);
+            } else {
                 const symbolWithScope = lookUpSymbolRecursiveCpp(
                     node,
                     node.value,
@@ -18850,9 +18848,10 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                     isWithinTypeAnnotation
                 );
                 symbol = symbolWithScope?.symbol;
-                if (symbol) {
-                    appendArray(declarations, symbol.getDeclarations());
-                }
+            }
+
+            if (symbol) {
+                appendArray(declarations, symbol.getDeclarations());
             }
         }
 
@@ -24353,6 +24352,46 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             classNode = ParseTreeUtils.getEnclosingClass(classNode);
         }
         return undefined;
+    }
+
+    // Narrow symbol to class declaration if symbol is not a constructor
+    function narrowCppConstructorSymbol(
+        node: NameNode,
+        symbol: Symbol,
+        allowForwardReferences: boolean,
+        isWithinTypeAnnotation: boolean
+    ) {
+        const decls = symbol.getDeclarations();
+        if (decls.length > 0) {
+            const decl = decls[0];
+            if (decl.type === DeclarationType.Function) {
+                const funcDecl = decl as FunctionDeclaration;
+                if (funcDecl.isConstructor) {
+                    const parentClass = ParseTreeUtils.getEnclosingClass(node);
+                    const parentFunction = ParseTreeUtils.getEnclosingFunction(node);
+                    // If parent function is a cppclass constructor and
+                    // node is not the enclosing function
+                    // use the cppclass symbol
+                    if (
+                        parentFunction &&
+                        node.parent?.id !== parentFunction.id &&
+                        parentClass &&
+                        parentClass.structType === CStructType.CppClass
+                    ) {
+                        const symbolWithScope = lookUpSymbolRecursive(
+                            parentClass.name,
+                            node.value,
+                            !allowForwardReferences,
+                            isWithinTypeAnnotation
+                        );
+                        if (symbolWithScope) {
+                            symbol = symbolWithScope.symbol;
+                        }
+                    }
+                }
+            }
+        }
+        return symbol;
     }
 
     const evaluatorInterface: TypeEvaluator = {

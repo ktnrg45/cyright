@@ -45,6 +45,7 @@ import {
     ContinueNode,
     CParameterNode,
     CStructNode,
+    CStructType,
     CTypeDefNode,
     DelNode,
     ExceptNode,
@@ -4274,13 +4275,31 @@ export class Binder extends ParseTreeWalker {
         const alias = CFunctionNode.alias(node);
         const result = this.visitFunction(alias);
         CFunctionNode.mergeAlias(node, alias);
+
+        // ! Cython CPP
+        const symbol = scope.lookUpSymbol(node.name.value);
         if (node.operatorSuffix) {
-            // ! Cython CPP
-            const symbol = scope.lookUpSymbol(node.name.value);
             // TODO: Separate flag?
             // Don't show CPP operator methods in completions
             symbol?.setPrivatePyTypedImport();
         }
+
+        // Check if this node belongs to a CPP class with the same name
+        // This means that this function is a constructor
+        const parentClass = ParseTreeUtils.getEnclosingClass(node);
+        if (
+            parentClass &&
+            parentClass.name.value === node.name.value &&
+            parentClass.structType === CStructType.CppClass
+        ) {
+            const decl = AnalyzerNodeInfo.getDeclaration(node);
+            if (decl) {
+                const funcDecl = decl as FunctionDeclaration;
+                funcDecl.isConstructor = true;
+                symbol?.setIsExternallyHidden();
+            }
+        }
+
         return result;
     }
 

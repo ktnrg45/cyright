@@ -18,6 +18,7 @@ import {
     ArgumentNode,
     AssignmentExpressionNode,
     CallNode,
+    CFunctionNode,
     ClassNode,
     EvaluationScopeNode,
     ExecutionScopeNode,
@@ -592,6 +593,10 @@ export function getEnclosingFunction(node: ParseNode): FunctionNode | undefined 
     let prevNode: ParseNode | undefined;
 
     while (curNode) {
+        // ! Cython
+        if (curNode.nodeType === ParseNodeType.CFunction) {
+            curNode = CFunctionNode.alias(curNode);
+        }
         if (curNode.nodeType === ParseNodeType.Function) {
             // Don't treat a decorator as being "enclosed" in the function.
             if (!curNode.decorators.some((decorator) => decorator === prevNode)) {
