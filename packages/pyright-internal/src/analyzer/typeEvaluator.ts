@@ -3990,12 +3990,20 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         } else {
             // Look for the scope that contains the value definition and
             // see if it has a declared type.
-            const symbolWithScope = lookUpSymbolRecursive(
-                node,
-                name,
-                !allowForwardReferences,
-                allowForwardReferences && (flags & EvaluatorFlags.ExpectingTypeAnnotation) !== 0
-            );
+            const symbolWithScope =
+                lookUpSymbolRecursive(
+                    node,
+                    name,
+                    !allowForwardReferences,
+                    allowForwardReferences && (flags & EvaluatorFlags.ExpectingTypeAnnotation) !== 0
+                ) ??
+                lookUpSymbolRecursiveCpp(
+                    // ! Cython CPP
+                    node,
+                    name,
+                    !allowForwardReferences,
+                    allowForwardReferences && (flags & EvaluatorFlags.ExpectingTypeAnnotation) !== 0
+                );
 
             if (symbolWithScope) {
                 let useCodeFlowAnalysis = !allowForwardReferences;
@@ -18832,6 +18840,20 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             if (symbol) {
                 appendArray(declarations, symbol.getDeclarations());
             }
+
+            // ! Cython CPP
+            if (!symbol) {
+                const symbolWithScope = lookUpSymbolRecursiveCpp(
+                    node,
+                    node.value,
+                    !allowForwardReferences,
+                    isWithinTypeAnnotation
+                );
+                symbol = symbolWithScope?.symbol;
+                if (symbol) {
+                    appendArray(declarations, symbol.getDeclarations());
+                }
+            }
         }
 
         return declarations;
@@ -24302,6 +24324,35 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             }
         }
         return expectedType;
+    }
+
+    // ! Cython CPP
+    // For nested cpp classes:
+    // All symbols of the parent class(es) are available to child classes. (If they're not methods?)
+    // Should be a fallback to 'lookUpSymbolRecursive()'
+    function lookUpSymbolRecursiveCpp(
+        node: ParseNode,
+        name: string,
+        honorCodeFlow: boolean,
+        preferGlobalScope?: boolean
+    ) {
+        let classNode = ParseTreeUtils.getEnclosingClass(node);
+        while (classNode?.structType === CStructType.CppClass) {
+            const symbolWithScope = lookUpSymbolRecursive(classNode, name, honorCodeFlow, preferGlobalScope);
+            if (symbolWithScope) {
+                const decls = symbolWithScope.symbol.getDeclarations();
+                if (decls.length > 0) {
+                    const primary = decls[0];
+                    if (!(primary.type === DeclarationType.Function && symbolWithScope.symbol.isInstanceMember())) {
+                        // Do not return methods
+                        // TODO: verify this is correct
+                        return symbolWithScope;
+                    }
+                }
+            }
+            classNode = ParseTreeUtils.getEnclosingClass(classNode);
+        }
+        return undefined;
     }
 
     const evaluatorInterface: TypeEvaluator = {
