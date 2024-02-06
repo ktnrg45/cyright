@@ -1868,8 +1868,12 @@ export class Parser {
                 decorators
             );
         }
-
-        const paramList = this._parseVarArgsList(TokenType.CloseParenthesis, /* allowAnnotations */ true);
+        // ! Cython
+        const paramList = this._parseVarArgsList(
+            TokenType.CloseParenthesis,
+            /* allowAnnotations */ true,
+            /*tryCython*/ true
+        );
 
         if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
             this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
@@ -1937,7 +1941,8 @@ export class Parser {
     //   | '**' tfpdef [','])
     // tfpdef: NAME [':' test]
     // vfpdef: NAME;
-    private _parseVarArgsList(terminator: TokenType, allowAnnotations: boolean): ParameterNode[] {
+    // ! Cython
+    private _parseVarArgsList(terminator: TokenType, allowAnnotations: boolean, tryCython = false): ParameterNode[] {
         const paramMap = new Map<string, string>();
         const paramList: ParameterNode[] = [];
         let sawDefaultParam = false;
@@ -1953,7 +1958,7 @@ export class Parser {
                 break;
             }
 
-            const param = this._parseParameter(allowAnnotations);
+            const param = this._parseParameter(allowAnnotations, tryCython);
             if (!param) {
                 this._consumeTokensUntilType([terminator]);
                 break;
@@ -2058,11 +2063,11 @@ export class Parser {
         return paramList;
     }
 
-    private _parseParameter(allowAnnotations: boolean): ParameterNode {
+    private _parseParameter(allowAnnotations: boolean, tryCython = false): ParameterNode {
         // ! Cython
-        if (allowAnnotations) {
-            // if allowAnnotations then this is likely a function def
-            const cParam = this._tryParseCLikeParameter();
+        if (tryCython) {
+            // Try parsing cython param
+            const cParam = this._tryParseCLikeParameter(allowAnnotations);
             if (cParam) {
                 return cParam;
             }
@@ -6442,7 +6447,7 @@ export class Parser {
     }
 
     // Parse C like parameter in python function def
-    private _tryParseCLikeParameter() {
+    private _tryParseCLikeParameter(allowAnnotations: boolean) {
         if (this._peekIdentifier() && this._peekToken(1).type === TokenType.Colon) {
             // Python type annotation
             return undefined;
@@ -6464,13 +6469,6 @@ export class Parser {
                 cType.parent = param;
                 extendRange(param, name);
                 extendRange(param, cType);
-                if (
-                    cType.varModifiers.length > 0 ||
-                    cType.operators.length > 0 ||
-                    (cType.typeTrailNode && cType.varTrailNode)
-                ) {
-                    param = undefined;
-                }
             } else {
                 param = undefined;
             }
@@ -6481,14 +6479,7 @@ export class Parser {
         this._areErrorsSuppressed = wasErrorsSuppressed;
         if (!param) {
             this._tokenIndex = index;
-            // Try to parse just the param name
-            const possibleId = this._getTokenIfIdentifier();
-            if (possibleId) {
-                param = ParameterNode.create(possibleId, ParameterCategory.Simple);
-                param.name = NameNode.create(possibleId);
-                param.name.parent = param;
-                extendRange(param, param.name);
-            }
+            param = this._parseParameter(allowAnnotations, /*tryCython*/ false);
         }
 
         if (param) {
