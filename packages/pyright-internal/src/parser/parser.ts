@@ -42,6 +42,7 @@ import {
     CBlockTrailType,
     CCallbackNode,
     CCastNode,
+    CClassExtNode,
     CDefineNode,
     CDefSuiteNode,
     CEnumNode,
@@ -5346,6 +5347,8 @@ export class Parser {
                 return this._parseCStruct();
             case KeywordType.Enum:
                 return this._parseEnum(/*cpdef*/ false);
+            case KeywordType.Class:
+                return this._parseCClassExt();
         }
         let node = this._parseCType();
         if (node.nodeType === ParseNodeType.CType) {
@@ -6348,7 +6351,7 @@ export class Parser {
     // Parse c parameter. One of name or annotation can be undefined
     private _parseCParameter(onlyAnnotation = false, index = 0, isDef = false) {
         const startToken = this._peekToken();
-        const typeNode = this._parseCType(/*allowInline*/ false, /*allowEllipsis*/ true);
+        const typeNode = this._parseCType(/*allowEllipsis*/ true);
         const operators: OperatorToken[] = this._parsePointersOrRef(/*allowReference*/ true);
 
         let isNameAmbiguous = true;
@@ -6909,7 +6912,7 @@ export class Parser {
         return node;
     }
 
-    private _parseCType(allowInline = false, allowEllipsis = false) {
+    private _parseCType(allowEllipsis = false) {
         const identifiers: IdentifierToken[] = [];
         const modifiers: KeywordToken[] = [];
         const numModifiers: IdentifierToken[] = [];
@@ -6934,15 +6937,6 @@ export class Parser {
                 case TokenType.Keyword:
                     // Look for VarModifiers then numerical modifiers
                     if (varModifiers.includes(kwToken.keywordType)) {
-                        if (!allowInline && kwToken.keywordType === KeywordType.Inline) {
-                            this._addError(
-                                Localizer.DiagnosticCython.modifierNotAllowed().format({
-                                    name: this._rangeText(kwToken),
-                                }),
-                                kwToken
-                            );
-                            return errorNode;
-                        }
                         modifiers.push(kwToken);
                     } else if (numericModifiers.includes(kwToken.keywordType)) {
                         numModifiers.push(this._keywordToIdentifier(kwToken));
@@ -7430,6 +7424,93 @@ export class Parser {
             return CGilNode.create(token, kwType === KeywordType.Nogil, condition, closingToken);
         }
         return undefined;
+    }
+
+    // Parse C Extension wrapper
+    // https://cython.readthedocs.io/en/latest/src/userguide/extension_types.html
+    private _parseCClassExt() {
+        const token = this._getKeywordToken(KeywordType.Class);
+        // Name must be module.name
+        const module = this._getTokenIfIdentifier();
+        if (!module) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedModuleName(),
+                this._peekToken()
+            );
+        }
+        if (!this._getTokenIfType(TokenType.Dot)) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedMemberName(),
+                this._peekToken()
+            );
+        }
+        const name = this._getTokenIfIdentifier();
+        if (!name) {
+            return this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedMemberName(),
+                this._peekToken()
+            );
+        }
+
+        const nameSpec: ParameterNode[] = [];
+
+        //Name Spec [object object_struct_name, type type_object_name, check_size cs_option]
+        const openBracket = this._getTokenIfType(TokenType.OpenBracket);
+        if (openBracket) {
+            while (true) {
+                const argName = this._getTokenIfIdentifier();
+                if (!argName) {
+                    return this._handleExpressionParseError(
+                        ErrorExpressionCategory.InvalidDeclaration,
+                        Localizer.Diagnostic.expectedNamedParameter(),
+                        this._peekToken()
+                    );
+                }
+                const argValue = this._getTokenIfIdentifier();
+                if (!argValue) {
+                    return this._handleExpressionParseError(
+                        ErrorExpressionCategory.InvalidDeclaration,
+                        Localizer.Diagnostic.expectedNamedParameter(),
+                        this._peekToken()
+                    );
+                }
+                const arg = ParameterNode.create(argName, ParameterCategory.Simple);
+                arg.name = NameNode.create(argName);
+                arg.defaultValue = NameNode.create(argValue);
+                arg.name.parent = arg;
+                arg.defaultValue.parent = arg;
+                extendRange(arg, arg.defaultValue);
+                nameSpec.push(arg);
+                if (!this._getTokenIfType(TokenType.Comma)) {
+                    break;
+                }
+            }
+        }
+        if (openBracket) {
+            if (nameSpec.length === 0) {
+                this._addError(Localizer.Diagnostic.expectedParamName(), this._peekToken());
+            }
+            if (!this._getTokenIfType(TokenType.CloseBracket)) {
+                return this._handleExpressionParseError(
+                    ErrorExpressionCategory.InvalidDeclaration,
+                    Localizer.Diagnostic.expectedCloseBracket(),
+                    this._peekToken()
+                );
+            }
+        }
+        const suite = this._parseSuite();
+        const node = CClassExtNode.create(
+            token,
+            NameNode.create(module),
+            NameNode.create(name),
+            suite,
+            undefined,
+            nameSpec
+        );
+        return node;
     }
 
     // Create wildcard import for a matching 'pxd' import. These do not have to be explicitly imported for 'pyx' files.

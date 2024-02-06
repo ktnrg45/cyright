@@ -2970,7 +2970,7 @@ export const enum CStructType {
     Union,
     Fused,
     Enum,
-    Class,
+    Class, // C Extension Class
     CppClass,
 }
 
@@ -3031,6 +3031,46 @@ export namespace CStructNode {
 
     export function mergeAlias(node: CStructNode, alias: ClassNode) {
         Object.assign(node, alias, { nodeType: ParseNodeType.CStruct });
+    }
+}
+
+export interface CClassExtNode extends ClassNode {
+    nameSpec: ParameterNode[];
+    moduleName: NameNode;
+}
+export namespace CClassExtNode {
+    export function create(
+        classToken: Token,
+        moduleName: NameNode,
+        name: NameNode,
+        suite: SuiteNode,
+        typeParameters?: TypeParameterListNode,
+        nameSpec?: ParameterNode[]
+    ) {
+        const node: CClassExtNode = {
+            start: classToken.start,
+            length: classToken.length,
+            nodeType: ParseNodeType.Class,
+            id: _nextNodeId++,
+            decorators: [],
+            name,
+            typeParameters,
+            arguments: [],
+            suite,
+            moduleName: moduleName,
+            nameSpec: nameSpec ?? [],
+        };
+
+        name.parent = node;
+        suite.parent = node;
+
+        if (typeParameters) {
+            typeParameters.parent = node;
+        }
+
+        extendRange(node, suite);
+        moduleName.parent = node;
+        return node;
     }
 }
 
@@ -3299,6 +3339,7 @@ export type ParseNode =
     | CCastNode
     | CEnumNode
     | CStructNode
+    | CClassExtNode
     | CFunctionNode
     | CDefineNode
     | CSizeOfNode
