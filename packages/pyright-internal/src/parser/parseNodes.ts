@@ -166,6 +166,7 @@ export interface ParseNodeBase extends TextRange {
     maxChildDepth?: number;
 
     typeNode?: CTypeNode; // ! Cython
+    isCython?: boolean;
 }
 
 let _nextNodeId = 1;
@@ -3182,10 +3183,17 @@ export interface CBlockTrailNode extends ParseNodeBase {
     blockTrailType: CBlockTrailType;
     tokens: Token[];
     exceptToken?: Token;
+    exceptExpression?: ExpressionNode;
 }
 
 export namespace CBlockTrailNode {
-    export function create(startToken: Token, tokens: Token[], blockTrailType: CBlockTrailType, exceptToken?: Token) {
+    export function create(
+        startToken: Token,
+        tokens: Token[],
+        blockTrailType: CBlockTrailType,
+        exceptToken?: Token,
+        exceptExpression?: ExpressionNode
+    ) {
         const node: CBlockTrailNode = {
             start: startToken.start,
             length: startToken.length,
@@ -3199,6 +3207,11 @@ export namespace CBlockTrailNode {
             const last = tokens[tokens.length - 1];
             const range = TextRange.create(last.start, last.length);
             extendRange(node, range);
+        }
+        if (exceptExpression) {
+            node.exceptExpression = exceptExpression;
+            exceptExpression.parent = node;
+            extendRange(node, exceptExpression);
         }
         return node;
     }

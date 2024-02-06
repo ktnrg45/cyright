@@ -5632,11 +5632,25 @@ export class Parser {
         const cdefToken = this._getKeywordToken(KeywordType.Cdef);
 
         const token = this._peekToken();
+        const nextToken = this._peekToken(1);
         const kwToken = token as KeywordToken;
         let node: ParseNode | undefined = undefined;
         switch (token.type) {
             case TokenType.OpenParenthesis:
             case TokenType.Identifier:
+                if (
+                    nextToken.type === TokenType.Operator &&
+                    (nextToken as OperatorToken).operatorType === OperatorType.Assign
+                ) {
+                    // This could be a simple untyped assignment declaration
+                    const statement = StatementListNode.create(token);
+                    const expr = this._parseSmallStatement();
+                    expr.isCython = true;
+                    this._pushStatements(statement, expr);
+                    this._expectNewLine();
+                    this._consumeTokenIfType(TokenType.NewLine);
+                    return statement;
+                }
                 node = this._parseCVarDecl();
                 if (node.nodeType === ParseNodeType.CFunction) {
                     return node;
@@ -6299,6 +6313,7 @@ export class Parser {
             return errorNode;
         }
         name.typeNode = typeNode;
+        this._getTokenIfType(TokenType.String); // Consume alias string
         this._parseCVarTrailer(name.typeNode, false);
         return name;
     }
@@ -6672,6 +6687,7 @@ export class Parser {
         const otherTokens: Token[] = [];
         let trailType: CBlockTrailType;
         let exceptToken: Token | undefined = undefined;
+        let expr: ExpressionNode | undefined = undefined;
 
         if (this._consumeIfWithGil()) {
             otherTokens.push(this._peekToken(-1));
@@ -6686,13 +6702,15 @@ export class Parser {
             if (op === OperatorType.Multiply || op === OperatorType.Add) {
                 exceptToken = this._getNextToken();
                 otherTokens.push(exceptToken);
+            } else if (token) {
+                expr = this._parseTestExpression(/*allowAssignmentExpression*/ false);
             }
         } else if (allowConst && this._consumeTokenIfKeyword(KeywordType.Const)) {
             trailType = CBlockTrailType.Const;
         } else {
             return undefined;
         }
-        return CBlockTrailNode.create(token, otherTokens, trailType, exceptToken);
+        return CBlockTrailNode.create(token, otherTokens, trailType, exceptToken, expr);
     }
 
     private _parseCFunction(name: NameNode, returnType?: CTypeNode, decorators?: DecoratorNode[]) {
