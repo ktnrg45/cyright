@@ -7528,6 +7528,7 @@ export class Parser {
             undefined,
             nameSpec
         );
+        node.structType = CStructType.ClassExt;
         return node;
     }
 

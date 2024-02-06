@@ -274,6 +274,9 @@ export class HoverProvider {
                         case CStructType.CppClass:
                             prefix = '(cppclass)';
                             break;
+                        case CStructType.ClassExt:
+                            prefix = '(class ext)';
+                            break;
                         default:
                             break;
                     }

@@ -2971,7 +2971,7 @@ export const enum CStructType {
     Union,
     Fused,
     Enum,
-    Class, // C Extension Class
+    ClassExt, // C Extension Class
     CppClass,
 }
 

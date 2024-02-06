@@ -9,10 +9,13 @@ import { convertOffsetToPosition } from '../common/positionUtils';
 import { TextRange } from '../common/textRange';
 import {
     CCallbackNode,
+    CClassExtNode,
     CEnumNode,
     CFunctionNode,
+    ClassNode,
     CParameterNode,
     CStructNode,
+    CStructType,
     CTypeDefNode,
     CTypeNode,
     ExpressionNode,
@@ -338,6 +341,26 @@ class SemanticTokensWalker extends ParseTreeWalker {
     override visitParameter(node: ParameterNode): boolean {
         if (node.isCythonLike) {
             this.walkMultiple([node.typeAnnotation, node.name, node.defaultValue]);
+            return false;
+        }
+        return true;
+    }
+
+    override visitClass(node: ClassNode): boolean {
+        if (node.structType === CStructType.ClassExt) {
+            const clsNode = node as CClassExtNode;
+            this.walkMultiple(clsNode.decorators);
+            this.pushRange(clsNode.moduleName, LegendType.Namespace);
+            this.walk(clsNode.name);
+            for (const param of clsNode.nameSpec) {
+                if (param.name) {
+                    this.pushRange(param.name, LegendType.Variable);
+                }
+                if (param.defaultValue) {
+                    this.pushRange(param.defaultValue, LegendType.Variable);
+                }
+            }
+            this.walkMultiple([clsNode.typeParameters, ...clsNode.arguments, clsNode.suite]);
             return false;
         }
         return true;

@@ -411,6 +411,7 @@ export class Binder extends ParseTreeWalker {
             moduleName: this._fileInfo.moduleName,
             isInExceptSuite: this._isInExceptSuite,
             isInExtern: this._isInExtern, // ! Cython
+            structType: node.structType,
         };
 
         const symbol = this._bindNameToScope(this._currentScope, node.name);
