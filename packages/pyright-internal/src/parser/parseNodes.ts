@@ -127,6 +127,7 @@ export const enum ParseNodeType {
     CDefine,
     CSizeOf,
     CBlockTrail,
+    CGil,
 }
 
 export const enum ErrorExpressionCategory {
@@ -757,7 +758,8 @@ export type ExpressionNode =
     | CCallbackNode
     | CAddressOfNode
     | CCastNode
-    | CSizeOfNode;
+    | CSizeOfNode
+    | CGilNode;
 
 export function isExpressionNode(node: ParseNode): node is ExpressionNode {
     switch (node.nodeType) {
@@ -3162,6 +3164,35 @@ export namespace CBlockTrailNode {
     }
 }
 
+export interface CGilNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CGil;
+    token: Token;
+    nogil: boolean;
+    valueExpression?: ExpressionNode;
+}
+
+export namespace CGilNode {
+    export function create(token: Token, nogil: boolean, valueExpression?: ExpressionNode, closingToken?: Token) {
+        const node: CGilNode = {
+            start: token.start,
+            length: token.length,
+            nodeType: ParseNodeType.CGil,
+            id: _nextNodeId++,
+            token: token,
+            nogil: nogil,
+            valueExpression,
+        };
+        if (valueExpression) {
+            valueExpression.parent = node;
+            extendRange(node, valueExpression);
+        }
+        if (closingToken) {
+            extendRange(node, closingToken);
+        }
+        return node;
+    }
+}
+
 // ! Cython End
 
 export type PatternAtomNode =
@@ -3271,7 +3302,8 @@ export type ParseNode =
     | CFunctionNode
     | CDefineNode
     | CSizeOfNode
-    | CBlockTrailNode;
+    | CBlockTrailNode
+    | CGilNode;
 
 export type EvaluationScopeNode =
     | LambdaNode

@@ -27,6 +27,7 @@ import {
     CEnumNode,
     CExternNode,
     CFunctionNode,
+    CGilNode,
     ClassNode,
     ConstantNode,
     ContinueNode,
@@ -453,6 +454,8 @@ export class ParseTreeWalker {
                 return this.visitCSizeOf(node) ? [node.leftExpression, node.valueExpression] : [];
             case ParseNodeType.CBlockTrail:
                 return this.visitCBlockTrail(node) ? [] : [];
+            case ParseNodeType.CGil:
+                return this.visitCGil(node) ? [node.valueExpression] : [];
         }
     }
 
@@ -835,6 +838,10 @@ export class ParseTreeWalker {
     }
 
     visitCBlockTrail(node: CBlockTrailNode) {
+        return true;
+    }
+
+    visitCGil(node: CGilNode) {
         return true;
     }
 }

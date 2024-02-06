@@ -47,6 +47,7 @@ import {
     CEnumNode,
     CExternNode,
     CFunctionNode,
+    CGilNode,
     ClassNode,
     ConstantNode,
     ContinueNode,
@@ -2236,10 +2237,11 @@ export class Parser {
 
     // with_item: test ['as' expr]
     private _parseWithItem(): WithItemNode {
-        const expr = this._parseTestExpression(/* allowAssignmentExpression */ true);
+        // ! Cython
+        const expr = this._parseCGilContext() ?? this._parseTestExpression(/* allowAssignmentExpression */ true);
         const itemNode = WithItemNode.create(expr);
 
-        if (this._consumeTokenIfKeyword(KeywordType.As)) {
+        if (expr.nodeType !== ParseNodeType.CGil && this._consumeTokenIfKeyword(KeywordType.As)) {
             itemNode.target = this._parseExpression(/* allowUnpack */ false);
             itemNode.target.parent = itemNode;
             extendRange(itemNode, itemNode.target);
@@ -7410,6 +7412,24 @@ export class Parser {
         }
 
         return classNode;
+    }
+
+    // Parse with gil/nogil context
+    private _parseCGilContext() {
+        const token = this._peekToken();
+        const kwType = this._peekKeywordType();
+        if (kwType === KeywordType.Nogil || kwType === KeywordType.Gil) {
+            this._getNextToken();
+            const condition = this._getTokenIfType(TokenType.OpenParenthesis)
+                ? this._parseTestExpression(/* allowAssignmentExpression */ false)
+                : undefined;
+            const closingToken = condition ? this._getTokenIfType(TokenType.CloseParenthesis) : undefined;
+            if (condition && !closingToken) {
+                this._addError(Localizer.Diagnostic.expectedCloseParen(), this._peekToken());
+            }
+            return CGilNode.create(token, kwType === KeywordType.Nogil, condition, closingToken);
+        }
+        return undefined;
     }
 
     // Create wildcard import for a matching 'pxd' import. These do not have to be explicitly imported for 'pyx' files.

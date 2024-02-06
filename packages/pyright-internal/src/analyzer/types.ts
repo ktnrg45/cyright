@@ -54,6 +54,7 @@ export const enum TypeCategory {
 
     // ! Cython
     Null, // NULL, a pointer of any type
+    Gil, // gil/nogil context
 }
 
 export const enum TypeFlags {
@@ -83,7 +84,10 @@ export type UnionableType =
     | ClassType
     | ModuleType
     | TypeVarType
-    | NullType; // ! Cython
+
+    // ! Cython
+    | NullType
+    | GilType;
 
 export type Type = UnionableType | NeverType | UnionType;
 
@@ -3034,5 +3038,24 @@ export namespace NullType {
 
     export function createInstance(): NullType {
         return _nullInstance;
+    }
+}
+
+export interface GilType extends TypeBase {
+    category: TypeCategory.Gil;
+    nogil: boolean;
+}
+
+export namespace GilType {
+    export function createInstance(nogil: boolean): GilType {
+        return {
+            category: TypeCategory.Gil,
+            flags: TypeFlags.Instance,
+            nogil: nogil,
+            cythonDetails: {
+                isPointer: false,
+                ptrRefCount: 0,
+            },
+        };
     }
 }

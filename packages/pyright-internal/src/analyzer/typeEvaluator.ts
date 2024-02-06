@@ -40,6 +40,7 @@ import {
     CCallbackNode,
     CCastNode,
     CFunctionNode,
+    CGilNode,
     ClassNode,
     ConstantNode,
     CSizeOfNode,
@@ -192,6 +193,7 @@ import {
     FunctionParameter,
     FunctionType,
     FunctionTypeFlags,
+    GilType,
     InheritanceChain,
     isAny,
     isAnyOrUnknown,
@@ -1159,9 +1161,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             case ParseNodeType.CAddressOf:
             case ParseNodeType.CSizeOf:
             case ParseNodeType.CCast:
+            case ParseNodeType.CGil:
                 typeResult = getTypeOfCythonNode(node, flags, expectedType);
                 break;
-
             default:
                 assertNever(node);
         }
@@ -1684,7 +1686,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             case TypeCategory.Function:
             case TypeCategory.OverloadedFunction:
             case TypeCategory.Module:
-            case TypeCategory.TypeVar: {
+            case TypeCategory.TypeVar:
+            case TypeCategory.Gil: {
+                // ! Cython
                 return false;
             }
 
@@ -1762,7 +1766,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
             case TypeCategory.Unbound:
             case TypeCategory.None:
-            case TypeCategory.Null: {
+            case TypeCategory.Null:
+            case TypeCategory.Gil: {
                 // ! Cython
                 return false;
             }
@@ -24133,6 +24138,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 case ParseNodeType.CCallback:
                     typeResult = getTypeOfCCallback(node, flags, expectedType);
                     break;
+                case ParseNodeType.CGil:
+                    typeResult = getTypeOfCGil(node, flags, expectedType);
+                    break;
                 default:
                     break;
             }
@@ -24267,6 +24275,10 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         };
         assignTypeToNameNode(node.name, type, false, false);
         return { type: type };
+    }
+
+    function getTypeOfCGil(node: CGilNode, flags?: EvaluatorFlags, expectedType?: Type) {
+        return { type: GilType.createInstance(node.nogil) };
     }
 
     function isPointer(type: Type) {

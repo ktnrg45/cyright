@@ -722,6 +722,7 @@ export function addConditionToType(type: Type, condition: TypeCondition[] | unde
         case TypeCategory.Module:
         case TypeCategory.TypeVar:
         case TypeCategory.Null: // ! Cython
+        case TypeCategory.Gil:
             return type;
 
         case TypeCategory.None:
@@ -752,6 +753,7 @@ export function getTypeCondition(type: Type): TypeCondition[] | undefined {
         case TypeCategory.OverloadedFunction:
         case TypeCategory.Union:
         case TypeCategory.Null: // ! Cython
+        case TypeCategory.Gil:
             return undefined;
 
         case TypeCategory.None:

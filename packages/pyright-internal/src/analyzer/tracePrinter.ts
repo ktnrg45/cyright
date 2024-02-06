@@ -101,6 +101,9 @@ export function createTracePrinter(roots: string[]): TracePrinter {
                 case TypeCategory.Null:
                     return `NULL ${wrap(type.typeAliasInfo?.fullName)}`;
 
+                case TypeCategory.Gil:
+                    return `Gil ${wrap(type.typeAliasInfo?.fullName)}`;
+
                 default:
                     assertNever(type);
             }
