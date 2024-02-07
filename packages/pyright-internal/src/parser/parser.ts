@@ -6082,15 +6082,16 @@ export class Parser {
         }
 
         // An empty subscript list is illegal.
+        // TODO: Parameters allow empty list
         if (argList.length === 0) {
-            const errorNode = this._handleExpressionParseError(
+            this._handleExpressionParseError(
                 ErrorExpressionCategory.MissingIndexOrSlice,
                 Localizer.Diagnostic.expectedSliceIndex(),
                 /* targetToken */ undefined,
                 /* childNode */ undefined,
                 [TokenType.CloseBracket]
             );
-            argList.push(ArgumentNode.create(this._peekToken(), errorNode, ArgumentCategory.Simple));
+            //argList.push(ArgumentNode.create(this._peekToken(), errorNode, ArgumentCategory.Simple));
         }
 
         return {
@@ -6173,8 +6174,7 @@ export class Parser {
                 this._handleExpressionParseError(
                     ErrorExpressionCategory.MissingIndexCloseBracket,
                     Localizer.Diagnostic.expectedCloseBracket(),
-                    openToken,
-                    node
+                    openToken
                 );
                 error = true;
             }
