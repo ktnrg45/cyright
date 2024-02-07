@@ -7,7 +7,7 @@
  * Converts a type into a string representation.
  */
 
-import { ParameterCategory, ParseNodeType } from '../parser/parseNodes';
+import { CTrailType, ParameterCategory, ParseNodeType } from '../parser/parseNodes';
 import * as ParseTreeUtils from './parseTreeUtils';
 import {
     ClassType,
@@ -618,8 +618,14 @@ export function printObjectTypeForClass(
         }
         prefixes.push(...(details.numMods ?? []));
         const prefix = prefixes.join(' ');
+        let suffix = '';
+        if (type.cythonDetails.trailType === CTrailType.Array) {
+            suffix = '[]';
+        } else if (type.cythonDetails.trailType === CTrailType.View) {
+            suffix = '[:]';
+        }
 
-        objName = `${objName}${op}`;
+        objName = `${objName}${op}${suffix}`;
         if (prefix.length > 0) {
             objName = `${prefix} ${objName}`;
         }

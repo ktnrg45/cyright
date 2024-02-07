@@ -24197,17 +24197,21 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             // Type is already narrowed
             return type;
         }
-        if (typeTrail.argumentLists.length === 1) {
-            // Should always be the case since multi dim arrays should have been narrowed when parsing
-            const args = typeTrail.argumentLists.flat();
-            if (type.details.typeParameters.length > 0) {
-                // ! Cython CPP Template
-                // TODO: Check type Parameters
-                type.cythonDetails.trailType = CTrailType.Template;
-                const types = args.map((arg) => convertToInstance(getTypeOfArgument(arg).type));
-                return ClassType.cloneForSpecialization(type, types, true);
+
+        // Multi dim arrays should have been narrowed when parsing
+        const args = typeTrail.argumentLists.flat();
+        if (type.details.typeParameters.length > 0) {
+            // ! Cython CPP Template
+            // TODO: Check type Parameters
+            type.cythonDetails.trailType = CTrailType.Template;
+            const types = args.map((arg) => convertToInstance(getTypeOfArgument(arg).type));
+            return ClassType.cloneForSpecialization(type, types, true);
+        } else if (args.length > 0) {
+            if (args.every((arg) => arg.valueExpression.nodeType === ParseNodeType.Slice)) {
+                type.cythonDetails.trailType = CTrailType.View;
             }
         }
+
         return type;
     }
 
