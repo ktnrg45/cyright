@@ -4051,7 +4051,13 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
                 type = effectiveType;
 
-                if (useCodeFlowAnalysis && !isSpecialBuiltIn) {
+                // ! Cython: Experimental allow python and cython imports of the same name
+                let isModuleUnion = false;
+                if (type.category === TypeCategory.Union) {
+                    isModuleUnion = (type as UnionType).subtypes.every((t) => t.category === TypeCategory.Module);
+                }
+
+                if (useCodeFlowAnalysis && !isSpecialBuiltIn && !isModuleUnion) {
                     // See if code flow analysis can tell us anything more about the type.
                     // If the symbol is declared outside of our execution scope, use its effective
                     // type. If it's declared inside our execution scope, it generally starts
@@ -4625,6 +4631,27 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                     EvaluatorFlags.DisallowTypeVarsWithoutScopeId |
                     EvaluatorFlags.AssociateTypeVarsWithCurrentScope));
         const baseTypeResult = getTypeOfExpression(node.leftExpression, baseTypeFlags);
+
+        // ! Cython: Experimental: Allow imports of same name for python and cython
+        if (
+            baseTypeResult.type.category === TypeCategory.Union &&
+            baseTypeResult.type.subtypes.length > 0 &&
+            baseTypeResult.type.subtypes.every((sub) => sub.category === TypeCategory.Module)
+        ) {
+            const subTypes: Type[] = [];
+            baseTypeResult.type.subtypes.forEach((sub) => {
+                // Check if memberName is in module
+                const subSymbol = ModuleType.getField(sub as ModuleType, node.memberName.value);
+                if (subSymbol) {
+                    subTypes.push(sub);
+                }
+            });
+            if (subTypes.length === 1) {
+                // We should expect that memberName would be found in only one module
+                // Probably should add error if memberName is found in both modules
+                baseTypeResult.type = subTypes[0];
+            }
+        }
 
         if (isTypeAliasPlaceholder(baseTypeResult.type)) {
             return {

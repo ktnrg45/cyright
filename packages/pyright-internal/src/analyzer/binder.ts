@@ -2501,9 +2501,17 @@ export class Binder extends ParseTreeWalker {
         // we'll build a single declaration that describes the combined actions
         // of both import statements, thus reflecting the behavior of the
         // python module loader.
+
+        // ! Cython
+        // Consider both cython and python imports in regards to existing decl
         const existingDecl = symbol
             .getDeclarations()
-            .find((decl) => decl.type === DeclarationType.Alias && decl.firstNamePart === firstNamePartValue);
+            .find(
+                (decl) =>
+                    decl.type === DeclarationType.Alias &&
+                    decl.firstNamePart === firstNamePartValue &&
+                    decl.node.isCython !== node.isCython
+            );
         let newDecl: AliasDeclaration;
         let pathOfLastSubmodule: string;
         if (importInfo && importInfo.isImportFound && !importInfo.isNativeLib && importInfo.resolvedPaths.length > 0) {
