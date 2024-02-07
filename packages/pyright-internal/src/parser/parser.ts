@@ -6104,18 +6104,14 @@ export class Parser {
         const startOfTrailerToken = this._peekToken();
         let closingToken: Token | undefined = undefined;
         let error = false;
-        const trailNodes: StatementListNode[] = [];
+        const trailNodes: ArgumentNode[][] = [];
         let openToken = this._peekToken();
         let trailType = CTrailType.None;
 
         while (this._consumeTokenIfType(TokenType.OpenBracket)) {
             openToken = this._peekToken(-1);
             const subscriptList = this._parseCTypeSubscriptList();
-            const statements = StatementListNode.create(this._peekToken());
-            trailNodes.push(statements);
-            subscriptList.list.forEach((n) => {
-                this._pushStatements(statements, n);
-            });
+            trailNodes.push(subscriptList.list);
 
             if (subscriptList.list.length > 0) {
                 const firstExpr = subscriptList.list[0].valueExpression;
@@ -6163,7 +6159,7 @@ export class Parser {
                 // This should mean that this is a multidim array: `[ARRAY_SIZE][ARRAY_SIZE]`
                 if (!(trailType & CTrailType.Array)) {
                     error = true;
-                    this._addError(Localizer.DiagnosticCython.invalidNDimDeclaration(), trailNodes[1]);
+                    this._addError(Localizer.DiagnosticCython.invalidNDimDeclaration(), this._peekToken(-1));
                 }
                 trailType = CTrailType.Array;
             }

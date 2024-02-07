@@ -24181,9 +24181,34 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             return { type: cachedType };
         }
         const typeResult = getTypeOfExpression(node.expression);
-        const type = TypeBase.cloneForCType(node, typeResult.type);
+        let type = TypeBase.cloneForCType(node, typeResult.type);
+        type = narrowTypeTrailNode(node, type);
+
         typeResult.type = type;
         return typeResult;
+    }
+
+    function narrowTypeTrailNode(node: CTypeNode, type: Type) {
+        const typeTrail = node.typeTrailNode;
+        if (!isClass(type) || !typeTrail || !type.cythonDetails) {
+            return type;
+        }
+        if (Object.values(CTrailType).includes(typeTrail.trailType)) {
+            // Type is already narrowed
+            return type;
+        }
+        if (typeTrail.argumentLists.length === 1) {
+            // Should always be the case since multi dim arrays should have been narrowed when parsing
+            const args = typeTrail.argumentLists.flat();
+            if (type.details.typeParameters.length > 0) {
+                // ! Cython CPP Template
+                // TODO: Check type Parameters
+                type.cythonDetails.trailType = CTrailType.Template;
+                const types = args.map((arg) => convertToInstance(getTypeOfArgument(arg).type));
+                return ClassType.cloneForSpecialization(type, types, true);
+            }
+        }
+        return type;
     }
 
     function getTypeOfCAddressNode(node: CAddressOfNode, flags?: EvaluatorFlags, expectedType?: Type) {

@@ -2630,7 +2630,7 @@ export namespace CTupleTypeNode {
     }
 }
 
-export const enum CTrailType {
+export enum CTrailType {
     None = 0,
     Buffer = 1 << 0,
     View = 1 << 1,
@@ -2641,7 +2641,7 @@ export const enum CTrailType {
 
 export interface CTypeTrailNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CTypeTrail;
-    nodes: StatementListNode[];
+    argumentLists: ArgumentNode[][];
     startToken: Token;
     endToken?: Token;
     isValid: boolean;
@@ -2651,7 +2651,7 @@ export interface CTypeTrailNode extends ParseNodeBase {
 export namespace CTypeTrailNode {
     export function create(
         startToken: Token,
-        nodes: StatementListNode[],
+        argumentLists: ArgumentNode[][],
         trailType: CTrailType,
         isValid: boolean,
         endToken?: Token
@@ -2661,7 +2661,7 @@ export namespace CTypeTrailNode {
             length: startToken.length,
             nodeType: ParseNodeType.CTypeTrail,
             id: _nextNodeId++,
-            nodes: nodes,
+            argumentLists: argumentLists,
             startToken: startToken,
             endToken: endToken,
             isValid: isValid,
@@ -2670,9 +2670,7 @@ export namespace CTypeTrailNode {
         if (endToken) {
             extendRange(node, endToken);
         }
-        nodes.forEach((n) => {
-            n.parent = node;
-        });
+        argumentLists.forEach((list) => list.forEach((n) => (n.parent = node)));
         return node;
     }
 }
