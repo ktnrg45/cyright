@@ -3012,6 +3012,8 @@ export class CompletionProvider {
             hasTrailingDot: node.hasTrailingDot || false,
             nameParts: node.nameParts.map((part) => part.value),
             importedSymbols: [],
+            // ! Cython
+            isCython: node.isCython,
         };
 
         const completions = this._importResolver.getCompletionSuggestions(
