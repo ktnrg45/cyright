@@ -1332,7 +1332,7 @@ export namespace Localizer {
         export const expectedStringForInclude = () => getRawString('DiagnosticCython.expectedStringForInclude');
         export const noneCheckNotAllowed = () => getRawString('DiagnosticCython.noneCheckNotAllowed');
         export const invalidNewExpression = () => getRawString('DiagnosticCython.invalidNewExpression');
-
+        export const invalidAddressOf = () => getRawString('DiagnosticCython.invalidAddressOf');
 
         export const modifierNotAllowed = () =>
             new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.modifierNotAllowed'));

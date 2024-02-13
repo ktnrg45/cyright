@@ -7107,6 +7107,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
         let typeResult: TypeResult = { type: UnknownType.create() };
 
+        // ! Cython
+        if (isCythonFunction(baseTypeResult.type)) {
+            typeResult = getTypeOfCythonCall(node, baseTypeResult.type);
+            return typeResult;
+        }
+
         if (!isTypeAliasPlaceholder(baseTypeResult.type)) {
             if (node.leftExpression.nodeType === ParseNodeType.Name && node.leftExpression.value === 'super') {
                 // Handle the built-in "super" call specially.
@@ -24230,8 +24236,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         if (type.cythonDetails) {
             const details = { ...type.cythonDetails };
             if (details.isPointer === false) {
-                // TODO: error taking address of reference
-                return { type: UnknownType.create() };
+                addError(Localizer.DiagnosticCython.invalidAddressOf(), node, node);
+                return { type: NeverType.createNever() };
             }
             details.isPointer = true;
             details.ptrRefCount++;
@@ -24391,6 +24397,101 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         }
         return false;
     }
+
+    const cythonModules = ['cython', 'builtins_cython'];
+
+    function isCythonBuiltIn(type: Type) {
+        if (isFunction(type) || isClass(type)) {
+            if (cythonModules.includes(type.details.moduleName.split('.')[0])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function isCythonFunction(type: Type) {
+        if (isFunction(type) && isCythonBuiltIn(type)) {
+            return true;
+        }
+        return false;
+    }
+
+    function getTypeOfCythonCall(node: CallNode, type: Type): TypeResult {
+        let typeResult: TypeResult = { type: UnknownType.create() };
+        if (!isCythonFunction(type) || !isFunction(type)) {
+            return typeResult;
+        }
+        const module = getCythonSubModulePart(type.details.fullName);
+
+        switch (module) {
+            case 'operator':
+                typeResult = getTypeOfCythonOperatorCall(node, type);
+                break;
+            default: {
+                switch (type.details.name) {
+                    case 'address':
+                        typeResult = getTypeOfCythonOperatorCall(node, type);
+                        break;
+                }
+                break;
+            }
+        }
+
+        return typeResult;
+    }
+
+    function getTypeOfCythonOperatorCall(node: CallNode, type: FunctionType): TypeResult {
+        let typeResult: TypeResult = { type: UnknownType.create() };
+        const argumentTypes = node.arguments.map((a) => getTypeOfExpression(a.valueExpression).type);
+        if (argumentTypes.length <= 0) {
+            addDiagnostic(
+                AnalyzerNodeInfo.getFileInfo(node).diagnosticRuleSet.reportGeneralTypeIssues,
+                DiagnosticRule.reportGeneralTypeIssues,
+                Localizer.Diagnostic.argPositionalExpectedCount().format({
+                    expected: 1,
+                }),
+                node
+            );
+            typeResult.typeErrors = true;
+            return typeResult;
+        }
+
+        switch (type.details.name) {
+            case 'address':
+                typeResult = getTypeOfAddressCall(node, argumentTypes);
+                break;
+        }
+        return typeResult;
+    }
+
+    function getTypeOfAddressCall(node: CallNode, argumentTypes: Type[]) {
+        const typeResult: TypeResult = { type: UnknownType.create() };
+        assert(argumentTypes.length > 0);
+        const argumentType = TypeBase.cloneType(argumentTypes[0]);
+        if (!argumentType.cythonDetails) {
+            addError(Localizer.DiagnosticCython.invalidAddressOf(), node, node);
+            typeResult.typeErrors = true;
+            return typeResult;
+        }
+        const cythonDetails = { ...argumentType.cythonDetails };
+        if (cythonDetails && cythonDetails.isPointer !== false) {
+            cythonDetails.isPointer = true;
+            cythonDetails.ptrRefCount = cythonDetails.ptrRefCount ?? 0;
+            cythonDetails.ptrRefCount++;
+            argumentType.cythonDetails = cythonDetails;
+            typeResult.type = argumentType;
+        }
+        return typeResult;
+    }
+
+    function getCythonSubModulePart(moduleName: string) {
+        const moduleParts = moduleName.split('.');
+        if (moduleParts.length >= 2) {
+            return moduleParts[1];
+        }
+        return undefined;
+    }
+
 
     function validateBinaryOperationCython(
         node: AugmentedAssignmentNode | BinaryOperationNode,
