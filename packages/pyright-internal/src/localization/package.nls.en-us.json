@@ -680,6 +680,7 @@
         "defaultValuesNotAllowed": "Cannot assign default value to fields in cdef classes, structs or unions",
         "expectedStringForInclude": "Expected a non-fstring",
         "noneCheckNotAllowed": "None check only allowed for functions defined with \"def\"",
+        "invalidNewExpression": "Expected a call to a constructor of a cppclass",
 
         "modifierNotAllowed": "Modifier \"{name}\" not allowed here",
         "nonExternCFunctionNotDefined": "Non-extern C function \"{name}\" declared but not defined"

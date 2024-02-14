@@ -42,6 +42,7 @@ import {
     CFunctionNode,
     CGilNode,
     ClassNode,
+    CNewNode,
     ConstantNode,
     CSizeOfNode,
     CStructNode,
@@ -1162,6 +1163,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             case ParseNodeType.CSizeOf:
             case ParseNodeType.CCast:
             case ParseNodeType.CGil:
+            case ParseNodeType.CNew:
                 typeResult = getTypeOfCythonNode(node, flags, expectedType);
                 break;
             default:
@@ -24168,6 +24170,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 case ParseNodeType.CGil:
                     typeResult = getTypeOfCGil(node, flags, expectedType);
                     break;
+                case ParseNodeType.CNew:
+                    typeResult = getTypeOfCNew(node, flags, expectedType);
+                    break;
                 default:
                     break;
             }
@@ -24335,6 +24340,46 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
     function getTypeOfCGil(node: CGilNode, flags?: EvaluatorFlags, expectedType?: Type) {
         return { type: GilType.createInstance(node.nogil) };
+    }
+
+    function getTypeOfCNew(node: CNewNode, flags?: EvaluatorFlags, expectedType?: Type) {
+        const cachedType = readTypeCache(node, flags);
+        if (cachedType) {
+            return { type: cachedType };
+        }
+        const typeResult: TypeResult = { type: AnyType.create() };
+        const type = getTypeOfExpression(node.valueExpression).type;
+        if (node.valueExpression.nodeType === ParseNodeType.Call && isClassInstance(type)) {
+            const leftExpr = node.valueExpression.leftExpression;
+            let name = leftExpr.nodeType === ParseNodeType.Name ? leftExpr : undefined;
+            if (!name) {
+                if (leftExpr.nodeType === ParseNodeType.Index) {
+                    if (leftExpr.baseExpression.nodeType === ParseNodeType.Name) {
+                        name = leftExpr.baseExpression;
+                    }
+                }
+            }
+            if (name) {
+                const nameType = getTypeOfExpression(name, flags).type;
+                // Try to determine if this call is to a constructor
+                // Checking if the call expression name resolves to a class of the expected type
+                if (isClass(nameType) && nameType.details.name === type.details.name) {
+                    if (type.cythonDetails) {
+                        if (type.cythonDetails.structType === CStructType.CppClass) {
+                            typeResult.type = TypeBase.cloneType(type);
+                            typeResult.type.cythonDetails = { ...type.cythonDetails };
+                            typeResult.type.cythonDetails.isPointer = true;
+                            typeResult.type.cythonDetails.ptrRefCount = 1;
+                        }
+                    }
+                }
+            }
+        }
+        if (isAnyOrUnknown(typeResult.type)) {
+            // TODO: Should this be reported only on reportTypeIssues rule
+            addError(Localizer.DiagnosticCython.invalidNewExpression(), node);
+        }
+        return typeResult;
     }
 
     function isPointer(type: Type) {

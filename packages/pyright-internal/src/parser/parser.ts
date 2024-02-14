@@ -50,6 +50,7 @@ import {
     CFunctionNode,
     CGilNode,
     ClassNode,
+    CNewNode,
     ConstantNode,
     ContinueNode,
     CParameterNode,
@@ -3125,6 +3126,13 @@ export class Parser {
     private _parseTestExpression(allowAssignmentExpression: boolean): ExpressionNode {
         if (this._peekKeywordType() === KeywordType.Lambda) {
             return this._parseLambdaExpression();
+        }
+
+        // ! Cython
+        // Parse new expression
+        const token = this._peekToken();
+        if (this._consumeTokenIfKeyword(KeywordType.New)) {
+            return CNewNode.create(token, this._parseAssignmentExpression(!allowAssignmentExpression));
         }
 
         const ifExpr = this._parseAssignmentExpression(!allowAssignmentExpression);

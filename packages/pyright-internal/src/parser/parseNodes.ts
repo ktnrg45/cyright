@@ -128,6 +128,7 @@ export const enum ParseNodeType {
     CSizeOf,
     CBlockTrail,
     CGil,
+    CNew,
 }
 
 export const enum ErrorExpressionCategory {
@@ -760,7 +761,8 @@ export type ExpressionNode =
     | CAddressOfNode
     | CCastNode
     | CSizeOfNode
-    | CGilNode;
+    | CGilNode
+    | CNewNode;
 
 export function isExpressionNode(node: ParseNode): node is ExpressionNode {
     switch (node.nodeType) {
@@ -3244,6 +3246,29 @@ export namespace CGilNode {
     }
 }
 
+export interface CNewNode extends ParseNodeBase {
+    readonly nodeType: ParseNodeType.CNew;
+    token: Token;
+    valueExpression: ExpressionNode;
+}
+
+export namespace CNewNode {
+    export function create(token: Token, valueExpression: ExpressionNode) {
+        const node: CNewNode = {
+            start: token.start,
+            length: token.length,
+            nodeType: ParseNodeType.CNew,
+            id: _nextNodeId++,
+            token: token,
+            valueExpression,
+        };
+
+        valueExpression.parent = node;
+        extendRange(node, valueExpression);
+        return node;
+    }
+}
+
 // ! Cython End
 
 export type PatternAtomNode =
@@ -3355,7 +3380,8 @@ export type ParseNode =
     | CDefineNode
     | CSizeOfNode
     | CBlockTrailNode
-    | CGilNode;
+    | CGilNode
+    | CNewNode;
 
 export type EvaluationScopeNode =
     | LambdaNode

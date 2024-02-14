@@ -29,6 +29,7 @@ import {
     CFunctionNode,
     CGilNode,
     ClassNode,
+    CNewNode,
     ConstantNode,
     ContinueNode,
     CParameterNode,
@@ -456,6 +457,8 @@ export class ParseTreeWalker {
                 return this.visitCBlockTrail(node) ? [] : [];
             case ParseNodeType.CGil:
                 return this.visitCGil(node) ? [node.valueExpression] : [];
+            case ParseNodeType.CNew:
+                return this.visitCNew(node) ? [node.valueExpression] : [];
         }
     }
 
@@ -842,6 +845,10 @@ export class ParseTreeWalker {
     }
 
     visitCGil(node: CGilNode) {
+        return true;
+    }
+
+    visitCNew(node: CNewNode) {
         return true;
     }
 }

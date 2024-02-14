@@ -1331,6 +1331,7 @@ export namespace Localizer {
         export const defaultValuesNotAllowed = () => getRawString('DiagnosticCython.defaultValuesNotAllowed');
         export const expectedStringForInclude = () => getRawString('DiagnosticCython.expectedStringForInclude');
         export const noneCheckNotAllowed = () => getRawString('DiagnosticCython.noneCheckNotAllowed');
+        export const invalidNewExpression = () => getRawString('DiagnosticCython.invalidNewExpression');
 
 
         export const modifierNotAllowed = () =>
