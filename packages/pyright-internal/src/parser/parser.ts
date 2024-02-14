@@ -5343,7 +5343,10 @@ export class Parser {
         const typeDefToken = this._getKeywordToken(KeywordType.Ctypedef);
         const keyword = this._peekKeywordType();
         switch (keyword) {
+            case KeywordType.Packed:
             case KeywordType.Struct:
+            case KeywordType.Union:
+            case KeywordType.Fused:
                 return this._parseCStruct();
             case KeywordType.Enum:
                 return this._parseEnum(/*cpdef*/ false);
