@@ -684,6 +684,7 @@
         "invalidAddressOf": "Taking address of non-lvalue or Python object",
 
         "modifierNotAllowed": "Modifier \"{name}\" not allowed here",
-        "nonExternCFunctionNotDefined": "Non-extern C function \"{name}\" declared but not defined"
+        "nonExternCFunctionNotDefined": "Non-extern C function \"{name}\" declared but not defined",
+        "invalidDereference": "Cannot dereference object of type \"{name}\""
     }
 }

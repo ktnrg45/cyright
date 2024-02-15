@@ -7108,9 +7108,19 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         let typeResult: TypeResult = { type: UnknownType.create() };
 
         // ! Cython
+        let cythonTypeResult: TypeResult | undefined = undefined;
         if (isCythonFunction(baseTypeResult.type)) {
-            typeResult = getTypeOfCythonCall(node, baseTypeResult.type);
-            return typeResult;
+            const argTypes: FunctionArgument[] = argList.map((a) => {
+                const argType = getTypeOfExpression(a.valueExpression);
+                const arg = { ...a, typeResult: argType };
+                return arg;
+            });
+            const typeBase: TypeResultWithNode = { ...baseTypeResult, node: node };
+
+            cythonTypeResult = getTypeOfCythonCall(typeBase, argTypes);
+            if (isAnyOrUnknown(cythonTypeResult.type)) {
+                cythonTypeResult = undefined;
+            }
         }
 
         if (!isTypeAliasPlaceholder(baseTypeResult.type)) {
@@ -7207,7 +7217,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             typeResult = { type: UnknownType.create() };
         }
 
-        return typeResult;
+        // ! Cython
+        return cythonTypeResult ?? typeResult;
     }
 
     function getTypeOfAssertType(node: CallNode, expectedType: Type | undefined): TypeResult {
@@ -15262,6 +15273,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
                 structType: node.structType,
             };
+            // Also add struct type to details so that it persists for instances
+            classType.details.structType = node.structType;
         }
 
         return { classType, decoratedType };
@@ -24416,8 +24429,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         return false;
     }
 
-    function getTypeOfCythonCall(node: CallNode, type: Type): TypeResult {
+    function getTypeOfCythonCall(baseResult: TypeResultWithNode, argList: FunctionArgument[]): TypeResult {
         let typeResult: TypeResult = { type: UnknownType.create() };
+        const type = baseResult.type;
         if (!isCythonFunction(type) || !isFunction(type)) {
             return typeResult;
         }
@@ -24425,51 +24439,65 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
         switch (module) {
             case 'operator':
-                typeResult = getTypeOfCythonOperatorCall(node, type);
+                typeResult = getTypeOfCythonOperatorCall(baseResult, argList);
                 break;
-            default: {
-                switch (type.details.name) {
-                    case 'address':
-                        typeResult = getTypeOfCythonOperatorCall(node, type);
-                        break;
-                }
+            default:
                 break;
+        }
+
+        return typeResult;
+    }
+
+    function getTypeOfCythonOperatorCall(baseResult: TypeResultWithNode, argList: FunctionArgument[]): TypeResult {
+        let typeResult: TypeResult = { type: UnknownType.create() };
+        const type = baseResult.type;
+        if (isFunction(type)) {
+            switch (type.details.name) {
+                case 'address':
+                    typeResult = getTypeOfAddressCall(baseResult, argList);
+                    break;
+                case 'dereference':
+                    typeResult = getTypeOfDereferenceCall(baseResult, argList);
+                    break;
             }
         }
-
         return typeResult;
     }
 
-    function getTypeOfCythonOperatorCall(node: CallNode, type: FunctionType): TypeResult {
-        let typeResult: TypeResult = { type: UnknownType.create() };
-        const argumentTypes = node.arguments.map((a) => getTypeOfExpression(a.valueExpression).type);
-        if (argumentTypes.length <= 0) {
-            addDiagnostic(
-                AnalyzerNodeInfo.getFileInfo(node).diagnosticRuleSet.reportGeneralTypeIssues,
-                DiagnosticRule.reportGeneralTypeIssues,
-                Localizer.Diagnostic.argPositionalExpectedCount().format({
-                    expected: 1,
-                }),
-                node
-            );
-            typeResult.typeErrors = true;
+    function _getCythonCallValidArgs(baseResult: TypeResultWithNode, argList: FunctionArgument[]): Type[] | undefined {
+        const type = baseResult.type;
+        if (isFunction(type)) {
+            const argTypes: Type[] = [];
+            type.details.parameters.forEach((param, index) => {
+                if (index < argList.length) {
+                    const arg = argList[index];
+                    let argType: Type | undefined = undefined;
+                    switch (param.category) {
+                        case ParameterCategory.Simple:
+                            argType =
+                                arg.argumentCategory === ArgumentCategory.Simple ? arg.typeResult?.type : undefined;
+                            break;
+                    }
+                    if (argType) {
+                        argType = TypeBase.cloneType(argType);
+                        argTypes.push(argType);
+                    }
+                }
+            });
+            return argTypes.length === argList.length ? argTypes : undefined;
+        }
+        return undefined;
+    }
+
+    function getTypeOfAddressCall(baseResult: TypeResultWithNode, argList: FunctionArgument[]) {
+        const typeResult: TypeResult = { type: UnknownType.create() };
+        const argumentTypes = _getCythonCallValidArgs(baseResult, argList);
+        if (!argumentTypes || argumentTypes.length !== 1) {
             return typeResult;
         }
-
-        switch (type.details.name) {
-            case 'address':
-                typeResult = getTypeOfAddressCall(node, argumentTypes);
-                break;
-        }
-        return typeResult;
-    }
-
-    function getTypeOfAddressCall(node: CallNode, argumentTypes: Type[]) {
-        const typeResult: TypeResult = { type: UnknownType.create() };
-        assert(argumentTypes.length > 0);
-        const argumentType = TypeBase.cloneType(argumentTypes[0]);
+        const argumentType = argumentTypes[0];
         if (!argumentType.cythonDetails) {
-            addError(Localizer.DiagnosticCython.invalidAddressOf(), node, node);
+            addError(Localizer.DiagnosticCython.invalidAddressOf(), baseResult.node);
             typeResult.typeErrors = true;
             return typeResult;
         }
@@ -24484,6 +24512,47 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         return typeResult;
     }
 
+    function getTypeOfDereferenceCall(baseResult: TypeResultWithNode, argList: FunctionArgument[]) {
+        const typeResult: TypeResult = { type: UnknownType.create() };
+        const argumentTypes = _getCythonCallValidArgs(baseResult, argList);
+        if (!argumentTypes || argumentTypes.length !== 1) {
+            return typeResult;
+        }
+        const argumentType = argumentTypes[0];
+        if (argumentType.cythonDetails) {
+            const cythonDetails = { ...argumentType.cythonDetails };
+            if (cythonDetails.isPointer && cythonDetails.ptrRefCount > 0) {
+                cythonDetails.ptrRefCount--;
+                cythonDetails.isPointer = cythonDetails.ptrRefCount > 0;
+                argumentType.cythonDetails = cythonDetails;
+                typeResult.type = argumentType;
+                return typeResult;
+            } else if (
+                isClassInstance(argumentType) &&
+                (argumentType.details.structType === CStructType.CppClass ||
+                    cythonDetails.structType === CStructType.CppClass)
+            ) {
+                const derefSymbol = argumentType.details.fields.get('operator*');
+                if (derefSymbol) {
+                    const decls = derefSymbol.getDeclarations();
+                    const decl = decls.length > 0 ? decls[0] : undefined;
+                    if (decl?.type === DeclarationType.Function && decl.isMethod) {
+                        const declNode = decl.node;
+                        if (declNode.returnTypeAnnotation) {
+                            return getTypeOfExpression(declNode.returnTypeAnnotation);
+                        }
+                    }
+                }
+            }
+        }
+        addError(
+            Localizer.DiagnosticCython.invalidDereference().format({ name: printType(argumentType) }),
+            baseResult.node
+        );
+        typeResult.typeErrors = true;
+        return typeResult;
+    }
+
     function getCythonSubModulePart(moduleName: string) {
         const moduleParts = moduleName.split('.');
         if (moduleParts.length >= 2) {
@@ -24491,7 +24560,6 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         }
         return undefined;
     }
-
 
     function validateBinaryOperationCython(
         node: AugmentedAssignmentNode | BinaryOperationNode,

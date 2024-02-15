@@ -1338,5 +1338,7 @@ export namespace Localizer {
             new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.modifierNotAllowed'));
         export const nonExternCFunctionNotDefined = () =>
             new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.nonExternCFunctionNotDefined'));
+        export const invalidDereference = () =>
+            new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.invalidDereference'));
     }
 }

@@ -526,6 +526,9 @@ interface ClassDetails {
     // Indicates that one or more type parameters has an
     // autovariance, so variance must be inferred.
     requiresVarianceInference?: boolean;
+
+    // ! Cython
+    structType?: CStructType;
 }
 
 // ! Cython
