@@ -229,6 +229,20 @@ export class ParseTreeWalker {
                 return this.visitFormatString(node) ? node.expressions : [];
 
             case ParseNodeType.Function:
+                // ! Cython
+                if (CFunctionNode.isInstance(node)) {
+                    return this.visitCFunction(node)
+                        ? [
+                              ...node.decorators,
+                              node.name,
+                              node.typeParameters,
+                              ...node.parameters,
+                              node.returnTypeAnnotation,
+                              node.functionAnnotationComment,
+                              node.suite,
+                          ]
+                        : [];
+                }
                 return this.visitFunction(node)
                     ? [
                           ...node.decorators,
@@ -286,6 +300,12 @@ export class ParseTreeWalker {
                 return this.visitNumber(node) ? [] : [];
 
             case ParseNodeType.Parameter:
+                // ! Cython
+                if (CParameterNode.isInstance(node)) {
+                    return this.visitCParameter(node)
+                        ? [node.name, node.typeAnnotation, node.typeAnnotationComment, node.defaultValue]
+                        : [];
+                }
                 return this.visitParameter(node)
                     ? [node.name, node.typeAnnotation, node.typeAnnotationComment, node.defaultValue]
                     : [];
@@ -418,10 +438,6 @@ export class ParseTreeWalker {
                           node.functionAnnotationComment,
                       ]
                     : [];
-            case ParseNodeType.CParameter:
-                return this.visitCParameter(node)
-                    ? [node.typeAnnotation, node.name, node.typeAnnotationComment, node.defaultValue]
-                    : [];
             case ParseNodeType.CAddressOf:
                 return this.visitCAddressOf(node) ? [node.valueExpression] : [];
             case ParseNodeType.CCast:
@@ -433,19 +449,6 @@ export class ParseTreeWalker {
             case ParseNodeType.CStruct:
                 return this.visitCStruct(node)
                     ? [...node.decorators, node.name, node.typeParameters, ...node.arguments, node.suite]
-                    : [];
-
-            case ParseNodeType.CFunction:
-                return this.visitCFunction(node)
-                    ? [
-                          ...node.decorators,
-                          node.name,
-                          node.typeParameters,
-                          ...node.parameters,
-                          node.returnTypeAnnotation,
-                          node.functionAnnotationComment,
-                          node.suite,
-                      ]
                     : [];
 
             case ParseNodeType.CDefine:

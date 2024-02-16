@@ -43,7 +43,6 @@ import {
     CFunctionNode,
     ClassNode,
     ContinueNode,
-    CParameterNode,
     CStructNode,
     CStructType,
     CTypeDefNode,
@@ -4281,9 +4280,7 @@ export class Binder extends ParseTreeWalker {
     // ! Cython
     override visitCFunction(node: CFunctionNode): boolean {
         const scope = this._currentScope;
-        const alias = CFunctionNode.alias(node);
-        const result = this.visitFunction(alias);
-        CFunctionNode.mergeAlias(node, alias);
+        const result = this.visitFunction(node);
 
         // ! Cython CPP
         const symbol = scope.lookUpSymbol(node.name.value);
@@ -4309,13 +4306,6 @@ export class Binder extends ParseTreeWalker {
             }
         }
 
-        return result;
-    }
-
-    override visitCParameter(node: CParameterNode): boolean {
-        const alias = CParameterNode.alias(node);
-        const result = this.visitParameter(alias);
-        CParameterNode.mergeAlias(node, alias);
         return result;
     }
 

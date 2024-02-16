@@ -339,7 +339,7 @@ class SemanticTokensWalker extends ParseTreeWalker {
     }
 
     override visitParameter(node: ParameterNode): boolean {
-        if (node.isCythonLike) {
+        if (CParameterNode.isInstance(node)) {
             this.walkMultiple([node.typeAnnotation, node.name, node.defaultValue]);
             return false;
         }

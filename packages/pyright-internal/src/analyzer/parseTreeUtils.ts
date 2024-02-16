@@ -18,7 +18,6 @@ import {
     ArgumentNode,
     AssignmentExpressionNode,
     CallNode,
-    CFunctionNode,
     ClassNode,
     EvaluationScopeNode,
     ExecutionScopeNode,
@@ -593,10 +592,6 @@ export function getEnclosingFunction(node: ParseNode): FunctionNode | undefined 
     let prevNode: ParseNode | undefined;
 
     while (curNode) {
-        // ! Cython
-        if (curNode.nodeType === ParseNodeType.CFunction) {
-            curNode = CFunctionNode.alias(curNode);
-        }
         if (curNode.nodeType === ParseNodeType.Function) {
             // Don't treat a decorator as being "enclosed" in the function.
             if (!curNode.decorators.some((decorator) => decorator === prevNode)) {
@@ -723,11 +718,7 @@ export function getEvaluationScopeNode(node: ParseNode): EvaluationScopeNode {
     let isParamNameNode = false;
 
     while (curNode) {
-        // ! Cython
-        if (
-            (curNode.nodeType === ParseNodeType.Parameter || curNode.nodeType === ParseNodeType.CParameter) &&
-            prevNode === curNode.name
-        ) {
+        if (curNode.nodeType === ParseNodeType.Parameter && prevNode === curNode.name) {
             // Note that we passed through a parameter name node.
             isParamNameNode = true;
         }
@@ -736,8 +727,6 @@ export function getEvaluationScopeNode(node: ParseNode): EvaluationScopeNode {
         // we'll return this scope, but in a few cases we need to return
         // the enclosing scope instead.
         switch (curNode.nodeType) {
-            // ! Cython
-            case ParseNodeType.CFunction:
             case ParseNodeType.Function: {
                 if (curNode.parameters.some((param) => param === prevNode)) {
                     if (isParamNameNode) {
@@ -1951,8 +1940,6 @@ export function printParseNodeType(type: ParseNodeType) {
             return 'CTupleType';
         case ParseNodeType.CCallback:
             return 'CCallback';
-        case ParseNodeType.CParameter:
-            return 'CParameter';
         case ParseNodeType.CAddressOf:
             return 'CAddressOf';
         case ParseNodeType.CCast:
@@ -1961,8 +1948,6 @@ export function printParseNodeType(type: ParseNodeType) {
             return 'CEnum';
         case ParseNodeType.CStruct:
             return 'CStruct';
-        case ParseNodeType.CFunction:
-            return 'CFunction';
         case ParseNodeType.CDefine:
             return 'CDefine';
         case ParseNodeType.CSizeOf:

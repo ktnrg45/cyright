@@ -162,7 +162,6 @@ export function createTypeEvaluatorWithTracker(
 
         // ! Cython
         getTypeOfCythonNode: typeEvaluator.getTypeOfCythonNode,
-        getTypeOfCFunction: typeEvaluator.getTypeOfCFunction,
     };
 
     return withTracker;

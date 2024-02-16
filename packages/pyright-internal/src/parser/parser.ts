@@ -2282,7 +2282,7 @@ export class Parser {
             } else if (nextToken.keywordType === KeywordType.Cdef || nextToken.keywordType === KeywordType.Cpdef) {
                 // ! Cython
                 const node = nextToken.keywordType === KeywordType.Cdef ? this._parseCDef() : this._parseCpdef();
-                if (node.nodeType === ParseNodeType.CFunction || node.nodeType === ParseNodeType.Class) {
+                if (CFunctionNode.isInstance(node) || node.nodeType === ParseNodeType.Class) {
                     node.decorators = decoratorList;
                     decoratorList.forEach((decorator) => {
                         decorator.parent = node;
@@ -5617,7 +5617,7 @@ export class Parser {
             if (typeNode.nodeType !== ParseNodeType.Error) {
                 const possibleFunction = this._getCFunction(typeNode, true);
                 if (possibleFunction) {
-                    if (possibleFunction.nodeType === ParseNodeType.CFunction) {
+                    if (CFunctionNode.isInstance(possibleFunction)) {
                         possibleFunction.cpdef = true;
                     }
                     return possibleFunction;
@@ -5663,7 +5663,7 @@ export class Parser {
                     return statement;
                 }
                 node = this._parseCVarDecl();
-                if (node.nodeType === ParseNodeType.CFunction) {
+                if (CFunctionNode.isInstance(node)) {
                     return node;
                 }
                 break;
@@ -5671,7 +5671,7 @@ export class Parser {
                 if (varModifiers.includes(kwToken.keywordType) || numericModifiers.includes(kwToken.keywordType)) {
                     // Var modifier (var declaration)
                     node = this._parseCVarDecl();
-                    if (node.nodeType === ParseNodeType.CFunction) {
+                    if (CFunctionNode.isInstance(node)) {
                         return node;
                     }
                 } else {
@@ -5848,7 +5848,7 @@ export class Parser {
             const isPointer = this._isPointerToken(this._peekToken(1));
             if (!(maybeOpenParen.type === TokenType.OpenParenthesis && isPointer)) {
                 const functionNode = this._parseCFunction(name, returnType);
-                if (functionNode.nodeType === ParseNodeType.CFunction) {
+                if (CFunctionNode.isInstance(functionNode)) {
                     functionNode.operatorSuffix = operatorSuffix;
                 }
                 return functionNode;
@@ -6482,16 +6482,19 @@ export class Parser {
         const wasErrorsSuppressed = this._areErrorsSuppressed;
         this._areErrorsSuppressed = true;
         const index = this._tokenIndex;
-        let param: ParameterNode | undefined = ParameterNode.create(this._peekToken(), ParameterCategory.Simple);
+        let param: ParameterNode | CParameterNode | undefined = ParameterNode.create(
+            this._peekToken(),
+            ParameterCategory.Simple
+        );
         const cType = this._parseCType();
 
         if (cType.nodeType === ParseNodeType.CType) {
             this._parseCTypeTrailer(cType);
             const name = this._parseCVarName(cType, /*allowReference*/ false);
             if (name.nodeType === ParseNodeType.Name) {
+                param = Object.assign(param, { isCythonAlias: true }) as CParameterNode;
                 param.name = name;
                 param.typeAnnotation = cType;
-                param.isCythonLike = true;
                 name.parent = param;
                 cType.parent = param;
                 extendRange(param, name);

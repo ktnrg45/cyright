@@ -32,7 +32,6 @@ import {
     CallNode,
     CaseNode,
     CCastNode,
-    CFunctionNode,
     ClassNode,
     DelNode,
     DictionaryNode,
@@ -5591,12 +5590,6 @@ export class Checker extends ParseTreeWalker {
             this._evaluator.getType(node.valueExpression);
         }
 
-        return true;
-    }
-
-    override visitCFunction(node: CFunctionNode): boolean {
-        // Evaluate the function type
-        this._evaluator.getTypeOfCFunction(node);
         return true;
     }
 }

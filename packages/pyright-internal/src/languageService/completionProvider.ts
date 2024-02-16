@@ -86,6 +86,7 @@ import { TextRangeCollection } from '../common/textRangeCollection';
 import { Duration } from '../common/timing';
 import {
     ArgumentCategory,
+    CParameterNode,
     DecoratorNode,
     DictionaryKeyEntryNode,
     DictionaryNode,
@@ -795,7 +796,7 @@ export class CompletionProvider {
         }
 
         // ! Cython completions
-        if (curNode.parent.nodeType === ParseNodeType.CParameter && curNode === curNode.parent.name) {
+        if (CParameterNode.isInstance(curNode.parent) && curNode === curNode.parent.name) {
             return undefined;
         }
 

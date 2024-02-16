@@ -16154,7 +16154,10 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
         writeTypeCache(node.name, functionType, EvaluatorFlags.None, /* isIncomplete */ false);
         writeTypeCache(node, decoratedType, EvaluatorFlags.None, /* isIncomplete */ false);
-
+        // ! Cython
+        if (CFunctionNode.isInstance(node)) {
+            addCythonDetailsToCFunctionType(node, { functionType, decoratedType });
+        }
         return { functionType, decoratedType };
     }
 
@@ -24290,26 +24293,29 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         return typeResult;
     }
 
-    function getTypeOfCFunction(node: CFunctionNode): FunctionTypeResult | undefined {
-        const typeResult = getTypeOfFunction(CFunctionNode.alias(node));
-        if (typeResult && !typeResult.functionType.cythonDetails) {
-            typeResult.functionType.cythonDetails = {
-                isPointer: false,
-                ptrRefCount: 0,
-                isVolatile: false,
-                numMods: [],
-                trailType: CTrailType.None,
+    function addCythonDetailsToCFunctionType(node: CFunctionNode, typeResult: FunctionTypeResult) {
+        const cythonDetails = {
+            isPointer: false,
+            ptrRefCount: 0,
+            isVolatile: false,
+            numMods: [],
+            trailType: CTrailType.None,
 
-                // TODO: might need to be used
-                isConst: false,
-                isPublic: false,
-                isReadOnly: false,
+            // TODO: might need to be used
+            isConst: false,
+            isPublic: false,
+            isReadOnly: false,
 
-                cpdef: node.cpdef,
-                nogil: node.blockTrail?.blockTrailType === CBlockTrailType.NoGil,
-            };
+            cpdef: node.cpdef,
+            nogil: node.blockTrail?.blockTrailType === CBlockTrailType.NoGil,
+        };
+
+        if (!typeResult.functionType.cythonDetails) {
+            typeResult.functionType.cythonDetails = { ...cythonDetails };
         }
-        return typeResult;
+        if (!typeResult.decoratedType.cythonDetails) {
+            typeResult.functionType.cythonDetails = { ...cythonDetails };
+        }
     }
 
     function getTypeOfCCallback(node: CCallbackNode, flags?: EvaluatorFlags, expectedType?: Type) {
@@ -24762,7 +24768,6 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         checkForCancellation,
         // ! Cython
         getTypeOfCythonNode,
-        getTypeOfCFunction,
     };
 
     const codeFlowEngine = getCodeFlowEngine(evaluatorInterface, speculativeTypeTracker);

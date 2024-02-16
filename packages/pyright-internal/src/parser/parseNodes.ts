@@ -118,12 +118,10 @@ export const enum ParseNodeType {
     CDefSuite,
     CExtern,
     CCallback,
-    CParameter,
     CAddressOf,
     CCast,
     CEnum,
     CStruct,
-    CFunction,
     CDefine,
     CSizeOf,
     CBlockTrail,
@@ -450,6 +448,9 @@ export interface FunctionNode extends ParseNodeBase {
     returnTypeAnnotation?: ExpressionNode | undefined;
     functionAnnotationComment?: FunctionAnnotationNode | undefined;
     suite: SuiteNode;
+
+    // ! Cython
+    readonly isCythonAlias: boolean;
 }
 
 export namespace FunctionNode {
@@ -464,6 +465,7 @@ export namespace FunctionNode {
             typeParameters,
             parameters: [],
             suite,
+            isCythonAlias: false, // ! Cython
         };
 
         name.parent = node;
@@ -494,7 +496,7 @@ export interface ParameterNode extends ParseNodeBase {
     defaultValue?: ExpressionNode | undefined;
 
     // ! Cython
-    isCythonLike?: boolean;
+    readonly isCythonAlias: boolean;
 }
 
 export namespace ParameterNode {
@@ -505,6 +507,7 @@ export namespace ParameterNode {
             nodeType: ParseNodeType.Parameter,
             id: _nextNodeId++,
             category: paramCategory,
+            isCythonAlias: false,
         };
 
         return node;
@@ -2800,14 +2803,15 @@ export namespace CCallbackNode {
     }
 }
 
-export interface CParameterNode extends ParseNodeBase {
-    readonly nodeType: ParseNodeType.CParameter;
+export interface CParameterNode extends ParameterNode {
+    readonly nodeType: ParseNodeType.Parameter;
     category: ParameterCategory;
     name?: NameNode | undefined;
     typeAnnotation?: ExpressionNode | undefined;
     typeAnnotationComment?: ExpressionNode | undefined;
     defaultValue?: ExpressionNode | undefined;
     isNameAmbiguous: boolean;
+    readonly isCythonAlias: true;
 }
 
 export namespace CParameterNode {
@@ -2819,10 +2823,11 @@ export namespace CParameterNode {
         const node: CParameterNode = {
             start: startToken.start,
             length: startToken.length,
-            nodeType: ParseNodeType.CParameter,
+            nodeType: ParseNodeType.Parameter,
             id: _nextNodeId++,
             category: paramCategory,
             typeAnnotation: typeAnnotation,
+            isCythonAlias: true,
             isNameAmbiguous: true,
         };
         if (typeAnnotation) {
@@ -2833,15 +2838,8 @@ export namespace CParameterNode {
         return node;
     }
 
-    export function alias(node: CParameterNode): ParameterNode {
-        // Copy node and return a python node alias
-        const alias: any = Object.assign({}, node, { nodeType: ParseNodeType.Parameter });
-        return alias;
-    }
-
-    export function mergeAlias(node: CParameterNode, alias: ParameterNode) {
-        // Update node with values from alias
-        Object.assign(node, alias, { nodeType: ParseNodeType.CParameter });
+    export function isInstance(node: ParseNode): node is CParameterNode {
+        return node.nodeType === ParseNodeType.Parameter && node.isCythonAlias;
     }
 }
 
@@ -3075,16 +3073,9 @@ export namespace CClassExtNode {
     }
 }
 
-export interface CFunctionNode extends ParseNodeBase {
-    readonly nodeType: ParseNodeType.CFunction;
-    decorators: DecoratorNode[];
-    isAsync?: boolean;
-    name: NameNode;
-    typeParameters?: TypeParameterListNode;
+export interface CFunctionNode extends FunctionNode {
     parameters: CParameterNode[];
-    returnTypeAnnotation?: ExpressionNode | undefined;
-    functionAnnotationComment?: FunctionAnnotationNode | undefined;
-    suite: SuiteNode;
+    readonly isCythonAlias: true;
     cpdef?: boolean;
     blockTrail?: CBlockTrailNode;
     isForwardDeclaration: boolean;
@@ -3096,7 +3087,7 @@ export namespace CFunctionNode {
         const node: CFunctionNode = {
             start: defToken.start,
             length: defToken.length,
-            nodeType: ParseNodeType.CFunction,
+            nodeType: ParseNodeType.Function,
             id: _nextNodeId++,
             decorators: [],
             name,
@@ -3104,6 +3095,7 @@ export namespace CFunctionNode {
             parameters: [],
             suite,
             isAsync: false,
+            isCythonAlias: true,
             isForwardDeclaration: isForwardDeclaration,
         };
 
@@ -3116,13 +3108,8 @@ export namespace CFunctionNode {
         return node;
     }
 
-    export function alias(node: CFunctionNode): FunctionNode {
-        const alias: any = Object.assign({}, node, { nodeType: ParseNodeType.Function });
-        return alias;
-    }
-
-    export function mergeAlias(node: CFunctionNode, alias: FunctionNode) {
-        Object.assign(node, alias, { nodeType: ParseNodeType.CFunction });
+    export function isInstance(node: ParseNode): node is CFunctionNode {
+        return node.nodeType === ParseNodeType.Function && node.isCythonAlias;
     }
 }
 export interface CDefineNode extends ParseNodeBase {
