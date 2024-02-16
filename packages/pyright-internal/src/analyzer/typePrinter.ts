@@ -500,6 +500,14 @@ export function printType(
 
                 let typeVarName = TypeVarType.getReadableName(type);
 
+                // ! Cython
+                if (type.cythonDetails) {
+                    typeVarName = typeVarName.replace(
+                        type.details.name,
+                        printTypeWithCythonDetails(type, type.details.name)
+                    );
+                }
+
                 if (type.isVariadicUnpacked) {
                     typeVarName = `*${typeVarName}`;
                 }
@@ -594,42 +602,7 @@ export function printObjectTypeForClass(
     let objName = type.aliasName || type.details.name;
 
     // ! Cython
-    if (type.cythonDetails) {
-        const details = type.cythonDetails;
-        let op = '';
-        if (details.isPointer) {
-            op = '*';
-        } else if (details.isPointer === false) {
-            op = '&';
-        }
-        op = op.repeat(details.ptrRefCount);
-        const prefixes: string[] = [];
-        if (details.isReadOnly) {
-            prefixes.push('readonly');
-        }
-        if (details.isPublic) {
-            prefixes.push('public');
-        }
-        if (details.isConst) {
-            prefixes.push('const');
-        }
-        if (details.isVolatile) {
-            prefixes.push('volatile');
-        }
-        prefixes.push(...(details.numMods ?? []));
-        const prefix = prefixes.join(' ');
-        let suffix = '';
-        if (type.cythonDetails.trailType === CTrailType.Array) {
-            suffix = '[]';
-        } else if (type.cythonDetails.trailType === CTrailType.View) {
-            suffix = '[:]';
-        }
-
-        objName = `${objName}${op}${suffix}`;
-        if (prefix.length > 0) {
-            objName = `${prefix} ${objName}`;
-        }
-    }
+    objName = printTypeWithCythonDetails(type, objName);
 
     // If this is a pseudo-generic class, don't display the type arguments
     // or type parameters because it will confuse users.
@@ -917,4 +890,46 @@ function _printNestedInstantiable(type: Type, textToWrap: string) {
     }
 
     return textToWrap;
+}
+
+// ! Cython
+function printTypeWithCythonDetails(type: Type, objName: string) {
+    // ! Cython
+    if (type.cythonDetails) {
+        const details = type.cythonDetails;
+        let op = '';
+        if (details.isPointer) {
+            op = '*';
+        } else if (details.isPointer === false) {
+            op = '&';
+        }
+        op = op.repeat(details.ptrRefCount);
+        const prefixes: string[] = [];
+        if (details.isReadOnly) {
+            prefixes.push('readonly');
+        }
+        if (details.isPublic) {
+            prefixes.push('public');
+        }
+        if (details.isConst) {
+            prefixes.push('const');
+        }
+        if (details.isVolatile) {
+            prefixes.push('volatile');
+        }
+        prefixes.push(...(details.numMods ?? []));
+        const prefix = prefixes.join(' ');
+        let suffix = '';
+        if (type.cythonDetails.trailType === CTrailType.Array) {
+            suffix = '[]';
+        } else if (type.cythonDetails.trailType === CTrailType.View) {
+            suffix = '[:]';
+        }
+
+        objName = `${objName}${op}${suffix}`;
+        if (prefix.length > 0) {
+            objName = `${prefix} ${objName}`;
+        }
+    }
+    return objName;
 }

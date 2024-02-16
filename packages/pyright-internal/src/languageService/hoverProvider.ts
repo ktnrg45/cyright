@@ -257,6 +257,7 @@ export class HoverProvider {
 
                 // ! Cython
                 let prefix = '(class)';
+                let suffix = '';
                 if (resolvedDecl.type === DeclarationType.Class) {
                     switch (resolvedDecl.structType) {
                         case CStructType.Struct:
@@ -273,6 +274,11 @@ export class HoverProvider {
                             break;
                         case CStructType.CppClass:
                             prefix = '(cppclass)';
+                            if (resolvedDecl.node.typeParameters) {
+                                suffix = `[${resolvedDecl.node.typeParameters.parameters
+                                    .map((p) => (p.defaultValue ? `${p.name.value}=...` : p.name.value))
+                                    .join(', ')}]`;
+                            }
                             break;
                         case CStructType.ClassExt:
                             prefix = '(class ext)';
@@ -281,7 +287,7 @@ export class HoverProvider {
                             break;
                     }
                 }
-                this._addResultsPart(parts, `${prefix} ${node.value}`, /* python */ true);
+                this._addResultsPart(parts, `${prefix} ${node.value}${suffix}`, /* python */ true);
                 this._addDocumentationPart(format, sourceMapper, parts, node, evaluator, resolvedDecl);
                 break;
             }

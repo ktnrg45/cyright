@@ -1804,9 +1804,18 @@ export namespace FunctionType {
     }
 
     export function getSpecializedReturnType(type: FunctionType) {
-        return type.specializedTypes && type.specializedTypes.returnType
-            ? type.specializedTypes.returnType
-            : type.details.declaredReturnType;
+        // ! Cython
+        // Copy cython details to specialized type
+        let returnType =
+            type.specializedTypes && type.specializedTypes.returnType
+                ? type.specializedTypes.returnType
+                : type.details.declaredReturnType;
+        const cythonDetails = type.details.declaredReturnType?.cythonDetails;
+        if (returnType && cythonDetails) {
+            returnType = TypeBase.cloneType(returnType);
+            returnType.cythonDetails = { ...cythonDetails };
+        }
+        return returnType;
     }
 }
 

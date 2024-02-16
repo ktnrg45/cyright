@@ -24070,6 +24070,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
         const specializedFunction = applySolvedTypeVars(memberType, typeVarContext) as FunctionType;
 
+        // ! Cython CPP
+        // Don't strip first param for cppclass. Cppclass methods do not use a 'self' param.
+        if (baseType.details.structType === CStructType.CppClass) {
+            stripFirstParam = false;
+        }
+
         return FunctionType.clone(specializedFunction, stripFirstParam, baseType, getTypeVarScopeId(baseType));
     }
 
@@ -24207,7 +24213,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         if (cachedType) {
             return { type: cachedType };
         }
-        const typeResult = getTypeOfExpression(node.expression);
+        const typeResult = getTypeOfExpression(node.expression, flags);
         let type = TypeBase.cloneForCType(node, typeResult.type);
         type = narrowTypeTrailNode(node, type);
 
