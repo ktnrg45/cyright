@@ -6515,7 +6515,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             }
         }
 
-        const magicMethodName = getIndexAccessMagicMethodName(usage);
+        // ! Cython Cpp
+        const magicMethodName =
+            baseType.details.structType === CStructType.CppClass ? 'operator[]' : getIndexAccessMagicMethodName(usage);
         const itemMethodType = isClassInstance(baseType)
             ? getTypeOfObjectMember(
                   node,
@@ -11953,6 +11955,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         const handleSubtype = (subtype: ClassType | TypeVarType) => {
             let magicMethodType: Type | undefined;
             const concreteSubtype = makeTopLevelTypeVarsConcrete(subtype);
+
+            // ! Cython Cpp
+            // Map magic methods to Cpp binary operator methods
+            if (isClass(concreteSubtype)) {
+                magicMethodName = transformCppMagicMethodName(concreteSubtype, magicMethodName);
+            }
 
             if (isClassInstance(concreteSubtype)) {
                 magicMethodType = getTypeOfObjectMember(
@@ -24550,6 +24558,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 (argumentType.details.structType === CStructType.CppClass ||
                     cythonDetails.structType === CStructType.CppClass)
             ) {
+                // TODO: Distinguish between dereference and multiplication. (unary and binary)
                 const derefSymbol = argumentType.details.fields.get('operator*');
                 if (derefSymbol) {
                     const decls = derefSymbol.getDeclarations();
@@ -24747,6 +24756,48 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             }
         }
         return type;
+    }
+
+    // Map magic methods to Cpp operator methods
+    function transformCppMagicMethodName(type: ClassType, magicMethodName: string) {
+        if (isClass(type) && type.details.structType === CStructType.CppClass) {
+            switch (magicMethodName) {
+                // TODO: Not supported in cython yet
+                // case '__iadd__':
+                //     return 'operator+=';
+                // case '__isub__':
+                //     return 'operator-=';
+                case '__add__':
+                    return 'operator+';
+                case '__sub__':
+                    return 'operator-';
+                case '__mul__':
+                    return 'operator*';
+                case '__floordiv__':
+                case '__truediv__':
+                    return 'operator/';
+                case '__eq__':
+                    return 'operator==';
+                case '__ne__':
+                    return 'operator!=';
+                case '__gt__':
+                    return 'operator>';
+                case '__ge__':
+                    return 'operator>=';
+                case '__lt__':
+                    return 'operator<';
+                case '__le__':
+                    return 'operator<=';
+                case '__bool__':
+                    // TODO: check
+                    if (type.details.fields.get('operator!')) {
+                        return 'operator!';
+                    } else if (type.details.fields.get('operator bool')) {
+                        return 'operator bool';
+                    }
+            }
+        }
+        return magicMethodName;
     }
 
     const evaluatorInterface: TypeEvaluator = {
