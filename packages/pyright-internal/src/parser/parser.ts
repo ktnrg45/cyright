@@ -7099,6 +7099,26 @@ export class Parser {
         if (expression) {
             const node = CTypeNode.create(expression, modifiers, numModifiers, []);
             this._parseCTypeTrailer(node);
+            if (node.typeTrailNode && node.typeTrailNode.trailType & CTrailType.Template) {
+                // Create a dummy base for type evaluation
+                let base = { ...node.expression, start: 0, length: 0 };
+                while (this._consumeTokenIfType(TokenType.Dot)) {
+                    // member access after a template; i.e. 'type[T].member'
+                    const memberToken = this._getTokenIfIdentifier();
+                    if (!memberToken) {
+                        this._addError(Localizer.Diagnostic.expectedMemberName(), this._peekToken());
+                        break;
+                    }
+                    const memberName = NameNode.create(memberToken);
+                    node.typeTrailNode.postMemberNode = MemberAccessNode.create(base, memberName);
+                    node.typeTrailNode.postMemberNode.parent = node.typeTrailNode;
+                    extendRange(node.typeTrailNode, node.typeTrailNode.postMemberNode);
+                    extendRange(node, node.typeTrailNode);
+                    base = node.typeTrailNode.postMemberNode;
+                    // TODO: Is additional template args after member allowed?
+                }
+            }
+
             return node;
         }
         this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());

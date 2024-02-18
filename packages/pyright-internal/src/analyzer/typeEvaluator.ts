@@ -5306,6 +5306,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 }
             }
 
+            // ! Cython CPP Template
+            // Apply template parameters to nested classes and methods
+            if (classType.details.structType === CStructType.CppClass) {
+                type = specializeNestedCppClassOrMethod(type, classType);
+            }
+
             return {
                 symbol: memberInfo.symbol,
                 type,
@@ -24213,7 +24219,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         if (cachedType) {
             return { type: cachedType };
         }
-        const typeResult = getTypeOfExpression(node.expression, flags);
+        const typeResult = getTypeOfExpression(node.typeTrailNode?.postMemberNode ?? node.expression, flags);
         let type = TypeBase.cloneForCType(node, typeResult.type);
         type = narrowTypeTrailNode(node, type);
 
@@ -24551,7 +24557,16 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                     if (decl?.type === DeclarationType.Function && decl.isMethod) {
                         const declNode = decl.node;
                         if (declNode.returnTypeAnnotation) {
-                            return getTypeOfExpression(declNode.returnTypeAnnotation);
+                            let type = getTypeOfAnnotation(declNode.returnTypeAnnotation);
+                            if (isTypeVar(type) && type.nameWithScope && argumentType.typeArguments) {
+                                // Try to evaluate type argument template
+                                const names = argumentType.details.typeParameters.map((p) => p.nameWithScope);
+                                const index = names.indexOf(type.nameWithScope);
+                                if (index >= 0 && index < argumentType.typeArguments.length) {
+                                    type = TypeBase.cloneType(argumentType.typeArguments[index]);
+                                }
+                            }
+                            return { type: type };
                         }
                     }
                 }
@@ -24686,6 +24701,52 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             }
         }
         return symbol;
+    }
+
+    // Assign specialized template types for nested cpp class and methods of a cppclass with type parameters
+    // TODO: Handle local templates as well?
+    function specializeNestedCppClassOrMethod(type: Type, classType: ClassType) {
+        if (classType.details.structType === CStructType.CppClass) {
+            const typeVarScopeId = classType.details.typeVarScopeId;
+            if (typeVarScopeId && classType.details.typeParameters.length) {
+                if (isClass(type) && !type.details.typeParameters.length) {
+                    type.details.typeParameters = classType.details.typeParameters.map((tp) =>
+                        TypeVarType.cloneForScopeId(tp, typeVarScopeId, classType.details.name, TypeVarScopeType.Class)
+                    );
+                    type.details.requiresVarianceInference = true;
+                } else if (isFunction(type)) {
+                    if (!type.specializedTypes && !type.details.typeParameters.length && classType.typeArguments) {
+                        const typeArgs = classType.typeArguments;
+                        const typeParameterNames = classType.details.typeParameters.map((tp) => tp.nameWithScope ?? '');
+
+                        const getSpecialized = (type?: Type) => {
+                            if (!type) {
+                                return undefined;
+                            }
+                            if (isTypeVar(type)) {
+                                if (type.nameWithScope) {
+                                    const index = typeParameterNames.indexOf(type.nameWithScope);
+                                    if (index >= 0 && index < typeArgs.length) {
+                                        return TypeBase.cloneType(typeArgs[index]);
+                                    }
+                                }
+                            }
+                            return undefined;
+                        };
+                        const params: Type[] = type.details.parameters.map(
+                            (p) => getSpecialized(p.type) ?? UnknownType.create()
+                        );
+                        const returnType = getSpecialized(type.details.declaredReturnType);
+                        type.specializedTypes = {
+                            parameterTypes: params,
+                            parameterDefaultArgs: undefined, // CPP methods cannot have defaults
+                            returnType: returnType,
+                        };
+                    }
+                }
+            }
+        }
+        return type;
     }
 
     const evaluatorInterface: TypeEvaluator = {

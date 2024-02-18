@@ -2651,6 +2651,7 @@ export interface CTypeTrailNode extends ParseNodeBase {
     endToken?: Token;
     isValid: boolean;
     trailType: CTrailType;
+    postMemberNode?: MemberAccessNode;
 }
 
 export namespace CTypeTrailNode {
