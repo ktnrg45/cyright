@@ -24485,6 +24485,18 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 case 'dereference':
                     typeResult = getTypeOfDereferenceCall(baseResult, argList);
                     break;
+                case 'postincrement':
+                    typeResult = getTypeOfIncrementCall(baseResult, argList, /*isIncrement*/ true, /*isPost*/ true);
+                    break;
+                case 'postdecrement':
+                    typeResult = getTypeOfIncrementCall(baseResult, argList, /*isIncrement*/ false, /*isPost*/ true);
+                    break;
+                case 'preincrement':
+                    typeResult = getTypeOfIncrementCall(baseResult, argList, /*isIncrement*/ true, /*isPost*/ false);
+                    break;
+                case 'predecrement':
+                    typeResult = getTypeOfIncrementCall(baseResult, argList, /*isIncrement*/ false, /*isPost*/ false);
+                    break;
             }
         }
         return typeResult;
@@ -24538,6 +24550,58 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         return typeResult;
     }
 
+    // Evaluate 'pre/post increment/decrement call'
+    function getTypeOfIncrementCall(
+        baseResult: TypeResultWithNode,
+        argList: FunctionArgument[],
+        isIncrement: boolean,
+        isPost: boolean
+    ) {
+        const typeResult: TypeResult = { type: UnknownType.create() };
+        const argumentTypes = _getCythonCallValidArgs(baseResult, argList);
+        if (!argumentTypes || argumentTypes.length !== 1) {
+            return typeResult;
+        }
+        const argumentType = argumentTypes[0];
+        // Return the argument type by default
+        typeResult.type = argumentType;
+
+        if (isClass(argumentType) && argumentType.details.structType === CStructType.CppClass) {
+            // Use return type of cpp operator
+            typeResult.type = UnknownType.create();
+            const opName = isIncrement ? 'operator++' : 'operator--';
+            const opSymbol = argumentType.details.fields.get(opName);
+            if (opSymbol) {
+                const decls = opSymbol.getDeclarations();
+                const decl = decls.find((item) => {
+                    if (item.type === DeclarationType.Function && item.isMethod) {
+                        const type = getTypeOfFunction(item.node);
+                        if (type) {
+                            if (isPost) {
+                                // Post should have signature 'operator++(int)
+                                if (type.functionType.details.parameters.length === 1) {
+                                    // TODO: check if parameter must be 'int'
+                                    return item;
+                                }
+                            } else {
+                                // Pre should have no parameters 'operator++()'
+                                if (type.functionType.details.parameters.length === 0) {
+                                    return item;
+                                }
+                            }
+                        }
+                    }
+                    return undefined;
+                });
+                if (decl?.type === DeclarationType.Function && decl.isMethod) {
+                    typeResult.type = applyTypeArgumentToCythonCallReturnType(decl, argumentType);
+                }
+            }
+        }
+
+        return typeResult;
+    }
+
     function getTypeOfDereferenceCall(baseResult: TypeResultWithNode, argList: FunctionArgument[]) {
         const typeResult: TypeResult = { type: UnknownType.create() };
         const argumentTypes = _getCythonCallValidArgs(baseResult, argList);
@@ -24558,25 +24622,25 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 (argumentType.details.structType === CStructType.CppClass ||
                     cythonDetails.structType === CStructType.CppClass)
             ) {
-                // TODO: Distinguish between dereference and multiplication. (unary and binary)
                 const derefSymbol = argumentType.details.fields.get('operator*');
                 if (derefSymbol) {
                     const decls = derefSymbol.getDeclarations();
-                    const decl = decls.length > 0 ? decls[0] : undefined;
-                    if (decl?.type === DeclarationType.Function && decl.isMethod) {
-                        const declNode = decl.node;
-                        if (declNode.returnTypeAnnotation) {
-                            let type = getTypeOfAnnotation(declNode.returnTypeAnnotation);
-                            if (isTypeVar(type) && type.nameWithScope && argumentType.typeArguments) {
-                                // Try to evaluate type argument template
-                                const names = argumentType.details.typeParameters.map((p) => p.nameWithScope);
-                                const index = names.indexOf(type.nameWithScope);
-                                if (index >= 0 && index < argumentType.typeArguments.length) {
-                                    type = TypeBase.cloneType(argumentType.typeArguments[index]);
+                    const decl = decls.find((item) => {
+                        if (item.type === DeclarationType.Function && item.isMethod) {
+                            const type = getTypeOfFunction(item.node);
+                            if (type) {
+                                // Dereference operator has no parameters: 'operator*()'
+                                // This is different from multiplication: 'operator*(type)'
+                                if (type.functionType.details.parameters.length === 0) {
+                                    return item;
                                 }
                             }
-                            return { type: type };
                         }
+                        return undefined;
+                    });
+                    if (decl?.type === DeclarationType.Function && decl.isMethod) {
+                        typeResult.type = applyTypeArgumentToCythonCallReturnType(decl, argumentType);
+                        return typeResult;
                     }
                 }
             }
@@ -24587,6 +24651,29 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         );
         typeResult.typeErrors = true;
         return typeResult;
+    }
+
+    function applyTypeArgumentToCythonCallReturnType(decl: FunctionDeclaration, argumentType: ClassType) {
+        let type: Type = UnknownType.create();
+        if (decl.isMethod) {
+            const declNode = decl.node;
+            if (declNode.returnTypeAnnotation) {
+                type = getTypeOfAnnotation(declNode.returnTypeAnnotation);
+                if (isTypeVar(type) && type.nameWithScope && argumentType.typeArguments) {
+                    // Try to evaluate type argument template
+                    const names = argumentType.details.typeParameters.map((p) => p.nameWithScope);
+                    const index = names.indexOf(type.nameWithScope);
+                    if (index >= 0 && index < argumentType.typeArguments.length) {
+                        const cythonDetails = type.cythonDetails;
+                        type = TypeBase.cloneType(argumentType.typeArguments[index]);
+                        if (cythonDetails) {
+                            type.cythonDetails = { ...cythonDetails };
+                        }
+                    }
+                }
+            }
+        }
+        return type;
     }
 
     function getCythonSubModulePart(moduleName: string) {
@@ -24762,7 +24849,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
     function transformCppMagicMethodName(type: ClassType, magicMethodName: string) {
         if (isClass(type) && type.details.structType === CStructType.CppClass) {
             switch (magicMethodName) {
-                // TODO: Not supported in cython yet
+                // TODO: iadd and isub not supported in cython yet
                 // case '__iadd__':
                 //     return 'operator+=';
                 // case '__isub__':
@@ -24789,7 +24876,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 case '__le__':
                     return 'operator<=';
                 case '__bool__':
-                    // TODO: check
+                    // TODO: check order
                     if (type.details.fields.get('operator!')) {
                         return 'operator!';
                     } else if (type.details.fields.get('operator bool')) {
