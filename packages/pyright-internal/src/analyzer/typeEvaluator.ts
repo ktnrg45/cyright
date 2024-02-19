@@ -24485,6 +24485,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 case 'dereference':
                     typeResult = getTypeOfDereferenceCall(baseResult, argList);
                     break;
+                case 'comma':
+                    typeResult = getTypeOfCommaCall(baseResult, argList);
+                    break;
                 case 'postincrement':
                     typeResult = getTypeOfIncrementCall(baseResult, argList, /*isIncrement*/ true, /*isPost*/ true);
                     break;
@@ -24650,6 +24653,27 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             baseResult.node
         );
         typeResult.typeErrors = true;
+        return typeResult;
+    }
+
+    function getTypeOfCommaCall(baseResult: TypeResultWithNode, argList: FunctionArgument[]) {
+        const typeResult: TypeResult = { type: UnknownType.create() };
+        const argumentTypes = _getCythonCallValidArgs(baseResult, argList);
+        if (!argumentTypes || argumentTypes.length !== 2) {
+            return typeResult;
+        }
+        const argumentType = argumentTypes[0];
+        if (isClass(argumentType) && argumentType.details.structType === CStructType.CppClass) {
+            const opSymbol = argumentType.details.fields.get('operator,');
+            if (opSymbol) {
+                const decls = opSymbol.getDeclarations();
+                const decl = decls.length ? decls[0] : undefined;
+                if (decl?.type === DeclarationType.Function && decl.isMethod) {
+                    typeResult.type = applyTypeArgumentToCythonCallReturnType(decl, argumentType);
+                    return typeResult;
+                }
+            }
+        }
         return typeResult;
     }
 
