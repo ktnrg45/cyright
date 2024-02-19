@@ -24722,8 +24722,11 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                     expectedType = UnknownType.create();
                 }
             } else {
-                // Copy cython details
-                expectedClass.cythonDetails = leftClass.cythonDetails ? { ...leftClass.cythonDetails } : undefined;
+                // Copy cython details from left only if left class is pointer
+                // This means that there was pointer arithmetic
+                if (isPointer(leftType)) {
+                    expectedClass.cythonDetails = leftClass.cythonDetails ? { ...leftClass.cythonDetails } : undefined;
+                }
                 expectedType = expectedClass;
             }
         }
