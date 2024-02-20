@@ -19176,7 +19176,11 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
             // ! Cython Declaration
             case DeclarationType.CTypeDef: {
-                return getTypeOfTypeAlias(CTypeDefNode.alias(declaration.node));
+                let type = getTypeOfTypeAlias(CTypeDefNode.alias(declaration.node));
+                if (declaration.node.expression.nodeType === ParseNodeType.CType) {
+                    type = TypeBase.cloneForCType(declaration.node.expression, type);
+                }
+                return type;
             }
         }
     }
