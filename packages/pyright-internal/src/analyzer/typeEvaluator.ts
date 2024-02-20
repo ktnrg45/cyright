@@ -24110,6 +24110,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
     }
 
     function printType(type: Type, expandTypeAlias = false): string {
+        // ! Cython
+        // Always expand type alias to avoid confusion with pointers, modifiers
+        if (type?.cythonDetails) {
+            expandTypeAlias = true;
+        }
+
         let flags = evaluatorOptions.printTypeFlags;
 
         if (expandTypeAlias) {
