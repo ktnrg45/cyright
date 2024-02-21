@@ -24240,7 +24240,6 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         const typeResult = getTypeOfExpression(node.typeTrailNode?.postMemberNode ?? node.expression, flags);
         let type = TypeBase.cloneForCType(node, typeResult.type);
         type = narrowTypeTrailNode(node, type);
-
         typeResult.type = type;
         return typeResult;
     }
@@ -24261,7 +24260,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             // ! Cython CPP Template
             // TODO: Check type Parameters
             type.cythonDetails.trailType = CTrailType.Template;
-            const types = args.map((arg) => convertToInstance(getTypeOfArgument(arg).type));
+            const types = args.map((arg) => convertToInstance(getTypeOfArgumentExpectingType(arg).type));
             return ClassType.cloneForSpecialization(type, types, true);
         } else if (args.length > 0) {
             if (args.every((arg) => arg.valueExpression.nodeType === ParseNodeType.Slice)) {
