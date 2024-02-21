@@ -4005,7 +4005,7 @@ export class Parser {
                     return typeNode;
                 }
                 const ptrs = this._parsePointersOrRef(/*allowReference*/ false, /*allowCastClose*/ true);
-                typeNode.operators = ptrs;
+                typeNode.operators.push(...ptrs);
                 if (ptrs.length > 0) {
                     extendRange(typeNode, ptrs[ptrs.length - 1]);
                 }
@@ -5845,7 +5845,7 @@ export class Parser {
         }
         if (name) {
             if (returnType && operators.length > 0) {
-                returnType.operators = operators;
+                returnType.operators.push(...operators);
                 extendRange(returnType, operators[operators.length - 1]);
             }
             // Check if this is a callback function
@@ -5995,7 +5995,7 @@ export class Parser {
 
                 if (sliceExpr.nodeType === ParseNodeType.CType) {
                     // This could be a buffer, template, array
-                    sliceExpr.operators = this._parsePointersOrRef(/*allowReference*/ true);
+                    sliceExpr.operators.push(...this._parsePointersOrRef(/*allowReference*/ true));
                     sliceExpr = this._narrowCTypeToName(sliceExpr);
                 } else {
                     // Most likely an array
@@ -6044,7 +6044,7 @@ export class Parser {
     }
 
     // parse subscriptList after type name `typename[*]`
-    private _parseCTypeSubscriptList(): SubscriptListResult {
+    private _parseCTypeSubscriptList(isCParameter = false): SubscriptListResult {
         const argList: ArgumentNode[] = [];
         let trailingComma = false;
         const argType = ArgumentCategory.Simple;
@@ -6098,9 +6098,8 @@ export class Parser {
             trailingComma = true;
         }
 
-        // An empty subscript list is illegal.
-        // TODO: Parameters allow empty list
-        if (argList.length === 0) {
+        // An empty subscript list is illegal except when it is an annotation for function parameter.
+        if (argList.length === 0 && !isCParameter) {
             this._handleExpressionParseError(
                 ErrorExpressionCategory.MissingIndexOrSlice,
                 Localizer.Diagnostic.expectedSliceIndex(),
@@ -6118,7 +6117,7 @@ export class Parser {
     }
 
     // parse type trailer can signify memoryview, buffer, array or template
-    private _parseCTypeTrailer(node: CTypeNode) {
+    private _parseCTypeTrailer(node: CTypeNode, isCParameter = false) {
         const startOfTrailerToken = this._peekToken();
         let closingToken: Token | undefined = undefined;
         let error = false;
@@ -6128,7 +6127,19 @@ export class Parser {
 
         while (this._consumeTokenIfType(TokenType.OpenBracket)) {
             openToken = this._peekToken(-1);
-            const subscriptList = this._parseCTypeSubscriptList();
+            const subscriptList = this._parseCTypeSubscriptList(isCParameter);
+            if (!subscriptList.list.length && isCParameter) {
+                // If empty list and is cparameter then treat type as a pointer
+                const closingToken = this._peekToken();
+                if (!this._consumeTokenIfType(TokenType.CloseBracket)) {
+                    this._addError(Localizer.Diagnostic.expectedCloseBracket(), this._peekToken());
+                } else {
+                    extendRange(node, closingToken);
+                }
+                node.operators.push(OperatorToken.create(0, 0, OperatorType.Multiply, undefined));
+                return;
+            }
+
             trailNodes.push(subscriptList.list);
 
             if (subscriptList.list.length > 0) {
@@ -6379,12 +6390,12 @@ export class Parser {
     // Parse c parameter. One of name or annotation can be undefined
     private _parseCParameter(onlyAnnotation = false, index = 0, isDef = false) {
         const startToken = this._peekToken();
-        const typeNode = this._parseCType(/*allowEllipsis*/ true);
+        const typeNode = this._parseCType(/*allowEllipsis*/ true, /*isCParameter*/ true);
         const operators: OperatorToken[] = this._parsePointersOrRef(/*allowReference*/ true);
 
         let isNameAmbiguous = true;
         if (typeNode.nodeType === ParseNodeType.CType) {
-            typeNode.operators = operators;
+            typeNode.operators.push(...operators);
             isNameAmbiguous = !(
                 typeNode.expression.nodeType !== ParseNodeType.Name ||
                 typeNode.numModifiers.length > 0 ||
@@ -6902,7 +6913,7 @@ export class Parser {
         }
         const firstNode = this._parseCType();
         if (firstNode?.nodeType === ParseNodeType.CType) {
-            firstNode.operators = this._parsePointersOrRef();
+            firstNode.operators.push(...this._parsePointersOrRef());
             nodes.push(firstNode);
         } else {
             return this._handleExpressionParseError(
@@ -6919,7 +6930,7 @@ export class Parser {
             }
             const nextNode = this._parseCType();
             if (nextNode?.nodeType === ParseNodeType.CType) {
-                nextNode.operators = this._parsePointersOrRef();
+                nextNode.operators.push(...this._parsePointersOrRef());
                 nodes.push(nextNode);
             } else {
                 return this._handleExpressionParseError(
@@ -6946,7 +6957,7 @@ export class Parser {
         return node;
     }
 
-    private _parseCType(allowEllipsis = false) {
+    private _parseCType(allowEllipsis = false, isCParameter = false) {
         const identifiers: IdentifierToken[] = [];
         const modifiers: KeywordToken[] = [];
         const numModifiers: IdentifierToken[] = [];
@@ -7104,7 +7115,7 @@ export class Parser {
 
         if (expression) {
             const node = CTypeNode.create(expression, modifiers, numModifiers, []);
-            this._parseCTypeTrailer(node);
+            this._parseCTypeTrailer(node, isCParameter);
             if (node.typeTrailNode && node.typeTrailNode.trailType & CTrailType.Template) {
                 // Create a dummy base for type evaluation
                 let base = { ...node.expression, start: 0, length: 0 };
