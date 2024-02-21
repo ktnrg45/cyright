@@ -44,7 +44,6 @@ import {
     CCastNode,
     CClassExtNode,
     CDefineNode,
-    CDefSuiteNode,
     CEnumNode,
     CExternNode,
     CFunctionNode,
@@ -5676,8 +5675,12 @@ export class Parser {
                     }
                 } else {
                     switch (kwToken.keywordType) {
-                        case KeywordType.Nogil:
-                            return this._parseCDefSuite(cdefToken, /*nogil*/ true);
+                        case KeywordType.Nogil: {
+                            node = this._parseCDefSuite(cdefToken, /*nogil*/ true);
+                            const statements = StatementListNode.create(cdefToken);
+                            this._pushStatements(statements, node);
+                            return statements;
+                        }
                         case KeywordType.Extern:
                             return this._parseExtern(cdefToken);
                         case KeywordType.Enum:
@@ -5696,7 +5699,8 @@ export class Parser {
                 break;
             }
             case TokenType.Colon:
-                return this._parseCDefSuite(cdefToken, /*nogil*/ true);
+                node = this._parseCDefSuite(cdefToken, /*nogil*/ true);
+                break;
             default:
                 break;
         }
@@ -5707,7 +5711,9 @@ export class Parser {
         }
         const statements = StatementListNode.create(cdefToken);
         this._pushStatements(statements, node);
-        this._expectNewLine();
+        if (node.nodeType !== ParseNodeType.Suite) {
+            this._expectNewLine();
+        }
         this._consumeTokenIfType(TokenType.NewLine);
         return statements;
     }
@@ -7212,8 +7218,7 @@ export class Parser {
         if (nogil && this._consumeTokenIfKeyword(KeywordType.Nogil)) {
             hasNoGil = true;
         }
-        const suite = this._parseSuite(false, false, undefined, /*isCdefSuite*/ true);
-        const node = CDefSuiteNode.create(token, suite);
+        const node = this._parseSuite(false, false, undefined, /*isCdefSuite*/ true);
         node.nogil = hasNoGil;
         return node;
     }

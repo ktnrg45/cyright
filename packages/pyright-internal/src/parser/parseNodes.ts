@@ -115,7 +115,6 @@ export const enum ParseNodeType {
     CTupleType,
     CVarTrail,
     CTypeTrail,
-    CDefSuite,
     CExtern,
     CCallback,
     CAddressOf,
@@ -209,6 +208,9 @@ export interface SuiteNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.Suite;
     statements: StatementNode[];
     typeComment?: StringToken;
+
+    // ! Cython
+    nogil?: boolean; // true=nogil, false=withgil, undefined=either
 }
 
 export namespace SuiteNode {
@@ -710,7 +712,6 @@ export type StatementNode =
 
     // ! Cython
     | CTypeDefNode
-    | CDefSuiteNode
     | CExternNode
     | CEnumNode
     | CStructNode
@@ -2714,36 +2715,15 @@ export namespace CVarTrailNode {
     }
 }
 
-export interface CDefSuiteNode extends ParseNodeBase {
-    readonly nodeType: ParseNodeType.CDefSuite;
-    suite: SuiteNode;
-    nogil?: boolean;
-}
-
-export namespace CDefSuiteNode {
-    export function create(startToken: Token, suite: SuiteNode) {
-        const node: CDefSuiteNode = {
-            start: startToken.start,
-            length: startToken.length,
-            nodeType: ParseNodeType.CDefSuite,
-            id: _nextNodeId++,
-            suite: suite,
-        };
-        suite.parent = node;
-        extendRange(node, suite);
-        return node;
-    }
-}
-
 export interface CExternNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CExtern;
-    suite: CDefSuiteNode;
+    suite: SuiteNode;
     fileNameToken?: StringToken | OperatorToken;
     nameSpaceToken?: StringToken;
 }
 
 export namespace CExternNode {
-    export function create(startToken: Token, suite: CDefSuiteNode) {
+    export function create(startToken: Token, suite: SuiteNode) {
         const node: CExternNode = {
             start: startToken.start,
             length: startToken.length,
@@ -3355,7 +3335,6 @@ export type ParseNode =
     | CTypeTrailNode
     | CTypeNode
     | CTupleTypeNode
-    | CDefSuiteNode
     | CExternNode
     | CCallbackNode
     | CParameterNode
