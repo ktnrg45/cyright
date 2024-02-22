@@ -161,6 +161,7 @@ import {
 // ! Cython
 import { numericModifiers, varModifiers } from './tokenizerTypes';
 
+
 interface ListResult<T> {
     list: T[];
     trailingComma: boolean;
@@ -470,19 +471,33 @@ export class Parser {
         }
 
         // ! Cython
+        let cythonStatement: StatementNode | undefined = undefined;
         switch (this._peekKeywordType()) {
             case KeywordType.Ctypedef:
-                return this._parseCTypeDef();
+                cythonStatement = this._parseCTypeDef();
+                break;
             case KeywordType.Cdef:
-                return this._parseCDef();
+                cythonStatement = this._parseCDef();
+                break;
             case KeywordType.Cpdef:
-                return this._parseCpdef();
+                cythonStatement = this._parseCpdef();
+                break;
             case KeywordType.DEF:
-                return this._parseCDefine();
+                cythonStatement = this._parseCDefine();
+                break;
             case KeywordType.IF:
-                return this._parseCIfStatement();
+                cythonStatement = this._parseCIfStatement();
+                break;
             case KeywordType.Include:
-                return this._parseInclude();
+                cythonStatement = this._parseInclude();
+                break;
+        }
+        if (cythonStatement) {
+            if (CFunctionNode.isInstance(cythonStatement) && cythonStatement.isForwardDeclaration) {
+                this._expectNewLine();
+                this._consumeTokenIfType(TokenType.NewLine);
+            }
+            return cythonStatement;
         }
 
         return this._parseSimpleStatement();
@@ -2378,12 +2393,7 @@ export class Parser {
         }
 
         // ! Cython
-        const suite = this._parseSuite(
-            /* isFunction */ false,
-            this._parseOptions.skipFunctionAndClassBody,
-            undefined,
-            isCython
-        );
+        const suite = this._parseSuite(/* isFunction */ false, this._parseOptions.skipFunctionAndClassBody, undefined);
 
         const classNode = ClassNode.create(classToken, NameNode.create(nameToken), suite, typeParameters);
         classNode.isCython = isCython;
