@@ -23,6 +23,7 @@ import { DiagnosticLevel } from '../common/configOptions';
 import { assert, assertNever, fail } from '../common/debug';
 import { AddMissingOptionalToParamAction, DiagnosticAddendum } from '../common/diagnostic';
 import { DiagnosticRule } from '../common/diagnosticRules';
+import { getFileExtension } from '../common/pathUtils';
 import { convertOffsetsToRange, convertOffsetToPosition } from '../common/positionUtils';
 import { PythonVersion } from '../common/pythonVersion';
 import { TextRange } from '../common/textRange';
@@ -119,6 +120,8 @@ import {
     Declaration,
     DeclarationType,
     FunctionDeclaration,
+    isFunctionDeclaration,
+    isVariableDeclaration,
     ModuleLoaderActions,
 } from './declaration';
 import {
@@ -5366,7 +5369,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         const treatConstructorAsClassMember = (flags & MemberAccessFlags.TreatConstructorAsClassMethod) !== 0;
         let isTypeValid = true;
         let isAsymmetricDescriptor = false;
-
+        // ! Cython
+        const cythonDetails = type.cythonDetails;
         type = mapSubtypes(type, (subtype) => {
             const concreteSubtype = makeTopLevelTypeVarsConcrete(subtype);
             const isClassMember = !memberInfo || memberInfo.isClassMember;
@@ -5734,6 +5738,10 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         if (!isTypeValid) {
             return undefined;
         }
+
+        // ! Cython
+        // Apply cython details if present
+        type.cythonDetails = cythonDetails ? { ...cythonDetails } : undefined;
 
         return { type, isAsymmetricDescriptor };
     }
@@ -15290,6 +15298,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             // Also add struct type to details so that it persists for instances
             classType.details.structType = node.structType;
         }
+        if (node.isCython) {
+            evaluateCythonClassWithPxdDefinition(node);
+        }
 
         return { classType, decoratedType };
     }
@@ -24764,6 +24775,254 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             }
         }
         return expectedType;
+    }
+
+    // ! Cython C Class
+    type CClassDiag = (
+        error: string,
+        errorNode?: ParseNode,
+        pyStatementError?: boolean,
+        skipClassError?: boolean
+    ) => void;
+
+    function validateCClassPyxFields(
+        pyxNode: ClassNode,
+        pyxTypeResult: ClassTypeResult,
+        pxdType: ClassType,
+        addDiag: CClassDiag
+    ) {
+        const pyxType = pyxTypeResult.classType;
+        for (const [name, pyxSymbol] of pyxType.details.fields) {
+            const member = getTypeOfClassMember(pyxNode.name, pyxType, name);
+            const type = member?.type;
+            const decls = pyxSymbol.getDeclarations();
+            const decl = decls.length > 0 ? decls[decls.length - 1] : undefined;
+
+            if (decl && decl.type !== DeclarationType.Intrinsic && type) {
+                // Ignore intrinsic declarations
+                if (isFunctionDeclaration(decl) && isFunction(type)) {
+                    if (CFunctionNode.isInstance(decl.node) && !pxdType.details.fields.get(name)) {
+                        addDiag(
+                            Localizer.DiagnosticCython.missingCFunctionDefinition().format({
+                                functionName: name,
+                                name: pyxNode.name.value,
+                            }),
+                            decl.node.name
+                        );
+                    }
+                } else if (isVariableDeclaration(decl)) {
+                    if (type.cythonDetails) {
+                        addDiag(
+                            Localizer.DiagnosticCython.cClassDeclarationInImplementation(),
+                            decl.node,
+                            /*pyStatementError*/ false,
+                            /*skipClassError*/ true
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    function validateCClassPxdFields(
+        pyxNode: ClassNode,
+        pyxTypeResult: ClassTypeResult,
+        pxdType: ClassType,
+        addDiag: CClassDiag
+    ) {
+        for (const [name, pxdSymbol] of pxdType.details.fields.entries()) {
+            // These should all be cython types with the exception of some dunder methods
+            const pxdMemberDecls = pxdSymbol.getDeclarations();
+            const pxdMemberDecl = pxdMemberDecls.length ? pxdMemberDecls[pxdMemberDecls.length - 1] : undefined;
+            if (pxdMemberDecl?.type === DeclarationType.Intrinsic) {
+                // This is probably a dunder method so ignore
+                continue;
+            }
+            const pxdMember = getTypeOfClassMember(pyxNode.name, pxdType, name);
+            const pxdMemberType = pxdMember?.type;
+            if (!pxdMemberType || !pxdMemberDecl) {
+                // TODO: possibly handle no type found. Ignore for now.
+                continue;
+            }
+
+            if (!pxdMemberType.cythonDetails && !isFunction(pxdMemberType)) {
+                // There should only be cython declarations in pxd class
+                addDiag(Localizer.DiagnosticCython.pythonStatementInDefinition(), pxdMemberDecl.node, true);
+                continue;
+            }
+
+            if (pxdMemberDecls.length) {
+                // TODO: Handle multiple declarations
+            }
+
+            switch (pxdMemberDecl.type) {
+                case DeclarationType.Function:
+                    if (isFunction(pxdMemberType)) {
+                        evaluateCClassPxdMethod(
+                            pyxNode,
+                            pyxTypeResult,
+                            pxdMemberDecl,
+                            pxdMemberType,
+                            pxdSymbol,
+                            addDiag
+                        );
+                    }
+                    break;
+
+                case DeclarationType.Variable:
+                    if (isClassInstance(pxdMemberType)) {
+                        // These are cython instance vars
+                        // which can only be declared in the pxd class if it is present
+                        // Create symbol with type and add to pyx class fields
+                        const symbol = Symbol.createWithType(
+                            SymbolFlags.InstanceMember,
+                            TypeBase.cloneType(pxdMemberType)
+                        );
+                        if (pxdMemberDecl) {
+                            symbol.addDeclaration(pxdMemberDecl);
+                        }
+                        pyxTypeResult.classType.details.fields.set(name, symbol);
+                        if (isClass(pyxTypeResult.decoratedType)) {
+                            pyxTypeResult.decoratedType.details.fields.set(name, symbol);
+                        }
+                    }
+                    break;
+            }
+        }
+    }
+
+    function evaluateCClassPxdMethod(
+        pyxNode: ClassNode,
+        pyxTypeResult: ClassTypeResult,
+        pxdMemberDecl: FunctionDeclaration,
+        pxdMemberType: FunctionType,
+        pxdSymbol: Symbol,
+        addDiag: CClassDiag
+    ) {
+        assert(isFunction(pxdMemberType), 'Not a function type');
+        const functionNode = pxdMemberDecl.node;
+        const isInline = false;
+        let pxdImplementation = false;
+        if (!CFunctionNode.isInstance(functionNode)) {
+            // TODO: cpdef/def functions can be declared if 'final'
+            addDiag(
+                Localizer.DiagnosticCython.pythonFunctionInDefinition().format({
+                    functionName: functionNode.name.value,
+                    name: pyxNode.name.value,
+                }),
+                pxdMemberDecl.node.name
+            );
+        } else {
+            pxdImplementation = !functionNode.isForwardDeclaration;
+            if (pxdImplementation && !isInline) {
+                // TODO: Only inline declarations can have implementation
+                addDiag(
+                    Localizer.DiagnosticCython.cFunctionImplementationInDefinition().format({
+                        functionName: functionNode.name.value,
+                        name: pyxNode.name.value,
+                    }),
+                    functionNode.name
+                );
+            }
+        }
+
+        const pyxSymbol = pyxTypeResult.classType.details.fields.get(functionNode.name.value);
+        if (!pxdImplementation && !isInline) {
+            if (!pyxSymbol) {
+                addDiag(
+                    Localizer.DiagnosticCython.missingCFunctionimplementation().format({
+                        functionName: functionNode.name.value,
+                        name: pyxNode.name.value,
+                    }),
+                    functionNode.name
+                );
+            }
+        }
+
+        const scope = ScopeUtils.getScopeForNode(pyxNode);
+        if (scope) {
+            const flags = pyxSymbol?.flags() ?? pxdSymbol.flags();
+            const decls: Declaration[] = pyxSymbol?.getDeclarations() ?? [];
+            const newSymbol = scope.addSymbol(functionNode.name.value, flags);
+            const newDecls = [pxdMemberDecl, ...decls];
+            newDecls.forEach((decl) => {
+                newSymbol.addDeclaration(decl);
+            });
+            pyxTypeResult.classType.details.fields.set(functionNode.name.value, newSymbol);
+            if (isClass(pyxTypeResult.decoratedType)) {
+                pyxTypeResult.decoratedType.details.fields.set(functionNode.name.value, newSymbol);
+            }
+        }
+    }
+
+    // Evaluate 'cdef class' implementation (pyx) and matching definition (pxd) if found
+    // Attempts to be very thorough with error reporting as there can be many intricacies
+    // when defining a split definition/declaration.
+    // TODO: Make errors allowed with rules/addendum
+    // TODO: Handle cpdef enum and dataclasses?
+    function evaluateCythonClassWithPxdDefinition(node: ClassNode) {
+        let foundPyStatement = false;
+        const addDiag: CClassDiag = (
+            error: string,
+            errorNode?: ParseNode,
+            pyStatementError = false,
+            skipClassError = false
+        ) => {
+            if (!(pyStatementError && foundPyStatement) && !skipClassError) {
+                // Only report this error once on pyx node if pystatement
+                // We need to add error to pyx class because adding the error to imported pxd does not always show up
+                addError(error, node.name);
+                if (pyStatementError) {
+                    foundPyStatement = true;
+                }
+            }
+            if (errorNode) {
+                addError(error, errorNode);
+            }
+        };
+
+        const fileInfo = AnalyzerNodeInfo.getFileInfo(node);
+        const scope = ScopeUtils.getScopeForNode(node);
+        if (!scope) {
+            return;
+        }
+
+        if (!(node.isCython && getFileExtension(fileInfo.filePath).toLowerCase() === '.pyx')) {
+            // Only evaluate if node is in a .pyx file to prevent infinite recursion
+            return;
+        }
+        const symbolWithScope = lookUpSymbolRecursive(node, node.name.value, true);
+        const decls = symbolWithScope?.symbol.getDeclarations();
+        const pxdDeclAlias = decls?.find((decl) => decl.type === DeclarationType.Alias);
+        const pyxDecl = decls?.find((decl) => decl.type === DeclarationType.Class);
+        if (pxdDeclAlias && pyxDecl && symbolWithScope) {
+            const pyxTypeResult = getTypeOfClass(node);
+            if (!pyxTypeResult) {
+                return;
+            }
+            const classType = isClass(pyxTypeResult.classType) ? pyxTypeResult.classType : undefined;
+            const decoratedType = isClass(pyxTypeResult.decoratedType) ? pyxTypeResult.decoratedType : undefined;
+            if (!classType || !decoratedType) {
+                return;
+            }
+
+            const pxdDeclInfo = resolveAliasDeclarationWithInfo(
+                pxdDeclAlias,
+                /*resolveLocalNames*/ false,
+                /*allowExternallyHidden*/ false
+            );
+            const pxdType = pxdDeclInfo?.declaration ? getTypeForDeclaration(pxdDeclInfo.declaration) : undefined;
+            if (
+                pxdType &&
+                isClass(pxdType) &&
+                pxdType.details.name === node.name.value &&
+                fileInfo.filePath !== pxdType.details.filePath
+            ) {
+                // If we get here then there is a pxd declaration
+                validateCClassPyxFields(node, pyxTypeResult, pxdType, addDiag);
+                validateCClassPxdFields(node, pyxTypeResult, pxdType, addDiag);
+            }
+        }
     }
 
     // ! Cython CPP

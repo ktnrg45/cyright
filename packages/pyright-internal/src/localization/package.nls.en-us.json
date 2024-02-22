@@ -682,9 +682,15 @@
         "noneCheckNotAllowed": "None check only allowed for functions defined with \"def\"",
         "invalidNewExpression": "Expected a call to a constructor of a cppclass",
         "invalidAddressOf": "Taking address of non-lvalue or Python object",
+        "pythonStatementInDefinition": "Python statement found in C class pxd definition",
+        "cClassDeclarationInImplementation": "Cannot declare a C class member in pyx implementation if a pxd definition was declared",
 
         "modifierNotAllowed": "Modifier \"{name}\" not allowed here",
         "nonExternCFunctionNotDefined": "Non-extern C function \"{name}\" declared but not defined",
-        "invalidDereference": "Cannot dereference object of type \"{name}\""
+        "invalidDereference": "Cannot dereference object of type \"{name}\"",
+        "missingCFunctionDefinition": "C method \"{functionName}\" not previously declared in pxd definition of C class \"{name}\"",
+        "missingCFunctionimplementation": "C method \"{functionName}\" previously declared in pxd definition of C class \"{name}\" but not implemented in pyx implementation",
+        "pythonFunctionInDefinition": "Python function \"{functionName}\" defined in pxd definition of C class \"{name}\"",
+        "cFunctionImplementationInDefinition": "C function \"{functionName}\" is implemented in pxd definition of C class \"{name}\" without the \"inline\" qualifier"
     }
 }

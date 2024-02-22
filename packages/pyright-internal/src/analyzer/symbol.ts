@@ -262,6 +262,10 @@ export class Symbol {
     setInitiallyBound() {
         this._flags &= ~SymbolFlags.InitiallyUnbound;
     }
+
+    flags() {
+        return this._flags;
+    }
 }
 
 // Maps names to symbol information.

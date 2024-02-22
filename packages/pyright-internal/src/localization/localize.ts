@@ -1333,6 +1333,10 @@ export namespace Localizer {
         export const noneCheckNotAllowed = () => getRawString('DiagnosticCython.noneCheckNotAllowed');
         export const invalidNewExpression = () => getRawString('DiagnosticCython.invalidNewExpression');
         export const invalidAddressOf = () => getRawString('DiagnosticCython.invalidAddressOf');
+        export const pythonStatementInDefinition = () => getRawString('DiagnosticCython.pythonStatementInDefinition');
+        export const cClassDeclarationInImplementation = () =>
+            getRawString('DiagnosticCython.cClassDeclarationInImplementation');
+
 
         export const modifierNotAllowed = () =>
             new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.modifierNotAllowed'));
@@ -1340,5 +1344,21 @@ export namespace Localizer {
             new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.nonExternCFunctionNotDefined'));
         export const invalidDereference = () =>
             new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.invalidDereference'));
+        export const missingCFunctionDefinition = () =>
+            new ParameterizedString<{ functionName: string; name: string }>(
+                getRawString('DiagnosticCython.missingCFunctionDefinition')
+            );
+        export const missingCFunctionimplementation = () =>
+            new ParameterizedString<{ functionName: string; name: string }>(
+                getRawString('DiagnosticCython.missingCFunctionimplementation')
+            );
+        export const pythonFunctionInDefinition = () =>
+            new ParameterizedString<{ functionName: string; name: string }>(
+                getRawString('DiagnosticCython.pythonFunctionInDefinition')
+            );
+        export const cFunctionImplementationInDefinition = () =>
+            new ParameterizedString<{ functionName: string; name: string }>(
+                getRawString('DiagnosticCython.cFunctionImplementationInDefinition')
+            );
     }
 }
