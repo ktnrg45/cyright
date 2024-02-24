@@ -2305,6 +2305,11 @@ export class Parser {
                     if (decoratorList.length > 0) {
                         extendRange(node, decoratorList[0]);
                     }
+                    if (CFunctionNode.isInstance(node) && node.isForwardDeclaration) {
+                        // Consume new line if forward declared
+                        this._expectNewLine();
+                        this._consumeTokenIfType(TokenType.NewLine);
+                    }
                 }
                 return node;
             }
