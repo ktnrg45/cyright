@@ -5890,13 +5890,28 @@ export class Parser {
                 return this._parseCStruct();
             case KeywordType.Cppclass:
                 return this._parseCppClassDef();
-            case KeywordType.Operator: {
-                // Possible cpp operator method without return type
-                possibleFunction = this._getCFunction(undefined, false);
-                if (possibleFunction) {
-                    return possibleFunction;
+            case KeywordType.Inline:
+                {
+                    const modToken = this._getNextToken();
+                    possibleFunction = this._getCFunction(undefined, false);
+                    if (possibleFunction) {
+                        if (CFunctionNode.isInstance(possibleFunction)) {
+                            possibleFunction.modifier = kwType;
+                            extendRange(possibleFunction, modToken);
+                        }
+                        return possibleFunction;
+                    }
                 }
-            }
+                break;
+            case KeywordType.Operator:
+                {
+                    // Possible cpp operator method without return type
+                    possibleFunction = this._getCFunction(undefined, false);
+                    if (possibleFunction) {
+                        return possibleFunction;
+                    }
+                }
+                break;
         }
 
         const typeNode = this._parseCType();

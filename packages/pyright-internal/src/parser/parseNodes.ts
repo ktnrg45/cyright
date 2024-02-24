@@ -3061,6 +3061,7 @@ export interface CFunctionNode extends FunctionNode {
     blockTrail?: CBlockTrailNode;
     isForwardDeclaration: boolean;
     operatorSuffix?: string;
+    modifier?: KeywordType;
 }
 
 export namespace CFunctionNode {

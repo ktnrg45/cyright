@@ -1336,6 +1336,8 @@ export namespace Localizer {
         export const pythonStatementInDefinition = () => getRawString('DiagnosticCython.pythonStatementInDefinition');
         export const cClassDeclarationInImplementation = () =>
             getRawString('DiagnosticCython.cClassDeclarationInImplementation');
+        export const expectedInlineFunctionImplementation = () =>
+            getRawString('DiagnosticCython.expectedInlineFunctionImplementation');
 
 
         export const modifierNotAllowed = () =>

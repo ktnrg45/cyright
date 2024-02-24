@@ -24901,7 +24901,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
     ) {
         assert(isFunction(pxdMemberType), 'Not a function type');
         const functionNode = pxdMemberDecl.node;
-        const isInline = false;
+        const isInline = CFunctionNode.isInstance(functionNode) ? functionNode.modifier === KeywordType.Inline : false;
         let pxdImplementation = false;
         if (!CFunctionNode.isInstance(functionNode)) {
             // TODO: cpdef/def functions can be declared if 'final'
@@ -24915,7 +24915,6 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         } else {
             pxdImplementation = !functionNode.isForwardDeclaration;
             if (pxdImplementation && !isInline) {
-                // TODO: Only inline declarations can have implementation
                 addDiag(
                     Localizer.DiagnosticCython.cFunctionImplementationInDefinition().format({
                         functionName: functionNode.name.value,

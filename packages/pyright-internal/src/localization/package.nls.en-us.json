@@ -684,6 +684,7 @@
         "invalidAddressOf": "Taking address of non-lvalue or Python object",
         "pythonStatementInDefinition": "Python statement found in C class pxd definition",
         "cClassDeclarationInImplementation": "Cannot declare a C class member in pyx implementation if a pxd definition was declared",
+        "expectedInlineFunctionImplementation": "Expected implementation for \"inline\" function",
 
         "modifierNotAllowed": "Modifier \"{name}\" not allowed here",
         "nonExternCFunctionNotDefined": "Non-extern C function \"{name}\" declared but not defined",

@@ -91,7 +91,7 @@ import { getUnescapedString, UnescapeError, UnescapeErrorType } from '../parser/
 import { OperatorType } from '../parser/tokenizerTypes';
 import { AnalyzerFileInfo } from './analyzerFileInfo';
 import * as AnalyzerNodeInfo from './analyzerNodeInfo';
-import { ClassDeclaration, Declaration, DeclarationType, isAliasDeclaration, isClassDeclaration } from './declaration';
+import { Declaration, DeclarationType, isAliasDeclaration } from './declaration';
 import { isExplicitTypeAliasDeclaration, isFinalVariableDeclaration } from './declarationUtils';
 import { createImportedModuleDescriptor, ImportResolver } from './importResolver';
 import { ImportResult, ImportType } from './importResult';
