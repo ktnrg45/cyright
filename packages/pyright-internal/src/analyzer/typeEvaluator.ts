@@ -24784,6 +24784,24 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         pyStatementError?: boolean,
         skipClassError?: boolean
     ) => void;
+    type PxdClassInfo = {
+        pyxTypeResult: ClassTypeResult;
+        pxdTypeResult: Omit<TypeResultWithNode, 'type'> & { type: ClassType };
+    };
+
+    function lookupPxdClassSymbol(name: string, type: ClassType) {
+        // TODO: Do we need to check if mro list are all pxd definitions?
+        let symbol: Symbol | undefined = undefined;
+        for (const parentType of type.details.mro) {
+            if (isClass(parentType)) {
+                symbol = parentType.details.fields.get(name);
+                if (symbol) {
+                    return symbol;
+                }
+            }
+        }
+        return symbol;
+    }
 
     function validateCClassPyxFields(
         pyxNode: ClassNode,
@@ -24801,7 +24819,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             if (decl && decl.type !== DeclarationType.Intrinsic && type) {
                 // Ignore intrinsic declarations
                 if (isFunctionDeclaration(decl) && isFunction(type)) {
-                    if (CFunctionNode.isInstance(decl.node) && !pxdType.details.fields.get(name)) {
+                    if (CFunctionNode.isInstance(decl.node) && !lookupPxdClassSymbol(name, pxdType)) {
                         addDiag(
                             Localizer.DiagnosticCython.missingCFunctionDefinition().format({
                                 functionName: name,
@@ -24899,7 +24917,6 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         pxdSymbol: Symbol,
         addDiag: CClassDiag
     ) {
-        assert(isFunction(pxdMemberType), 'Not a function type');
         const functionNode = pxdMemberDecl.node;
         const isInline = CFunctionNode.isInstance(functionNode) ? functionNode.modifier === KeywordType.Inline : false;
         let pxdImplementation = false;
@@ -24954,9 +24971,56 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         }
     }
 
+    function getMatchingPxdClassInfo(node: ClassNode): PxdClassInfo | undefined {
+        const fileInfo = AnalyzerNodeInfo.getFileInfo(node);
+        const scope = ScopeUtils.getScopeForNode(node);
+
+        if (!(scope && node.isCython && getFileExtension(fileInfo.filePath).toLowerCase() === '.pyx')) {
+            // Only evaluate if node is in a .pyx file to prevent infinite recursion
+            return undefined;
+        }
+
+        const symbolWithScope = lookUpSymbolRecursive(node, node.name.value, true);
+        const decls = symbolWithScope?.symbol.getDeclarations();
+        const pxdDeclAlias = decls?.find((decl) => decl.type === DeclarationType.Alias);
+        const pyxDecl = decls?.find((decl) => decl.type === DeclarationType.Class);
+        if (pxdDeclAlias && pyxDecl && symbolWithScope) {
+            const pyxTypeResult = getTypeOfClass(node);
+            if (!pyxTypeResult) {
+                return undefined;
+            }
+            const classType = isClass(pyxTypeResult.classType) ? pyxTypeResult.classType : undefined;
+            const decoratedType = isClass(pyxTypeResult.decoratedType) ? pyxTypeResult.decoratedType : undefined;
+            if (!classType || !decoratedType) {
+                return undefined;
+            }
+
+            const pxdDeclInfo = resolveAliasDeclarationWithInfo(
+                pxdDeclAlias,
+                /*resolveLocalNames*/ false,
+                /*allowExternallyHidden*/ false
+            );
+            const pxdType = pxdDeclInfo?.declaration ? getTypeForDeclaration(pxdDeclInfo.declaration) : undefined;
+            const pxdNode = pxdDeclInfo?.declaration?.node;
+            if (
+                pxdType &&
+                isClass(pxdType) &&
+                pxdType.details.name === node.name.value &&
+                fileInfo.filePath !== pxdType.details.filePath &&
+                pxdNode
+            ) {
+                // Found pxd declaration
+                const pxdTypeResult = { type: pxdType, node: pxdNode };
+                return { pyxTypeResult: pyxTypeResult, pxdTypeResult: pxdTypeResult };
+            }
+        }
+        return undefined;
+    }
+
     // Evaluate 'cdef class' implementation (pyx) and matching definition (pxd) if found
     // Attempts to be very thorough with error reporting as there can be many intricacies
     // when defining a split definition/declaration.
+    // TODO: Check if Pxd definition can be included. If it cannot then we can also check that the file extension is '.pxd'
     // TODO: Make errors allowed with rules/addendum
     // TODO: Handle cpdef enum and dataclasses?
     function evaluateCythonClassWithPxdDefinition(node: ClassNode) {
@@ -24980,48 +25044,15 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             }
         };
 
-        const fileInfo = AnalyzerNodeInfo.getFileInfo(node);
-        const scope = ScopeUtils.getScopeForNode(node);
-        if (!scope) {
+        const pxdResultInfo = getMatchingPxdClassInfo(node);
+        if (!pxdResultInfo) {
             return;
         }
+        const pyxTypeResult = pxdResultInfo.pyxTypeResult;
+        const pxdType = pxdResultInfo.pxdTypeResult.type;
 
-        if (!(node.isCython && getFileExtension(fileInfo.filePath).toLowerCase() === '.pyx')) {
-            // Only evaluate if node is in a .pyx file to prevent infinite recursion
-            return;
-        }
-        const symbolWithScope = lookUpSymbolRecursive(node, node.name.value, true);
-        const decls = symbolWithScope?.symbol.getDeclarations();
-        const pxdDeclAlias = decls?.find((decl) => decl.type === DeclarationType.Alias);
-        const pyxDecl = decls?.find((decl) => decl.type === DeclarationType.Class);
-        if (pxdDeclAlias && pyxDecl && symbolWithScope) {
-            const pyxTypeResult = getTypeOfClass(node);
-            if (!pyxTypeResult) {
-                return;
-            }
-            const classType = isClass(pyxTypeResult.classType) ? pyxTypeResult.classType : undefined;
-            const decoratedType = isClass(pyxTypeResult.decoratedType) ? pyxTypeResult.decoratedType : undefined;
-            if (!classType || !decoratedType) {
-                return;
-            }
-
-            const pxdDeclInfo = resolveAliasDeclarationWithInfo(
-                pxdDeclAlias,
-                /*resolveLocalNames*/ false,
-                /*allowExternallyHidden*/ false
-            );
-            const pxdType = pxdDeclInfo?.declaration ? getTypeForDeclaration(pxdDeclInfo.declaration) : undefined;
-            if (
-                pxdType &&
-                isClass(pxdType) &&
-                pxdType.details.name === node.name.value &&
-                fileInfo.filePath !== pxdType.details.filePath
-            ) {
-                // If we get here then there is a pxd declaration
-                validateCClassPyxFields(node, pyxTypeResult, pxdType, addDiag);
-                validateCClassPxdFields(node, pyxTypeResult, pxdType, addDiag);
-            }
-        }
+        validateCClassPyxFields(node, pyxTypeResult, pxdType, addDiag);
+        validateCClassPxdFields(node, pyxTypeResult, pxdType, addDiag);
     }
 
     // ! Cython CPP
