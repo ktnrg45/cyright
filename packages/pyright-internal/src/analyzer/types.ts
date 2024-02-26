@@ -259,17 +259,21 @@ export namespace TypeBase {
     // ! Cython
     export function cloneForCType(node: CTypeNode | undefined, type: Type) {
         const cType = TypeBase.cloneType(type);
+        const cythonDetails: CythonDetails = {
+            isPointer: node ? CTypeNode.isPointer(node) : false,
+            ptrRefCount: node ? CTypeNode.ptrRefCount(node) : 0,
+            isConst: node ? CTypeNode.isConstant(node) : false,
+            isVolatile: node ? CTypeNode.isVolatile(node) : false,
+            isPublic: node ? CTypeNode.isPublic(node) : false,
+            isReadOnly: node ? CTypeNode.isReadOnly(node) : false,
+            numMods: node ? CTypeNode.numModifiers(node) : [],
+            trailType: node ? CTypeNode.trailType(node) : CTrailType.None,
+        };
         if (!cType.cythonDetails) {
-            cType.cythonDetails = {
-                isPointer: node ? CTypeNode.isPointer(node) : false,
-                ptrRefCount: node ? CTypeNode.ptrRefCount(node) : 0,
-                isConst: node ? CTypeNode.isConstant(node) : false,
-                isVolatile: node ? CTypeNode.isVolatile(node) : false,
-                isPublic: node ? CTypeNode.isPublic(node) : false,
-                isReadOnly: node ? CTypeNode.isReadOnly(node) : false,
-                numMods: node ? CTypeNode.numModifiers(node) : [],
-                trailType: node ? CTypeNode.trailType(node) : CTrailType.None,
-            };
+            cType.cythonDetails = cythonDetails;
+        } else if (isClass(cType) && cType.details.structType && cType.details.structType !== CStructType.Fused) {
+            // Update details from node if a cython struct, enum, union, cppclass
+            cType.cythonDetails = Object.assign({}, cType.cythonDetails, cythonDetails);
         }
         return cType;
     }

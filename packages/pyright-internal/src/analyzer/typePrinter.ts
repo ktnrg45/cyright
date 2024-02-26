@@ -601,9 +601,6 @@ export function printObjectTypeForClass(
 ): string {
     let objName = type.aliasName || type.details.name;
 
-    // ! Cython
-    objName = printTypeWithCythonDetails(type, objName);
-
     // If this is a pseudo-generic class, don't display the type arguments
     // or type parameters because it will confuse users.
     if (!ClassType.isPseudoGenericClass(type)) {
@@ -723,6 +720,8 @@ export function printObjectTypeForClass(
         }
     }
 
+    // ! Cython
+    objName = printTypeWithCythonDetails(type, objName);
     return objName;
 }
 
