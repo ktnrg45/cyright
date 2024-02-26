@@ -7008,6 +7008,8 @@ export class Parser {
     }
 
     private _parseCType(allowEllipsis = false, isCParameter = false) {
+        const signedTypes = ['char', 'short', 'int', 'long'];
+        const signedMods = ['signed', 'unsigned'];
         const identifiers: IdentifierToken[] = [];
         const modifiers: KeywordToken[] = [];
         const numModifiers: IdentifierToken[] = [];
@@ -7145,12 +7147,17 @@ export class Parser {
         }
 
         if (!expression) {
+            const lastNumMod = numModifiers.length ? numModifiers[numModifiers.length - 1] : undefined;
             if (identifiers.length === 0) {
                 if (longCount > 0) {
                     // Type ending with `long`
                     // Remove the last `long` from num modifiers
                     // Add to identifiers
                     identifiers.push(numModifiers.pop()!);
+                } else if (lastNumMod && signedMods.includes(lastNumMod.value)) {
+                    // Handle case where only unsigned/signed is given with no identifier following it: `cdef unsigned* var`
+                    // Create dummy expression. The type is assumed to be 'int'.
+                    expression = NameNode.create(IdentifierToken.create(0, 0, 'int', undefined));
                 }
             } else if (identifiers.length > 1) {
                 // Compound type. Remove the first identifier and append it to numModifiers
@@ -7159,7 +7166,19 @@ export class Parser {
             }
 
             if (identifiers.length > 0) {
-                expression = NameNode.create(identifiers[identifiers.length - 1]);
+                const lastIdent = identifiers[identifiers.length - 1];
+                if (identifiers.length === 1) {
+                    // Handle case where only unsigned/signed is given: `cdef unsigned var`
+                    if (lastNumMod && signedMods.includes(lastNumMod.value) && !signedTypes.includes(lastIdent.value)) {
+                        // Create dummy expression if identifier is not a signed type. The type is assumed to be 'int'.
+                        expression = NameNode.create(IdentifierToken.create(0, 0, 'int', undefined));
+                        // Back up the token index
+                        this._tokenIndex--;
+                    }
+                }
+                if (!expression) {
+                    expression = NameNode.create(lastIdent);
+                }
             }
         }
 
