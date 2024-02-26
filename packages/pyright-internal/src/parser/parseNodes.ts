@@ -453,6 +453,7 @@ export interface FunctionNode extends ParseNodeBase {
 
     // ! Cython
     readonly isCythonAlias: boolean;
+    readonly structType?: CStructType.Property | undefined; // For legacy property declaration
 }
 
 export namespace FunctionNode {
@@ -716,7 +717,8 @@ export type StatementNode =
     | CEnumNode
     | CStructNode
     | CFunctionNode
-    | CDefineNode;
+    | CDefineNode
+    | CPropertyNode;
 
 export type SmallStatementNode =
     | ExpressionNode
@@ -2952,6 +2954,7 @@ export const enum CStructType {
     Enum,
     ClassExt, // C Extension Class
     CppClass,
+    Property, // Legacy property
 }
 
 export interface CStructNode extends ParseNodeBase {
@@ -3238,6 +3241,37 @@ export namespace CNewNode {
     }
 }
 
+export interface CPropertyNode extends FunctionNode {
+    readonly nodeType: ParseNodeType.Function;
+    readonly isCythonAlias: true;
+    readonly structType: CStructType.Property;
+}
+
+export namespace CPropertyNode {
+    export function create(propertyToken: IdentifierToken, nameToken: IdentifierToken, suite: SuiteNode) {
+        const node: CPropertyNode = {
+            start: propertyToken.start,
+            length: propertyToken.length,
+            nodeType: ParseNodeType.Function,
+            id: _nextNodeId++,
+            name: NameNode.create(nameToken),
+            suite: suite,
+            isCythonAlias: true,
+            structType: CStructType.Property,
+            decorators: [],
+            parameters: [],
+        };
+        const dec = DecoratorNode.create(propertyToken, NameNode.create(propertyToken));
+        node.decorators.push(dec);
+        dec.parent = node;
+        node.name.parent = node;
+        node.suite.parent = node;
+        extendRange(node, node.name);
+        extendRange(node, node.suite);
+        return node;
+    }
+}
+
 // ! Cython End
 
 export type PatternAtomNode =
@@ -3349,7 +3383,8 @@ export type ParseNode =
     | CSizeOfNode
     | CBlockTrailNode
     | CGilNode
-    | CNewNode;
+    | CNewNode
+    | CPropertyNode;
 
 export type EvaluationScopeNode =
     | LambdaNode

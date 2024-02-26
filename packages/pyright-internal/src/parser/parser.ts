@@ -53,6 +53,7 @@ import {
     ConstantNode,
     ContinueNode,
     CParameterNode,
+    CPropertyNode,
     CSizeOfNode,
     CStructNode,
     CStructType,
@@ -161,7 +162,6 @@ import {
 // ! Cython
 import { numericModifiers, varModifiers } from './tokenizerTypes';
 
-
 interface ListResult<T> {
     list: T[];
     trailingComma: boolean;
@@ -265,6 +265,7 @@ export class Parser {
     private _isParsingCExtern = false;
     private _isParsingCStruct = false;
     private _isParsingCFused = false;
+    private _isParsingCClass = false;
 
     parseSourceFile(fileContents: string, parseOptions: ParseOptions, diagSink: DiagnosticSink): ParseResults {
         timingStats.tokenizeFileTime.timeOperation(() => {
@@ -498,6 +499,20 @@ export class Parser {
                 this._consumeTokenIfType(TokenType.NewLine);
             }
             return cythonStatement;
+        }
+        if (this._isParsingCClass) {
+            // Check if this could be a legacy property declaration
+            const propToken = this._peekToken();
+            const ident = this._peekToken(1);
+            const colon = this._peekToken(2);
+            if (
+                propToken.type === TokenType.Identifier &&
+                (propToken as IdentifierToken).value === 'property' &&
+                (ident.type === TokenType.Identifier || this._softKeywordToIdentifier(ident)) &&
+                colon.type === TokenType.Colon
+            ) {
+                return this._parseCLegacyProperty();
+            }
         }
 
         return this._parseSimpleStatement();
@@ -5705,8 +5720,13 @@ export class Parser {
                         case KeywordType.Union:
                         case KeywordType.Fused:
                             return this._parseCStruct();
-                        case KeywordType.Class:
-                            return this._parseClassDef(undefined, true);
+                        case KeywordType.Class: {
+                            const wasParsingCClass = this._isParsingCClass;
+                            this._isParsingCClass = true;
+                            const cls = this._parseClassDef(undefined, true);
+                            this._isParsingCClass = wasParsingCClass;
+                            return cls;
+                        }
                         case KeywordType.Cppclass:
                             return this._parseCppClassDef();
                     }
@@ -7440,6 +7460,46 @@ export class Parser {
         this._importedModules.push(pxdImport);
         this._pushStatements(statement, importFromNode);
         return statement;
+    }
+
+    // Legacy property declaration:
+    // property prop_name:
+    //     def __get__(self): ...
+    //     def __set__(self, value): ...
+    //     def __del__(self): ...
+    private _parseCLegacyProperty() {
+        const startToken = this._peekToken();
+        const statements = StatementListNode.create(startToken);
+        const propToken = this._getTokenIfIdentifier();
+
+        if (propToken?.value === 'property') {
+            const nameToken = this._getTokenIfIdentifier();
+            if (!nameToken) {
+                this._pushStatements(
+                    statements,
+                    this._handleExpressionParseError(
+                        ErrorExpressionCategory.InvalidDeclaration,
+                        Localizer.Diagnostic.expectedIdentifier(),
+                        this._peekToken()
+                    )
+                );
+                return statements;
+            }
+            const suite = this._parseSuite();
+            const node = CPropertyNode.create(propToken, nameToken, suite);
+            this._addDeprecated(Localizer.DiagnosticCython.legacyPropertyDeclaration(), node.name);
+            return node;
+        }
+
+        this._pushStatements(
+            statements,
+            this._handleExpressionParseError(
+                ErrorExpressionCategory.InvalidDeclaration,
+                Localizer.Diagnostic.expectedIdentifier(),
+                startToken
+            )
+        );
+        return statements;
     }
 
     private _parseCppClassDef(decorators?: DecoratorNode[]): ClassNode {

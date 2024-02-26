@@ -685,6 +685,7 @@
         "pythonStatementInDefinition": "Python statement found in C class pxd definition",
         "cClassDeclarationInImplementation": "Cannot declare a C class member in pyx implementation if a pxd definition was declared",
         "expectedInlineFunctionImplementation": "Expected implementation for \"inline\" function",
+        "legacyPropertyDeclaration": "Using legacy property declaration. Use property decorator \"@property\" instead",
 
         "modifierNotAllowed": "Modifier \"{name}\" not allowed here",
         "nonExternCFunctionNotDefined": "Non-extern C function \"{name}\" declared but not defined",

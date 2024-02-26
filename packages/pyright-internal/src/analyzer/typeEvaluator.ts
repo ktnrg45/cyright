@@ -15755,7 +15755,15 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
         // There was no cached type, so create a new one.
         // Retrieve the containing class node if the function is a method.
-        const containingClassNode = ParseTreeUtils.getEnclosingClass(node, /* stopAtFunction */ true);
+
+        // ! Cythom Legacy property
+        // If this is contained in legacy property declaration look for enclosing class from the legacy property
+        const enclosingFunction = ParseTreeUtils.getEnclosingFunction(node);
+        const isCLegacyPropertyAccessor = enclosingFunction?.structType === CStructType.Property;
+
+        const containingClassNode = isCLegacyPropertyAccessor
+            ? ParseTreeUtils.getEnclosingClass(enclosingFunction, /* stopAtFunction */ true)
+            : ParseTreeUtils.getEnclosingClass(node, /* stopAtFunction */ true);
         let containingClassType: ClassType | undefined;
         if (containingClassNode) {
             const classInfo = getTypeOfClass(containingClassNode);
@@ -15871,11 +15879,14 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         };
 
         let paramsArePositionOnly = true;
+
+        // ! Cython Legacy property
         const isFirstParamClsOrSelf =
             containingClassType &&
             (FunctionType.isClassMethod(functionType) ||
                 FunctionType.isInstanceMethod(functionType) ||
-                FunctionType.isConstructorMethod(functionType));
+                FunctionType.isConstructorMethod(functionType) ||
+                isCLegacyPropertyAccessor);
         const firstNonClsSelfParamIndex = isFirstParamClsOrSelf ? 1 : 0;
 
         node.parameters.forEach((param, index) => {
@@ -16136,6 +16147,25 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         // Clear the "partially evaluated" flag to indicate that the functionType
         // is fully evaluated.
         functionType.details.flags &= ~FunctionTypeFlags.PartiallyEvaluated;
+
+        // ! Cython Legacy Property
+        // TODO: Handle setters + deleters
+        if (node.structType === CStructType.Property) {
+            // Use the return type of '__get__'
+            const funcScope = AnalyzerNodeInfo.getScope(node);
+            const fgetSymbol = funcScope?.symbolTable.get('__get__');
+            if (fgetSymbol) {
+                const fgetDecls = fgetSymbol.getDeclarations();
+                const fgetDecl = fgetDecls.length ? fgetDecls[fgetDecls.length - 1] : undefined;
+                if (fgetDecl && isFunctionDeclaration(fgetDecl)) {
+                    const fgetType = getTypeOfFunction(fgetDecl.node)?.functionType;
+                    if (fgetType) {
+                        // TODO: Hacky. We want to make this to alias '__get__'
+                        Object.assign(functionType, fgetType);
+                    }
+                }
+            }
+        }
 
         // If it's an async function, wrap the return type in an Awaitable or Generator.
         const preDecoratedType = node.isAsync ? createAsyncFunction(node, functionType) : functionType;
