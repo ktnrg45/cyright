@@ -178,6 +178,10 @@ export interface VariableDeclaration extends DeclarationBase {
 
     // If an "attribute docstring" (as defined in PEP 258) is present...
     docString?: string | undefined;
+
+    // ! Cython
+    // If is compile time constant; defined with 'DEF'
+    isCompileTimeConstant?: boolean;
 }
 
 // Alias declarations are used for imports. They are resolved

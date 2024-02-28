@@ -19673,6 +19673,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                                 if (TypeBase.isInstance(type) && !isExplicitTypeAlias && !isConstant && !isFinalVar) {
                                     type = stripLiteralValue(type);
                                 }
+
+                                // ! Cython
+                                type.isCompileTimeConstant = decl.isCompileTimeConstant;
                             }
                             typesToCombine.push(type);
 
@@ -24297,7 +24300,6 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         }
 
         const args = typeTrail.argumentLists.flat();
-        const exprs = args.map((arg) => arg.valueExpression);
 
         if (typeTrail.trailType & CTrailType.Template && type.details.typeParameters.length > 0) {
             // ! Cython CPP Template
@@ -24307,19 +24309,13 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             return ClassType.cloneForSpecialization(type, types, true);
         } else {
             // TODO: Check if arguments are compile time constant or literal int. Constant type seems to be flaky.
+            args.forEach((arg) => getTypeOfArgument(arg));
             if (
                 typeTrail.trailType & CTrailType.View &&
                 args.every((arg) => arg.valueExpression.nodeType === ParseNodeType.Slice)
             ) {
                 type.cythonDetails.trailType = CTrailType.View;
-                args.forEach((arg) => getTypeOfExpressionExpectingType(arg.valueExpression));
             } else if (typeTrail.trailType & CTrailType.Array) {
-                exprs.forEach((expr) => {
-                    if (expr.nodeType === ParseNodeType.Name) {
-                        const exprType = getTypeOfName(expr, EvaluatorFlags.ExpectingType).type;
-                        writeTypeCache(expr, exprType, undefined, false);
-                    }
-                });
                 type.cythonDetails.trailType = CTrailType.Array;
             }
         }

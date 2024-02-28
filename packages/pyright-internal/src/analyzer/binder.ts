@@ -38,6 +38,7 @@ import {
     BreakNode,
     CallNode,
     CaseNode,
+    CDefineNode,
     CEnumNode,
     CExternNode,
     CFunctionNode,
@@ -116,6 +117,7 @@ import {
     DeclarationType,
     FunctionDeclaration,
     IntrinsicType,
+    isVariableDeclaration,
     ModuleLoaderActions,
     ParameterDeclaration,
     TypeAliasDeclaration,
@@ -4353,6 +4355,24 @@ export class Binder extends ParseTreeWalker {
         this._isInExtern = true;
         this.walk(node.suite);
         this._isInExtern = wasInExtern;
+        return false;
+    }
+
+    override visitCDefine(node: CDefineNode): boolean {
+        this.walk(node.valueExpression);
+        if (
+            node.valueExpression.nodeType === ParseNodeType.Assignment &&
+            node.valueExpression.leftExpression.nodeType === ParseNodeType.Name
+        ) {
+            const name = node.valueExpression.leftExpression;
+            const scope = this._currentScope;
+            const symbol = scope.lookUpSymbol(name.value);
+            const decls = symbol ? symbol.getDeclarations() : [];
+            const decl = decls.length ? decls[decls.length - 1] : undefined;
+            if (decl && isVariableDeclaration(decl)) {
+                decl.isCompileTimeConstant = true;
+            }
+        }
         return false;
     }
 }
