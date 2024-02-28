@@ -768,7 +768,8 @@ export type ExpressionNode =
     | CCastNode
     | CSizeOfNode
     | CGilNode
-    | CNewNode;
+    | CNewNode
+    | CDefineNode;
 
 export function isExpressionNode(node: ParseNode): node is ExpressionNode {
     switch (node.nodeType) {

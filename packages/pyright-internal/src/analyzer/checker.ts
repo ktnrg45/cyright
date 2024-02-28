@@ -32,6 +32,7 @@ import {
     CallNode,
     CaseNode,
     CCastNode,
+    CDefineNode,
     ClassNode,
     CTypeDefNode,
     DelNode,
@@ -5595,6 +5596,11 @@ export class Checker extends ParseTreeWalker {
 
     override visitCTypeDef(node: CTypeDefNode): boolean {
         this._evaluator.evaluateTypesForStatement(CTypeDefNode.alias(node));
+        return true;
+    }
+
+    override visitCDefine(node: CDefineNode): boolean {
+        this._evaluator.getType(node);
         return true;
     }
 }

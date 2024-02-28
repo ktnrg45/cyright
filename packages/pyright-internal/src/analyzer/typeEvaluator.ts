@@ -40,6 +40,7 @@ import {
     CBlockTrailType,
     CCallbackNode,
     CCastNode,
+    CDefineNode,
     CFunctionNode,
     CGilNode,
     ClassNode,
@@ -1167,6 +1168,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             case ParseNodeType.CCast:
             case ParseNodeType.CGil:
             case ParseNodeType.CNew:
+            case ParseNodeType.CDefine:
                 typeResult = getTypeOfCythonNode(node, flags, expectedType);
                 break;
             default:
@@ -24266,6 +24268,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 case ParseNodeType.CNew:
                     typeResult = getTypeOfCNew(node, flags, expectedType);
                     break;
+                case ParseNodeType.CDefine:
+                    typeResult = getTypeOfCDefine(node, flags, expectedType);
+                    break;
                 default:
                     break;
             }
@@ -24290,22 +24295,32 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         if (!isClass(type) || !typeTrail || !type.cythonDetails) {
             return type;
         }
-        if (Object.values(CTrailType).includes(typeTrail.trailType)) {
-            // Type is already narrowed
-            return type;
-        }
 
-        // Multi dim arrays should have been narrowed when parsing
         const args = typeTrail.argumentLists.flat();
-        if (type.details.typeParameters.length > 0) {
+        const exprs = args.map((arg) => arg.valueExpression);
+
+        if (typeTrail.trailType & CTrailType.Template && type.details.typeParameters.length > 0) {
             // ! Cython CPP Template
             // TODO: Check type Parameters
             type.cythonDetails.trailType = CTrailType.Template;
             const types = args.map((arg) => convertToInstance(getTypeOfArgumentExpectingType(arg).type));
             return ClassType.cloneForSpecialization(type, types, true);
-        } else if (args.length > 0) {
-            if (args.every((arg) => arg.valueExpression.nodeType === ParseNodeType.Slice)) {
+        } else {
+            // TODO: Check if arguments are compile time constant or literal int. Constant type seems to be flaky.
+            if (
+                typeTrail.trailType & CTrailType.View &&
+                args.every((arg) => arg.valueExpression.nodeType === ParseNodeType.Slice)
+            ) {
                 type.cythonDetails.trailType = CTrailType.View;
+                args.forEach((arg) => getTypeOfExpressionExpectingType(arg.valueExpression));
+            } else if (typeTrail.trailType & CTrailType.Array) {
+                exprs.forEach((expr) => {
+                    if (expr.nodeType === ParseNodeType.Name) {
+                        const exprType = getTypeOfName(expr, EvaluatorFlags.ExpectingType).type;
+                        writeTypeCache(expr, exprType, undefined, false);
+                    }
+                });
+                type.cythonDetails.trailType = CTrailType.Array;
             }
         }
 
@@ -24475,6 +24490,87 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             addError(Localizer.DiagnosticCython.invalidNewExpression(), node);
         }
         return typeResult;
+    }
+
+    function getTypeOfCDefine(node: CDefineNode, flags?: EvaluatorFlags, expectedType?: Type) {
+        const cachedType = readTypeCache(node, flags);
+        if (cachedType) {
+            return { type: cachedType };
+        }
+        const typeResult: TypeResult = { type: AnyType.create() };
+        const type = getTypeOfExpression(node.valueExpression).type;
+        if (!checkTypeIsCompileTimeConstant(type)) {
+            addError(Localizer.DiagnosticCython.invalidTypeForCDefConstant(), node.valueExpression);
+            return typeResult;
+        } else {
+            if (node.valueExpression.nodeType === ParseNodeType.Assignment) {
+                // Should always be an assigment
+                if (checkNodeIsCompileTimeConstant(node.valueExpression.rightExpression)) {
+                    type.isCompileTimeConstant = true;
+                    typeResult.type = type;
+                    if (node.valueExpression.leftExpression.nodeType === ParseNodeType.Name) {
+                        writeTypeCache(node.valueExpression, type, flags, false);
+                        writeTypeCache(node.valueExpression.leftExpression, type, flags, false);
+                    }
+                }
+            }
+        }
+        return typeResult;
+    }
+
+    const compileTimeConstantTypes = ['str', 'float', 'int', 'bytes', 'bool'];
+    function checkNodeIsCompileTimeConstant(node: ParseNode): boolean {
+        switch (node.nodeType) {
+            case ParseNodeType.Name:
+                {
+                    if (getTypeOfExpression(node).type.isCompileTimeConstant) {
+                        return true;
+                    }
+                }
+                break;
+            case ParseNodeType.Constant:
+                {
+                    if ([KeywordType.None, KeywordType.True, KeywordType.False].includes(node.constType)) {
+                        return true;
+                    }
+                }
+                break;
+            case ParseNodeType.Call:
+                {
+                    if (
+                        node.leftExpression.nodeType === ParseNodeType.Name &&
+                        compileTimeConstantTypes.includes(node.leftExpression.value)
+                    ) {
+                        return true;
+                    }
+                }
+                break;
+            case ParseNodeType.BinaryOperation: {
+                return [
+                    checkNodeIsCompileTimeConstant(node.leftExpression),
+                    checkNodeIsCompileTimeConstant(node.rightExpression),
+                ].every((val) => !!val);
+            }
+            case ParseNodeType.Number:
+            case ParseNodeType.StringList:
+                return true;
+        }
+        addError(Localizer.DiagnosticCython.expectedCDefConstant(), node);
+        return false;
+    }
+
+    function checkTypeIsCompileTimeConstant(type: Type) {
+        if (isNoneInstance(type)) {
+            return true;
+        }
+        if (
+            !isClassInstance(type) ||
+            !(type.details.flags & ClassTypeFlags.BuiltInClass) ||
+            !compileTimeConstantTypes.includes(type.details.name)
+        ) {
+            return false;
+        }
+        return true;
     }
 
     function isPointer(type: Type) {

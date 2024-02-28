@@ -142,6 +142,7 @@ interface TypeBase {
 
     // ! Cython
     cythonDetails?: CythonDetails;
+    isCompileTimeConstant?: boolean;
 }
 
 export namespace TypeBase {

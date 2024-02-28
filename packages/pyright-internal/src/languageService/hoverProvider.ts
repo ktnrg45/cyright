@@ -222,6 +222,9 @@ export class HoverProvider {
                 if (declaration.isInExtern && type && isClass(type)) {
                     type.literalValue = undefined;
                 }
+                if (type?.isCompileTimeConstant) {
+                    label = 'DEF constant';
+                }
 
                 const typeText = typeVarName || node.value + this._getTypeText(typeNode, evaluator, expandTypeAlias);
                 this._addResultsPart(parts, `(${label}) ${typeText}`, /* python */ true);

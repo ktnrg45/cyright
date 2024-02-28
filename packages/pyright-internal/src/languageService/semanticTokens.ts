@@ -30,6 +30,7 @@ import {
 import { ParseResults } from '../parser/parser';
 
 enum LegendType {
+    None = '',
     Class = 'class',
     Variable = 'variable',
     Namespace = 'namespace',
@@ -56,6 +57,7 @@ enum LegendType {
 }
 
 enum LegendMod {
+    None = '',
     Declaration = 'declaration',
     Readonly = 'readonly',
     Modification = 'modification',
@@ -160,13 +162,19 @@ class SemanticTokensWalker extends ParseTreeWalker {
         return this._builder.getCancellationToken();
     }
 
-    getTokenTypeForName(node: NameNode) {
-        let tokenType: LegendTypeType = LegendType.Variable;
+    getTokenTypeForName(node: NameNode): { type: LegendTypeType; mod: LegendModType | undefined } {
+        const result: { type: LegendTypeType; mod: LegendModType | undefined } = {
+            type: LegendType.Variable,
+            mod: undefined,
+        };
         const declarations = this._evaluator.getDeclarationsForNameNode(node);
         const type = this.getType(node);
+        if (type?.isCompileTimeConstant) {
+            result.mod = LegendMod.Readonly;
+        }
         if (type && isModule(type)) {
-            tokenType = LegendType.Namespace;
-            return tokenType;
+            result.type = LegendType.Namespace;
+            return result;
         }
         if (declarations && declarations.length > 0) {
             let primaryDeclaration = declarations[0];
@@ -181,37 +189,37 @@ class SemanticTokensWalker extends ParseTreeWalker {
             switch (resolvedDecl?.type) {
                 case DeclarationType.Class:
                 case DeclarationType.SpecialBuiltInClass:
-                    tokenType = LegendType.Class;
+                    result.type = LegendType.Class;
                     break;
                 case DeclarationType.Function:
-                    tokenType = LegendType.Function;
+                    result.type = LegendType.Function;
                     if (primaryDeclaration.node.nodeType === ParseNodeType.Function) {
                         if (this.isProperty(primaryDeclaration.node)) {
-                            tokenType = LegendType.Variable;
+                            result.type = LegendType.Variable;
                         }
                     }
                     break;
                 case DeclarationType.TypeAlias:
                     if (type && isClass(type)) {
-                        tokenType = LegendType.Class;
+                        result.type = LegendType.Class;
                     } else if (type && isFunction(type)) {
-                        tokenType = LegendType.Function;
+                        result.type = LegendType.Function;
                     }
                     break;
                 case DeclarationType.Variable:
-                    tokenType = LegendType.Variable;
+                    result.type = LegendType.Variable;
                     break;
                 case DeclarationType.Parameter:
-                    tokenType = LegendType.Parameter;
+                    result.type = LegendType.Parameter;
                     break;
                 case DeclarationType.TypeParameter:
-                    tokenType = LegendType.TypeParameter;
+                    result.type = LegendType.TypeParameter;
                     break;
             }
         } else {
-            tokenType = '';
+            result.type = LegendType.None;
         }
-        return tokenType;
+        return result;
     }
 
     getType(node: ExpressionNode) {
@@ -253,8 +261,8 @@ class SemanticTokensWalker extends ParseTreeWalker {
     }
 
     override visitName(node: NameNode): boolean {
-        const type = this.getTokenTypeForName(node);
-        this.pushRange(node, type);
+        const result = this.getTokenTypeForName(node);
+        this.pushRange(node, result.type, result.mod);
         return false;
     }
 
