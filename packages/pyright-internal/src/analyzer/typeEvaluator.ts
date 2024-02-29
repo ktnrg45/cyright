@@ -24293,6 +24293,15 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         return typeResult;
     }
 
+    function checkViewArrayArg(node: ExpressionNode, error: string) {
+        const type = getTypeOfExpression(node).type;
+        if (type && (node.nodeType === ParseNodeType.Name || node.nodeType === ParseNodeType.MemberAccess)) {
+            if (!type.isCompileTimeConstant || !isClassInstance(type) || type.details.name !== 'int') {
+                addError(error, node);
+            }
+        }
+    }
+
     function narrowTypeTrailNode(node: CTypeNode, type: Type) {
         const typeTrail = node.typeTrailNode;
         if (!isClass(type) || !typeTrail || !type.cythonDetails) {
@@ -24308,15 +24317,27 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             const types = args.map((arg) => convertToInstance(getTypeOfArgumentExpectingType(arg).type));
             return ClassType.cloneForSpecialization(type, types, true);
         } else {
-            // TODO: Check if arguments are compile time constant or literal int. Constant type seems to be flaky.
             args.forEach((arg) => getTypeOfArgument(arg));
             if (
                 typeTrail.trailType & CTrailType.View &&
                 args.every((arg) => arg.valueExpression.nodeType === ParseNodeType.Slice)
             ) {
                 type.cythonDetails.trailType = CTrailType.View;
+                args.forEach((arg) => {
+                    // Slice Arguments should already by narrowed to names/members and number nodes
+                    // The parser should have caught invalid axis errors so we just need to check type of step slot
+                    const slice =
+                        arg.valueExpression.nodeType === ParseNodeType.Slice ? arg.valueExpression : undefined;
+                    const step = slice ? slice.stepValue : undefined;
+                    if (step) {
+                        checkViewArrayArg(step, Localizer.DiagnosticCython.viewSliceInvalid());
+                    }
+                });
             } else if (typeTrail.trailType & CTrailType.Array) {
                 type.cythonDetails.trailType = CTrailType.Array;
+                args.forEach((arg) => {
+                    checkViewArrayArg(arg.valueExpression, Localizer.DiagnosticCython.expectedCDefConstant());
+                });
             }
         }
 
@@ -24496,18 +24517,15 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         const typeResult: TypeResult = { type: AnyType.create() };
         const type = getTypeOfExpression(node.valueExpression).type;
         if (!checkTypeIsCompileTimeConstant(type)) {
-            addError(Localizer.DiagnosticCython.invalidTypeForCDefConstant(), node.valueExpression);
+            addError(Localizer.DiagnosticCython.invalidTypeForCDefConstant(), node.valueExpression.rightExpression);
             return typeResult;
         } else {
-            if (node.valueExpression.nodeType === ParseNodeType.Assignment) {
-                // Should always be an assigment
-                if (checkNodeIsCompileTimeConstant(node.valueExpression.rightExpression)) {
-                    type.isCompileTimeConstant = true;
-                    typeResult.type = type;
-                    if (node.valueExpression.leftExpression.nodeType === ParseNodeType.Name) {
-                        writeTypeCache(node.valueExpression, type, flags, false);
-                        writeTypeCache(node.valueExpression.leftExpression, type, flags, false);
-                    }
+            if (checkNodeIsCompileTimeConstant(node.valueExpression.rightExpression)) {
+                type.isCompileTimeConstant = true;
+                typeResult.type = type;
+                if (node.valueExpression.leftExpression.nodeType === ParseNodeType.Name) {
+                    writeTypeCache(node.valueExpression, type, flags, false);
+                    writeTypeCache(node.valueExpression.leftExpression, type, flags, false);
                 }
             }
         }
@@ -24515,7 +24533,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
     }
 
     const compileTimeConstantTypes = ['str', 'float', 'int', 'bytes', 'bool'];
-    function checkNodeIsCompileTimeConstant(node: ParseNode): boolean {
+    function checkNodeIsCompileTimeConstant(node: ExpressionNode): boolean {
         switch (node.nodeType) {
             case ParseNodeType.Name:
                 {

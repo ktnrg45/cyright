@@ -3101,11 +3101,11 @@ export namespace CFunctionNode {
 export interface CDefineNode extends ParseNodeBase {
     readonly nodeType: ParseNodeType.CDefine;
     defToken: Token;
-    valueExpression: ExpressionNode;
+    valueExpression: AssignmentNode;
 }
 
 export namespace CDefineNode {
-    export function create(defToken: Token, valueExpression: ExpressionNode) {
+    export function create(defToken: Token, valueExpression: AssignmentNode) {
         const node: CDefineNode = {
             start: defToken.start,
             length: defToken.length,
