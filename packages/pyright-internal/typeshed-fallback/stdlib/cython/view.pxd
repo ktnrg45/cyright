@@ -1,0 +1,33 @@
+from typing import Literal, SupportsIndex
+
+class __ViewFlag: ...
+
+generic = __ViewFlag()
+strided = __ViewFlag()
+indirect = __ViewFlag()
+contiguous = __ViewFlag()
+indirect_contiguous = __ViewFlag()
+
+class array[T]():
+    def __init__(
+        self,
+        shape: tuple[int, ...],
+        itemsize: int,
+        format: str,
+        mode: Literal["c", "fortran"] = ...,
+        allocate_buffer: bool = ...,
+    ): ...
+    def __delitem__(self, __key: SupportsIndex): ...
+    def __setitem__(self, __key: SupportsIndex, __value: T): ...
+    @overload
+    def __getitem__(self, __key: slice) -> array[T]: ...
+    def __getitem__(self, __key: SupportsIndex) -> T: ...
+    def __len__(self) -> int: ...
+    def __contains__(self, __value: Any) -> bool:
+        """Not actually defined."""
+    def __iter__ (self) -> Iterator[T]:
+        """Not actually defined."""
+    def count(self, __value: Any) -> int: ...
+    def index(self, __value: T, start: SupportsIndex = ..., stop: SupportsIndex = ...) -> int: ...
+    @property
+    def memview(self) -> __MemoryView__[T, array[T]]: ...

@@ -921,8 +921,6 @@ function printTypeWithCythonDetails(type: Type, objName: string) {
         let suffix = '';
         if (type.cythonDetails.trailType === CTrailType.Array) {
             suffix = '[]';
-        } else if (type.cythonDetails.trailType === CTrailType.View) {
-            suffix = '[:]';
         }
 
         objName = `${objName}${op}${suffix}`;

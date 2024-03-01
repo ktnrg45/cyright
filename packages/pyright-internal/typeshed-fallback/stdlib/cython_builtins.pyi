@@ -1,6 +1,6 @@
-"""Cython Built In Types. Only used in Cython files."""
+"""Cython Built In Types. Only used in Cython files. All types are not instantiable with calls."""
 
-from typing import TypeVar, Any
+from typing import TypeVar, Any, SupportsIndex, Iterator, overload
 
 _T = TypeVar("_T")
 _N = TypeVar("_N", bound=None)
@@ -57,3 +57,50 @@ class Py_tss_t(_T):
 
 def sizeof(__obj: Any) -> int:
     """Cython Function. Return size of object or variable."""
+
+class __MemoryView__[ItemType, Base]():
+    """Cython MemoryView. Wraps an object that supports the buffer protocol."""
+    def __delitem__(self, __key: SupportsIndex): ...
+    def __setitem__(self, __key: SupportsIndex, __value: ItemType): ...
+    @overload
+    def __getitem__(self, __key: slice) -> __MemoryView__[ItemType, Base]: ...
+    def __getitem__(self, __key: SupportsIndex) -> ItemType: ...
+    def __len__(self) -> int: ...
+    def __contains__(self, __value: Any) -> bool:
+        """Not actually defined."""
+    def __iter__ (self) -> Iterator[ItemType]:
+        """Not actually defined."""
+    def count(self, __value: Any) -> int: ...
+    def index(self, __value: ItemType, start: SupportsIndex = ..., stop: SupportsIndex = ...) -> int: ...
+    def copy(self) -> __MemoryView__[ItemType, Base]:
+        """Return a copy of view with C layout."""
+    def copy_fortran(self) -> __MemoryView__[ItemType, Base]:
+        """Return a copy of view with Fortran layout."""
+    def is_c_contig(self) -> bool:
+        """Return True if view layout is C contiguous."""
+    def is_f_contig(self) -> bool:
+        """Return True if view layout is Fortran contiguous."""
+    @property
+    def base(self) -> Base:
+        """Return the base buffer object."""
+    @property
+    def itemsize(self) -> int:
+        """Return the size of an item contained in buffer in bytes."""
+    @property
+    def nbytes(self) -> int:
+        """Return the size of view in bytes."""
+    @property
+    def ndim(self) -> int:
+        """Return the number of dimensions."""
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """Return the shape."""
+    @property
+    def strides(self) -> tuple[int, ...]:
+        """Return the strides."""
+    @property
+    def suboffsets(self) -> tuple[int, ...]:
+        """Return the suboffsets."""
+    @property
+    def T(self) -> __MemoryView__[ItemType, Base]:
+        """Return transposed view."""

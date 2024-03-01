@@ -3036,7 +3036,15 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 ignoreEmptyContainers
             );
         }
-
+        // ! Cython View
+        if (declaredType && isMemoryView(declaredType)) {
+            // Update the base type implicitly
+            const itemType = declaredType.typeArguments?.length ? declaredType.typeArguments[0] : AnyType.create();
+            if (isClassInstance(type)) {
+                // TODO: Is there a way we can check if type supports the buffer protocol?
+                destType = ClassType.cloneForSpecialization(declaredType, [itemType, type], true);
+            }
+        }
         writeTypeCache(nameNode, destType, EvaluatorFlags.None, isTypeIncomplete);
     }
 
@@ -14453,7 +14461,6 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                     }
                 }
 
-                // If this is an enum, transform the type as required.
                 // ! Cython
                 if (srcType.category === TypeCategory.Null && declaredType) {
                     // Use lefthand type
@@ -14461,6 +14468,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 } else {
                     rightHandType = srcType;
                 }
+
+                // If this is an enum, transform the type as required.
                 if (node.leftExpression.nodeType === ParseNodeType.Name && !node.typeAnnotationComment) {
                     rightHandType =
                         transformTypeForPossibleEnumClass(
@@ -24302,6 +24311,20 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         }
     }
 
+    function createViewType(node: ParseNode, itemType: ClassType) {
+        let type = getBuiltInType(node, '__MemoryView__');
+        if (!isClass(type)) {
+            return itemType;
+        }
+        type = ClassType.cloneForSpecialization(type, [convertToInstance(itemType)], true);
+        type.cythonDetails = { ptrRefCount: 0 }; // Clear Cython details
+        return type;
+    }
+
+    function isMemoryView(type: Type): type is ClassType {
+        return isClass(type) && isCythonBuiltIn(type) && type.details.name === '__MemoryView__';
+    }
+
     function narrowTypeTrailNode(node: CTypeNode, type: Type) {
         const typeTrail = node.typeTrailNode;
         if (!isClass(type) || !typeTrail || !type.cythonDetails) {
@@ -24331,6 +24354,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                     const step = slice ? slice.stepValue : undefined;
                     if (step) {
                         checkViewArrayArg(step, Localizer.DiagnosticCython.viewSliceInvalid());
+                    }
+                    if (isClass(type)) {
+                        type = createViewType(node, type);
                     }
                 });
             } else if (typeTrail.trailType & CTrailType.Array) {
@@ -24597,7 +24623,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         return false;
     }
 
-    const cythonModules = ['cython', 'builtins_cython'];
+    const cythonModules = ['cython', 'cython_builtins'];
 
     function isCythonBuiltIn(type: Type) {
         if (isFunction(type) || isClass(type)) {
