@@ -6504,7 +6504,7 @@ export class Parser {
             ) {
                 // ! Note these are not allowed in function implementations
                 defaultValue = EllipsisNode.create(this._getNextToken());
-                param.category = ParameterCategory.VarArgList;
+                param.category = ParameterCategory.Simple;
             } else {
                 defaultValue = this._parseTestExpression(/* allowAssignmentExpression */ false);
             }

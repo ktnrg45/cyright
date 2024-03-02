@@ -46,6 +46,7 @@ import {
     ClassNode,
     CNewNode,
     ConstantNode,
+    CParameterNode,
     CSizeOfNode,
     CStructNode,
     CStructType,
@@ -15901,6 +15902,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         const firstNonClsSelfParamIndex = isFirstParamClsOrSelf ? 1 : 0;
 
         node.parameters.forEach((param, index) => {
+            // ! Cython
+            suppressDiagnostics(param, () => narrowAmbiguousFunctionParameterName(node, param));
+
             let paramType: Type | undefined;
             let annotatedType: Type | undefined;
             let isNoneWithoutOptional = false;
@@ -25219,6 +25223,52 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
         validateCClassPyxFields(node, pyxTypeResult, pxdType, addDiag);
         validateCClassPxdFields(node, pyxTypeResult, pxdType, addDiag);
+    }
+
+    // Narrow ambiguous parameter name
+    function narrowAmbiguousFunctionParameterName(node: FunctionNode, param: ParameterNode) {
+        if (
+            CFunctionNode.isInstance(node) &&
+            node.isForwardDeclaration &&
+            CParameterNode.isInstance(param) &&
+            param.name &&
+            param.isNameAmbiguous &&
+            param.typeAnnotation &&
+            param.typeAnnotation.nodeType === ParseNodeType.CType &&
+            param.typeAnnotation.expression.nodeType === ParseNodeType.Name
+        ) {
+            // Function is a forward declaration and the param name is ambiguous
+            // See if there is a type for the annotation
+            const expr = param.typeAnnotation.expression;
+            const paramType = getTypeOfParameterAnnotation(param.typeAnnotation, param.category);
+            if (isAnyOrUnknown(paramType)) {
+                // If unknown type then we'll assume that this was actually the name of the parameter
+                const oldName = param.name.value;
+                // Update the placeholder name
+                Object.assign(param.name, {
+                    token: expr.token,
+                    start: expr.start,
+                    length: expr.length,
+                    value: expr.value,
+                });
+
+                // Remove any type cache entries
+                deleteTypeCacheEntry(param);
+                deleteTypeCacheEntry(param.typeAnnotation);
+                deleteTypeCacheEntry(expr);
+
+                // Remove the annotation
+                param.typeAnnotation = undefined;
+
+                // Update the symbol
+                const scope = ScopeUtils.getScopeForNode(param.name);
+                const symbol = scope?.symbolTable.get(oldName);
+                if (scope && symbol) {
+                    scope.symbolTable.delete(oldName);
+                    scope.symbolTable.set(param.name.value, symbol);
+                }
+            }
+        }
     }
 
     // ! Cython CPP
