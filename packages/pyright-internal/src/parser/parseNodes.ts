@@ -1279,6 +1279,9 @@ export interface CallNode extends ParseNodeBase {
     leftExpression: ExpressionNode;
     arguments: ArgumentNode[];
     trailingComma: boolean;
+
+    // ! Cython
+    possibleDeprecatedPrint?: boolean; // Only for python2 print statement
 }
 
 export namespace CallNode {

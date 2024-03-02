@@ -781,6 +781,25 @@ export class Checker extends ParseTreeWalker {
             }
         }
 
+        // ! Cython deprecated print
+        // Verify this is a python2 print statement
+        if (node.possibleDeprecatedPrint) {
+            const printType = this._evaluator.getType(node.leftExpression);
+            const arg = node.arguments.length ? node.arguments[0] : undefined;
+            if (
+                printType &&
+                isOverloadedFunction(printType) &&
+                printType.overloads.length &&
+                printType.overloads[0].details.fullName === 'builtins.print'
+            ) {
+                this._evaluator.addDeprecated(Localizer.DiagnosticCython.deprecatedPrint(), node.leftExpression);
+            } else if (arg) {
+                // This was not a print statement
+                // Add deferred parsing error as this statement is invalid
+                this._evaluator.addError(Localizer.Diagnostic.expectedNewlineOrSemicolon(), arg);
+            }
+        }
+
         return true;
     }
 

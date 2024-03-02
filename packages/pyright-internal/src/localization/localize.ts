@@ -1341,7 +1341,7 @@ export namespace Localizer {
         export const legacyPropertyDeclaration = () => getRawString('DiagnosticCython.legacyPropertyDeclaration');
         export const invalidTypeForCDefConstant = () => getRawString('DiagnosticCython.invalidTypeForCDefConstant');
         export const expectedCDefConstant = () => getRawString('DiagnosticCython.expectedCDefConstant');
-
+        export const deprecatedPrint = () => getRawString('DiagnosticCython.deprecatedPrint');
 
         export const modifierNotAllowed = () =>
             new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.modifierNotAllowed'));
