@@ -1008,10 +1008,10 @@ export class ImportResolver {
             // ! Cython
             if (moduleDescriptor.isCython || moduleDescriptor.isCython === undefined) {
                 if (!moduleDescriptor.cythonExt && this.fileExistsCached(pxdFilePath)) {
-                    importFailureInfo.push(`Resolved import with file '${pxdFilePath}'`);
+                    importFailureInfo.push(`Resolved cython import with file '${pxdFilePath}'`);
                     resolvedPaths.push(pxdFilePath);
                 } else if (moduleDescriptor.cythonExt && this.fileExistsCached(cythonFilePath)) {
-                    importFailureInfo.push(`Resolved import with file '${cythonFilePath}'`);
+                    importFailureInfo.push(`Resolved cython import with file '${cythonFilePath}'`);
                     resolvedPaths.push(cythonFilePath);
                 }
             }
@@ -1078,15 +1078,15 @@ export class ImportResolver {
                     // ! Cython
                     if (moduleDescriptor.isCython || moduleDescriptor.isCython === undefined) {
                         if (this.fileExistsCached(pyxFilePath)) {
-                            importFailureInfo.push(`Resolved import with file '${pyxFilePath}'`);
+                            importFailureInfo.push(`Resolved cython import with file '${pyxFilePath}'`);
                             resolvedPaths.push(pyxFilePath);
                             foundInit = true;
                         } else if (this.fileExistsCached(pxdFilePath)) {
-                            importFailureInfo.push(`Resolved import with file '${pxdFilePath}'`);
+                            importFailureInfo.push(`Resolved cython import with file '${pxdFilePath}'`);
                             resolvedPaths.push(pxdFilePath);
                             foundInit = true;
                         } else if (this.fileExistsCached(pxiFilePath)) {
-                            importFailureInfo.push(`Resolved import with file '${pxiFilePath}'`);
+                            importFailureInfo.push(`Resolved cython import with file '${pxiFilePath}'`);
                             resolvedPaths.push(pxiFilePath);
                             foundInit = true;
                         }
@@ -1136,11 +1136,8 @@ export class ImportResolver {
                 const pyiFilePath = combinePaths(fileDirectory, fileNameWithoutExtension + '.pyi');
 
                 // ! Cython
-                const pxdFilePath = combinePaths(fileDirectory, fileNameWithoutExtension + '.pxd');
-                const cythonFilePath = combinePaths(
-                    fileDirectory,
-                    fileNameWithoutExtension + '.' + moduleDescriptor.cythonExt
-                );
+                const cythonExt = moduleDescriptor.cythonExt ? moduleDescriptor.cythonExt : 'pxd';
+                const cythonFilePath = combinePaths(fileDirectory, fileNameWithoutExtension + '.' + cythonExt);
                 const resolvedCount = resolvedPaths.length;
 
                 if (!moduleDescriptor.isCython) {
@@ -1158,11 +1155,8 @@ export class ImportResolver {
 
                 // ! Cython
                 if (moduleDescriptor.isCython || moduleDescriptor.isCython === undefined) {
-                    if (moduleDescriptor.cythonExt && this.fileExistsCached(pxdFilePath)) {
-                        importFailureInfo.push(`Resolved import with file '${pxdFilePath}'`);
-                        resolvedPaths.push(pxdFilePath);
-                    } else if (moduleDescriptor.cythonExt && this.fileExistsCached(cythonFilePath)) {
-                        importFailureInfo.push(`Resolved import with file '${cythonFilePath}'`);
+                    if (this.fileExistsCached(cythonFilePath)) {
+                        importFailureInfo.push(`Resolved cython import with file '${cythonFilePath}'`);
                         resolvedPaths.push(cythonFilePath);
                     }
                 }
@@ -1193,9 +1187,9 @@ export class ImportResolver {
                             // ! Cython
                             let paths = [pyFilePath, pyiFilePath];
                             if (moduleDescriptor.isCython) {
-                                paths = moduleDescriptor.cythonExt ? [cythonFilePath] : [pxdFilePath];
+                                paths = [cythonFilePath];
                             } else if (moduleDescriptor.isCython === undefined) {
-                                paths.push(pxdFilePath);
+                                paths.push(cythonFilePath);
                             }
                             implicitImports = this._findImplicitImports(importName, dirPath, paths);
                             isNamespacePackage = true;
