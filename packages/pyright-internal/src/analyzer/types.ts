@@ -633,6 +633,9 @@ export interface ClassType extends TypeBase {
     // or property - one where the __get__ and __set__ types differ.
     // If undefined, it hasn't been tested yet for asymmetry.
     isAsymmetricDescriptor?: boolean;
+
+    // ! Cython
+    isCython?: boolean; // If type is a cdef class
 }
 
 export namespace ClassType {

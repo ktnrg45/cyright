@@ -946,7 +946,10 @@ export class Program {
         fileToAnalyze.sourceFile.bind(this._configOptions, this._lookUpImport, builtinsScope);
     }
 
-    private _lookUpImport = (filePathOrModule: string | AbsoluteModuleDescriptor): ImportLookupResult | undefined => {
+    private _lookUpImport = (
+        filePathOrModule: string | AbsoluteModuleDescriptor,
+        /*!Cython*/ cythonExt?: string
+    ): ImportLookupResult | undefined => {
         let sourceFileInfo: SourceFileInfo | undefined;
 
         if (typeof filePathOrModule === 'string') {
@@ -960,6 +963,9 @@ export class Program {
                     leadingDots: 0,
                     nameParts: filePathOrModule.nameParts,
                     importedSymbols: undefined,
+                    // ! Cython
+                    isCython: cythonExt === undefined ? undefined : true,
+                    cythonExt: cythonExt,
                 }
             );
 

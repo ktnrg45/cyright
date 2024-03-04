@@ -122,6 +122,7 @@ import {
     Declaration,
     DeclarationType,
     FunctionDeclaration,
+    isClassDeclaration,
     isFunctionDeclaration,
     isVariableDeclaration,
     ModuleLoaderActions,
@@ -15311,6 +15312,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             classType.details.structType = node.structType;
         }
         if (node.isCython) {
+            classType.isCython = true;
             evaluateCythonClassWithPxdDefinition(node);
         }
 
@@ -24973,6 +24975,40 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         return symbol;
     }
 
+    // If we have a variable type that is a subclass of an imported cython class,
+    // we would only get the fields of the subclass from it's pxd definitions.
+    // There could be python declarations that are only defined on the pyx implementation
+    // So we need to lookup the pyx fields and add them
+    // For now we will assume that the pyx definition is contained in a '.pyx' file with the same name as the '.pxd'
+    // This should be the most sensible way to do this without looking through the entire workspace
+    // However, there could be a possibility that the '.pyx' filename does not match the '.pxd' filename
+    // TODO: Handle case where .pyx and .pxd file do not match / check if this is allowed
+    function applyPyxMro(type: ClassType) {
+        for (const [index, base] of type.details.mro.entries()) {
+            if (isClass(base)) {
+                const nameParts = base.details.moduleName.split('.');
+                const importResult = importLookup(
+                    {
+                        importingFilePath: type.details.filePath,
+                        nameParts: nameParts,
+                    },
+                    'pyx'
+                );
+                if (importResult) {
+                    const symbol = importResult.symbolTable.get(base.details.name);
+                    const decls = symbol?.getDeclarations() ?? [];
+                    const pyxDecl = decls.find((decl) => isClassDeclaration(decl) && decl.node.isCython);
+                    if (pyxDecl && isClassDeclaration(pyxDecl)) {
+                        const mroType = getTypeOfClass(pyxDecl.node)?.classType;
+                        if (mroType) {
+                            type.details.mro[index] = mroType;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     function validateCClassPyxFields(
         pyxNode: ClassNode,
         pyxTypeResult: ClassTypeResult,
@@ -24980,6 +25016,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         addDiag: CClassDiag
     ) {
         const pyxType = pyxTypeResult.classType;
+        applyPyxMro(pyxType);
         for (const [name, pyxSymbol] of pyxType.details.fields) {
             const member = getTypeOfClassMember(pyxNode.name, pyxType, name);
             const type = member?.type;
@@ -25062,6 +25099,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                         // These are cython instance vars
                         // which can only be declared in the pxd class if it is present
                         // Create symbol with type and add to pyx class fields
+                        if (pxdMemberType.isCython) {
+                            applyPyxMro(pxdMemberType);
+                        }
                         const symbol = Symbol.createWithType(
                             SymbolFlags.InstanceMember,
                             TypeBase.cloneType(pxdMemberType)
@@ -25221,8 +25261,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         const pyxTypeResult = pxdResultInfo.pyxTypeResult;
         const pxdType = pxdResultInfo.pxdTypeResult.type;
 
-        validateCClassPyxFields(node, pyxTypeResult, pxdType, addDiag);
         validateCClassPxdFields(node, pyxTypeResult, pxdType, addDiag);
+        validateCClassPyxFields(node, pyxTypeResult, pxdType, addDiag);
     }
 
     // Narrow ambiguous parameter name

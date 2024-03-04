@@ -21,7 +21,8 @@ export interface AbsoluteModuleDescriptor {
     importingFilePath: string;
     nameParts: string[];
 }
-export type ImportLookup = (filePathOrModule: string | AbsoluteModuleDescriptor) => ImportLookupResult | undefined;
+// ! Cython
+export type ImportLookup = (filePathOrModule: string | AbsoluteModuleDescriptor, cythonExt?: string) => ImportLookupResult | undefined;
 
 export interface ImportLookupResult {
     symbolTable: SymbolTable;
