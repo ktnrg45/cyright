@@ -7517,7 +7517,7 @@ export class Parser {
             }
             const suite = this._parseSuite();
             const node = CPropertyNode.create(propToken, nameToken, suite);
-            this._addDeprecated(Localizer.DiagnosticCython.legacyPropertyDeclaration(), node.name);
+            this._addDeprecated(Localizer.DiagnosticCython.legacyPropertyDeclaration(), propToken);
             return node;
         }
 
