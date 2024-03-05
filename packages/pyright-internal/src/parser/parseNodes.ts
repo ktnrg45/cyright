@@ -2777,7 +2777,7 @@ export namespace CCallbackNode {
         return node;
     }
 
-    export function parameters(node: CCallbackNode) {
+    export function parameterList(node: CCallbackNode) {
         const list = ListNode.create(TextRange.create(0, 0));
         node.parameters.forEach((n) => {
             if (n.typeAnnotation) {

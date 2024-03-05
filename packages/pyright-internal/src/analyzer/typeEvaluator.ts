@@ -24458,15 +24458,26 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             return { type: cachedType };
         }
 
-        const parameters = CCallbackNode.parameters(node);
+        const paramList = CCallbackNode.parameterList(node);
         const paramType: TypeResultWithNode = {
             type: UnknownType.create(),
-            node: parameters,
+            node: paramList,
             isIncomplete: false,
-            typeList: parameters.entries.map((p) => {
-                return { node: p, ...getTypeOfExpression(p) } as TypeResultWithNode;
-            }),
+            typeList: [],
         };
+        paramList.entries.forEach((annotation, index) => {
+            const typeResult = getTypeOfExpression(annotation);
+            paramType.typeList?.push({ node: annotation, ...typeResult } as TypeResultWithNode);
+            if (index < node.parameters.length) {
+                const param = node.parameters[index];
+                // Write types so that hover provider doesn't fail
+                writeTypeCache(param, convertToInstance(typeResult.type), undefined, false);
+                if (param.name) {
+                    writeTypeCache(param.name, convertToInstance(typeResult.type), undefined, false);
+                }
+            }
+        });
+
         let typeArgs: TypeResultWithNode[] | undefined = [paramType];
         if (node.returnTypeAnnotation) {
             typeArgs.push({
