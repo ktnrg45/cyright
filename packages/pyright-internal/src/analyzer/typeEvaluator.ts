@@ -24996,6 +24996,10 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
     // TODO: Handle case where .pyx and .pxd file do not match / check if this is allowed
     function applyPyxMro(type: ClassType) {
         for (const [index, base] of type.details.mro.entries()) {
+            if (index === 0) {
+                // The first mro entry is this class so skip
+                continue;
+            }
             if (isClass(base)) {
                 const nameParts = base.details.moduleName.split('.');
                 const importResult = importLookup(
@@ -25163,7 +25167,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             }
         }
 
-        const pyxSymbol = pyxTypeResult.classType.details.fields.get(functionNode.name.value);
+        // Look for symbol in pyx type
+        // Also look for symbol in mro in case symbol was declared in this .pxd but implemented in a parent class
+        const pyxMro = pyxTypeResult.classType.details.mro.find((base) =>
+            isClass(base) && base.isCython ? base.details.fields.get(functionNode.name.value) : undefined
+        );
+        const pyxSymbol = pyxMro && isClass(pyxMro) ? pyxMro.details.fields.get(functionNode.name.value) : undefined;
         if (!pxdImplementation && !isInline) {
             if (!pyxSymbol) {
                 addDiag(
