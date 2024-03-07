@@ -58,6 +58,24 @@ class Py_tss_t(_T):
 def sizeof(__obj: Any) -> int:
     """Cython Function. Return size of object or variable."""
 
+ctypedef struct Py_buffer:
+    void* buf
+    object obj # Py_object
+    Py_ssize_t len
+    Py_ssize_t itemsize
+    bint readonly
+    int ndim
+    char* format
+    Py_ssize_t* shape
+    Py_ssize_t* strides
+    Py_ssize_t* suboffsets
+    Py_ssize_t[2] smalltable
+    void* internal
+
+ctypedef struct Py_complex:
+    double real
+    double imag
+
 class __MemoryView__[ItemType, Base]():
     """Cython MemoryView. Wraps an object that supports the buffer protocol."""
     def __delitem__(self, __key: SupportsIndex): ...
