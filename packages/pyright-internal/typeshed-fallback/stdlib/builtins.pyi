@@ -57,8 +57,6 @@ from typing import (  # noqa: Y027
 )
 from typing_extensions import Literal, LiteralString, SupportsIndex, TypeAlias, TypeGuard, final
 
-from cython_builtins import *
-
 if sys.version_info >= (3, 9):
     from types import GenericAlias
 

@@ -109,6 +109,8 @@ export interface SourceFileInfo {
 
     builtinsImport?: SourceFileInfo | undefined;
     ipythonDisplayImport?: SourceFileInfo | undefined;
+    // ! Cython
+    cythonBuiltinsImport?: SourceFileInfo | undefined;
 
     // Information about the chained source file
     // Chained source file is not supposed to exist on file system but
@@ -941,6 +943,24 @@ export class Program {
                 getScopeIfAvailable(fileToAnalyze.chainedSourceFile) ??
                 getScopeIfAvailable(fileToAnalyze.ipythonDisplayImport) ??
                 getScopeIfAvailable(fileToAnalyze.builtinsImport);
+
+            // ! Cython
+            // If file is not cython builtins, merge cython builtins scope into builtins scope
+            if (fileToAnalyze.cythonBuiltinsImport && fileToAnalyze.cythonBuiltinsImport !== fileToAnalyze) {
+                const cythonScope = getScopeIfAvailable(fileToAnalyze.cythonBuiltinsImport);
+                if (cythonScope && builtinsScope) {
+                    for (const [name, symbol] of cythonScope.symbolTable.entries()) {
+                        if (!builtinsScope.symbolTable.get(name)) {
+                            // Only add symbols not in table
+                            if (name.startsWith('_')) {
+                                // Externally hide private symbols
+                                symbol.setIsExternallyHidden();
+                            }
+                            builtinsScope.symbolTable.set(name, symbol);
+                        }
+                    }
+                }
+            }
         }
 
         fileToAnalyze.sourceFile.bind(this._configOptions, this._lookUpImport, builtinsScope);
@@ -2803,6 +2823,17 @@ export class Program {
             const resolvedIPythonDisplayPath =
                 ipythonDisplayImport.resolvedPaths[ipythonDisplayImport.resolvedPaths.length - 1];
             sourceFileInfo.ipythonDisplayImport = this._getSourceFileInfoFromPath(resolvedIPythonDisplayPath);
+        }
+
+        // ! Cython
+        // Resolve the cython builtins import for the file. This needs to be
+        // analyzed before the file can be analyzed.
+        sourceFileInfo.cythonBuiltinsImport = undefined;
+        const cythonBuiltinsImport = sourceFileInfo.sourceFile.getCythonBuiltinsImport();
+        if (cythonBuiltinsImport && cythonBuiltinsImport.isImportFound) {
+            const resolvedCythonBuiltinsPath =
+                cythonBuiltinsImport.resolvedPaths[cythonBuiltinsImport.resolvedPaths.length - 1];
+            sourceFileInfo.cythonBuiltinsImport = this._getSourceFileInfoFromPath(resolvedCythonBuiltinsPath);
         }
 
         return filesAdded;

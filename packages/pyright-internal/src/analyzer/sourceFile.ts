@@ -77,6 +77,8 @@ interface ResolveImportResult {
     imports: ImportResult[];
     builtinsImportResult?: ImportResult | undefined;
     ipythonDisplayImportResult?: ImportResult | undefined;
+    // ! Cython
+    cythonBuiltinsImportResult?: ImportResult | undefined;
 }
 
 // Indicates whether IPython syntax is supported and if so, what
@@ -199,6 +201,8 @@ export class SourceFile {
     private _imports: ImportResult[] | undefined;
     private _builtinsImport: ImportResult | undefined;
     private _ipythonDisplayImport: ImportResult | undefined;
+    // ! Cython
+    private _cythonBuiltinsImport: ImportResult | undefined;
 
     private _logTracker: LogTracker;
     readonly fileSystem: FileSystem;
@@ -244,6 +248,12 @@ export class SourceFile {
             ) {
                 this._isBuiltInStubFile = true;
             }
+        }
+
+        // ! Cython
+        if (this._filePath.endsWith(normalizeSlashes('stdlib/cython_builtins.pxi'))) {
+            this._isStubFile = true;
+            this._isBuiltInStubFile = true;
         }
 
         // 'FG' or 'BG' based on current thread.
@@ -538,6 +548,11 @@ export class SourceFile {
         return this._builtinsImport;
     }
 
+    // ! Cython
+    getCythonBuiltinsImport(): ImportResult | undefined {
+        return this._cythonBuiltinsImport;
+    }
+
     getIPythonDisplayImport(): ImportResult | undefined {
         return this._ipythonDisplayImport;
     }
@@ -804,7 +819,11 @@ export class SourceFile {
 
             const parseOptions = new ParseOptions();
             parseOptions.ipythonMode = this._ipythonMode;
-            if (this._filePath.endsWith('pyi')) {
+            // ! Cython
+            if (
+                this._filePath.endsWith('pyi') ||
+                this._filePath.endsWith(normalizeSlashes('stdlib/cython_builtins.pxi'))
+            ) {
                 parseOptions.isStubFile = true;
             }
             parseOptions.pythonVersion = execEnvironment.pythonVersion;
@@ -831,6 +850,8 @@ export class SourceFile {
                     this._imports = importResult.imports;
                     this._builtinsImport = importResult.builtinsImportResult;
                     this._ipythonDisplayImport = importResult.ipythonDisplayImportResult;
+                    // ! Cython
+                    this._cythonBuiltinsImport = importResult.cythonBuiltinsImportResult;
 
                     this._parseDiagnostics = diagSink.fetchAndClear();
                 });
@@ -876,6 +897,8 @@ export class SourceFile {
                 this._imports = undefined;
                 this._builtinsImport = undefined;
                 this._ipythonDisplayImport = undefined;
+                // ! Cython
+                this._cythonBuiltinsImport = undefined;
 
                 const diagSink = new DiagnosticSink();
                 diagSink.addError(
@@ -1387,11 +1410,13 @@ export class SourceFile {
     ): ResolveImportResult {
         const imports: ImportResult[] = [];
 
-        const resolveAndAddIfNotSelf = (nameParts: string[], skipMissingImport = false) => {
+        const resolveAndAddIfNotSelf = (nameParts: string[], skipMissingImport = false, isCython = false) => {
             const importResult = importResolver.resolveImport(this._filePath, execEnv, {
                 leadingDots: 0,
                 nameParts,
                 importedSymbols: undefined,
+                isCython: isCython,
+                cythonExt: isCython ? 'pxi' : undefined,
             });
 
             if (skipMissingImport && !importResult.isImportFound) {
@@ -1425,6 +1450,12 @@ export class SourceFile {
             : undefined;
 
         // ! Cython
+        const cythonBuiltinsImportResult = resolveAndAddIfNotSelf(
+            ['cython_builtins'],
+            /*skipMissingImport*/ false,
+            /*isCython*/ true
+        );
+
         // matching ".pxd" files are automatically imported for ".pyx" files
         const ext = getFileExtension(this._filePath);
         if (ext === '.pyx') {
@@ -1460,6 +1491,7 @@ export class SourceFile {
             imports,
             builtinsImportResult,
             ipythonDisplayImportResult,
+            cythonBuiltinsImportResult: cythonBuiltinsImportResult,
         };
     }
 
