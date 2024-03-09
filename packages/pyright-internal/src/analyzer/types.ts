@@ -548,7 +548,7 @@ export interface CythonDetails {
     isVolatile?: boolean;
     isReadOnly?: boolean;
     isPublic?: boolean;
-    numMods?: string[];
+    numMods?: string[]; // Numeric modifiers
     trailType?: CTrailType;
 
     // Function details
@@ -560,6 +560,7 @@ export interface CythonDetails {
 
     // Misc details
     nogil?: boolean;
+    ndims?: number; // Used for array types
 }
 
 export interface TupleTypeArgument {

@@ -6497,6 +6497,36 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             });
         }
 
+        // ! Cython
+        if (isAnyOrUnknown(type) && isClass(baseTypeResult.type) && baseTypeResult.type.cythonDetails) {
+            const newType = TypeBase.cloneType(baseTypeResult.type);
+            newType.cythonDetails = { ...baseTypeResult.type.cythonDetails };
+            if (newType.cythonDetails.trailType === CTrailType.Array) {
+                const ndims = newType.cythonDetails.ndims ?? 0;
+                if (ndims > 1) {
+                    // Multi dim array. Subtract a dimension
+                    newType.cythonDetails.ndims = ndims - 1;
+                } else if (ndims === 1) {
+                    // This is the last dimension.
+                    // This should be the base type of the array
+                    // Clear array fields
+                    newType.cythonDetails.trailType = undefined;
+                    newType.cythonDetails.ndims = undefined;
+                } else {
+                    // TODO: This should be an error since the dimensions have been overrun
+                    return { type, isIncomplete };
+                }
+                return { type: newType, isIncomplete: isIncomplete };
+            } else if (newType.cythonDetails.isPointer && newType.cythonDetails.ptrRefCount > 0) {
+                // Indexing of a pointer is a dereference
+                newType.cythonDetails.ptrRefCount--;
+                if (newType.cythonDetails.ptrRefCount === 0) {
+                    newType.cythonDetails.isPointer = undefined;
+                }
+                return { type: newType, isIncomplete: isIncomplete };
+            }
+        }
+
         return { type, isIncomplete };
     }
 
@@ -24367,6 +24397,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 });
             } else if (typeTrail.trailType & CTrailType.Array) {
                 type.cythonDetails.trailType = CTrailType.Array;
+                type.cythonDetails.ndims = typeTrail.argumentLists.length;
                 args.forEach((arg) => {
                     checkViewArrayArg(arg.valueExpression, Localizer.DiagnosticCython.expectedCDefConstant());
                 });
