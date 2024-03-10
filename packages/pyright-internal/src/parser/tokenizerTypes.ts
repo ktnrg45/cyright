@@ -153,6 +153,7 @@ export const enum KeywordType {
     Yield,
 
     // ! Cython
+    By, // Only used for deprecated for from loop
     Cimport,
     Cdef,
     Cpdef,
@@ -207,6 +208,7 @@ export const softKeywords = [
     KeywordType.Type,
 
     // ! Cython
+    KeywordType.By,
     KeywordType.Extern,
     KeywordType.Gil,
     KeywordType.Nogil,

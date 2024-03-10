@@ -1342,6 +1342,8 @@ export namespace Localizer {
         export const invalidTypeForCDefConstant = () => getRawString('DiagnosticCython.invalidTypeForCDefConstant');
         export const expectedCDefConstant = () => getRawString('DiagnosticCython.expectedCDefConstant');
         export const deprecatedPrint = () => getRawString('DiagnosticCython.deprecatedPrint');
+        export const expectedForFromByExpr = () => getRawString('DiagnosticCython.expectedForFromByExpr');
+        export const deprecatedForFromLoop = () => getRawString('DiagnosticCython.deprecatedForFromLoop');
 
         export const modifierNotAllowed = () =>
             new ParameterizedString<{ name: string }>(getRawString('DiagnosticCython.modifierNotAllowed'));

@@ -220,8 +220,9 @@ export class ParseTreeWalker {
                 return this.visitExcept(node) ? [node.typeExpression, node.name, node.exceptSuite] : [];
 
             case ParseNodeType.For:
+                // ! Cython
                 return this.visitFor(node)
-                    ? [node.targetExpression, node.iterableExpression, node.forSuite, node.elseSuite]
+                    ? [node.targetExpression, node.iterableExpression, node.byExpression, node.forSuite, node.elseSuite]
                     : [];
 
             case ParseNodeType.FormatString:

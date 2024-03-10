@@ -89,6 +89,7 @@ const _keywords: Map<string, KeywordType> = new Map([
     ['True', KeywordType.True],
 
     // ! Cython
+    ['by', KeywordType.By],
     ['cimport', KeywordType.Cimport],
     ['cdef', KeywordType.Cdef],
     ['cpdef', KeywordType.Cpdef],

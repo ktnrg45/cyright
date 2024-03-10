@@ -303,6 +303,8 @@ export interface ForNode extends ParseNodeBase {
     forSuite: SuiteNode;
     elseSuite?: SuiteNode | undefined;
     typeComment?: StringToken;
+    // ! Cython
+    byExpression?: ExpressionNode;
 }
 
 export namespace ForNode {

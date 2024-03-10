@@ -1590,7 +1590,15 @@ export class Parser {
         let forSuite: SuiteNode;
         let elseSuite: SuiteNode | undefined;
 
-        if (!this._consumeTokenIfKeyword(KeywordType.In)) {
+        // ! Cython
+        let foundFrom = false;
+        let byExpr: ExpressionNode | undefined = undefined;
+        if (this._consumeTokenIfKeyword(KeywordType.From)) {
+            // Handle deprecated for ... from ... by
+            foundFrom = true;
+        }
+
+        if (!foundFrom && !this._consumeTokenIfKeyword(KeywordType.In)) {
             seqExpr = this._handleExpressionParseError(
                 ErrorExpressionCategory.MissingIn,
                 Localizer.Diagnostic.expectedIn()
@@ -1603,6 +1611,19 @@ export class Parser {
                 ErrorExpressionCategory.MissingExpression,
                 Localizer.Diagnostic.expectedInExpr()
             );
+
+            if (foundFrom) {
+                // TODO: Check seqexpr is lower <|<= target <|<= upper
+                if (this._consumeTokenIfKeyword(KeywordType.By)) {
+                    // This expression is the step size
+                    byExpr = this._parseTestOrStarListAsExpression(
+                        /* allowAssignmentExpression */ false,
+                        /* allowMultipleUnpack */ false,
+                        ErrorExpressionCategory.MissingExpression,
+                        Localizer.DiagnosticCython.expectedForFromByExpr()
+                    );
+                }
+            }
 
             forSuite = this._parseLoopSuite();
 
@@ -1640,6 +1661,18 @@ export class Parser {
 
         if (forSuite.typeComment) {
             forNode.typeComment = forSuite.typeComment;
+        }
+
+        // ! Cython
+        if (foundFrom) {
+            const range = byExpr ? TextRange.combine([forToken, byExpr]) : TextRange.combine([forToken, seqExpr]);
+            if (range) {
+                this._addWarning(Localizer.DiagnosticCython.deprecatedForFromLoop(), range);
+            }
+            forNode.byExpression = byExpr;
+            if (byExpr) {
+                byExpr.parent = forNode;
+            }
         }
 
         return forNode;

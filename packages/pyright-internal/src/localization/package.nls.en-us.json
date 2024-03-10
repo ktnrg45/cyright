@@ -689,6 +689,8 @@
         "invalidTypeForCDefConstant": "Compile time constant type must be one of \"str\", \"int\", \"float\", \"bytes\"",
         "expectedCDefConstant": "Expected a compile time constant",
         "deprecatedPrint": "Python2 print statement is deprecated. Use \"print()\" call instead",
+        "expectedForFromByExpr": "Expected expression after \"by\"",
+        "deprecatedForFromLoop": "Using deprecated \"for ... from\" loop. Use normal \"for\" loop with \"range\" instead",
 
         "modifierNotAllowed": "Modifier \"{name}\" not allowed here",
         "nonExternCFunctionNotDefined": "Non-extern C function \"{name}\" declared but not defined",
