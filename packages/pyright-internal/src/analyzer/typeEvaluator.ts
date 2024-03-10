@@ -24417,6 +24417,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         if (type.cythonDetails) {
             const details = { ...type.cythonDetails };
             if (details.isPointer === false) {
+                // Error if type is a reference
                 addError(Localizer.DiagnosticCython.invalidAddressOf(), node, node);
                 return { type: NeverType.createNever() };
             }
@@ -24425,6 +24426,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             type.cythonDetails = details;
             return { type: type };
         }
+        // TODO: Add errors for python objects
         return { type: UnknownType.create() };
     }
 
@@ -24460,7 +24462,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
 
     function addCythonDetailsToCFunctionType(node: CFunctionNode, typeResult: FunctionTypeResult) {
         const cythonDetails = {
-            isPointer: false,
+            isPointer: undefined,
             ptrRefCount: 0,
             isVolatile: false,
             numMods: [],
