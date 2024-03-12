@@ -24418,27 +24418,33 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         return type;
     }
 
+    function getAddressOfType(node: ParseNode, type: Type): Type {
+        type = TypeBase.cloneType(type);
+        if (type.cythonDetails) {
+            const details = { ...type.cythonDetails };
+            if (details.isPointer === false) {
+                // Taking the address of a reference is equivalant to taking the address of the actual object
+                // Reset the ptr count
+                details.ptrRefCount = 0;
+            }
+            details.isPointer = true;
+            details.ptrRefCount++;
+            type.cythonDetails = details;
+            return type;
+        }
+        // TODO: Add errors for python objects
+        // addError(Localizer.DiagnosticCython.invalidAddressOf(), node, node);
+        return UnknownType.create();
+    }
+
     function getTypeOfCAddressNode(node: CAddressOfNode, flags?: EvaluatorFlags, expectedType?: Type) {
         const cachedType = readTypeCache(node, flags);
         if (cachedType) {
             return { type: cachedType };
         }
         const typeResult = getTypeOfExpression(node.valueExpression, flags);
-        const type = { ...typeResult.type };
-        if (type.cythonDetails) {
-            const details = { ...type.cythonDetails };
-            if (details.isPointer === false) {
-                // Error if type is a reference
-                addError(Localizer.DiagnosticCython.invalidAddressOf(), node, node);
-                return { type: NeverType.createNever() };
-            }
-            details.isPointer = true;
-            details.ptrRefCount++;
-            type.cythonDetails = details;
-            return { type: type };
-        }
-        // TODO: Add errors for python objects
-        return { type: UnknownType.create() };
+        typeResult.type = getAddressOfType(node, typeResult.type);
+        return typeResult;
     }
 
     function getTypeOfCSizeOfNode(node: CSizeOfNode, flags?: EvaluatorFlags, expectedType?: Type) {
@@ -24784,19 +24790,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             return typeResult;
         }
         const argumentType = argumentTypes[0];
-        if (!argumentType.cythonDetails) {
-            addError(Localizer.DiagnosticCython.invalidAddressOf(), baseResult.node);
-            typeResult.typeErrors = true;
-            return typeResult;
-        }
-        const cythonDetails = { ...argumentType.cythonDetails };
-        if (cythonDetails && cythonDetails.isPointer !== false) {
-            cythonDetails.isPointer = true;
-            cythonDetails.ptrRefCount = cythonDetails.ptrRefCount ?? 0;
-            cythonDetails.ptrRefCount++;
-            argumentType.cythonDetails = cythonDetails;
-            typeResult.type = argumentType;
-        }
+        typeResult.type = getAddressOfType(baseResult.node, argumentType);
         return typeResult;
     }
 
