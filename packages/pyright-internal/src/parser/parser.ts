@@ -2316,7 +2316,7 @@ export class Parser {
 
     // decorators: decorator+
     // decorated: decorators (classdef | funcdef | async_funcdef)
-    private _parseDecorated(): StatementNode | undefined {
+    private _parseDecorated(/* ! Cython*/ isInCSuite = false): StatementNode {
         const decoratorList: DecoratorNode[] = [];
 
         while (true) {
@@ -2341,9 +2341,21 @@ export class Parser {
                 return this._parseFunctionDef(undefined, decoratorList);
             } else if (nextToken.keywordType === KeywordType.Class) {
                 return this._parseClassDef(decoratorList);
-            } else if (nextToken.keywordType === KeywordType.Cdef || nextToken.keywordType === KeywordType.Cpdef) {
-                // ! Cython
-                const node = nextToken.keywordType === KeywordType.Cdef ? this._parseCDef() : this._parseCpdef();
+            }
+        } else {
+            // ! Cython
+            let node: ParseNode | undefined = undefined;
+            if (
+                nextToken.type === TokenType.Keyword &&
+                (nextToken.keywordType === KeywordType.Cdef || nextToken.keywordType === KeywordType.Cpdef)
+            ) {
+                node = nextToken.keywordType === KeywordType.Cdef ? this._parseCDef() : this._parseCpdef();
+            } else if (isInCSuite) {
+                // Could be a function if in c suite
+                node = this._parseCVarDecl();
+            }
+
+            if (node) {
                 if (CFunctionNode.isInstance(node) || node.nodeType === ParseNodeType.Class) {
                     node.decorators = decoratorList;
                     decoratorList.forEach((decorator) => {
@@ -7313,6 +7325,8 @@ export class Parser {
                 const param = this._parseCParameterAnnotation();
                 statement = StatementListNode.create(this._peekToken());
                 this._pushStatements(statement, param);
+            } else if (this._peekOperatorType() === OperatorType.MatrixMultiply) {
+                statement = this._parseDecorated(/*isInCSuite*/ true);
             } else {
                 statement = this._parseCVarDecl();
             }
@@ -7326,7 +7340,7 @@ export class Parser {
             this._consumeTokensUntilType([TokenType.NewLine]);
         }
 
-        this._consumeTokenIfType(TokenType.NewLine);
+        const atNewLine = this._consumeTokenIfType(TokenType.NewLine);
         if (this._isParsingCStruct) {
             if (statement.nodeType === ParseNodeType.StatementList) {
                 for (const expr of statement.statements) {
@@ -7334,6 +7348,12 @@ export class Parser {
                         this._addError(Localizer.DiagnosticCython.defaultValuesNotAllowed(), expr.rightExpression);
                     }
                 }
+            }
+        }
+        if (!atNewLine && statement.nodeType === ParseNodeType.StatementList) {
+            if (statement.statements.length === 1 && statement.statements[0].nodeType === ParseNodeType.Error) {
+                // If error and not at new line, consume line to avoid infinite loop
+                this._consumeTokensUntilType([TokenType.NewLine]);
             }
         }
         return statement;
