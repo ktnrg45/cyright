@@ -18545,7 +18545,9 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
     function getTypeOfExpressionExpectingType(
         node: ExpressionNode,
         allowFinal = false,
-        allowRequired = false
+        allowRequired = false,
+        // ! Cython
+        allowForwardReferences = false
     ): TypeResult {
         let flags =
             EvaluatorFlags.ExpectingType |
@@ -18555,7 +18557,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             EvaluatorFlags.ClassVarDisallowed;
 
         const fileInfo = AnalyzerNodeInfo.getFileInfo(node);
-        if (fileInfo.isStubFile) {
+        if (fileInfo.isStubFile || allowForwardReferences) {
             flags |= EvaluatorFlags.AllowForwardReferences;
         } else {
             flags |= EvaluatorFlags.InterpreterParsesStringLiteral;
@@ -24373,7 +24375,16 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             // ! Cython CPP Template
             // TODO: Check type Parameters
             type.cythonDetails.trailType = CTrailType.Template;
-            const types = args.map((arg) => convertToInstance(getTypeOfArgumentExpectingType(arg).type));
+            const types = args.map((arg) =>
+                convertToInstance(
+                    getTypeOfExpressionExpectingType(
+                        arg.valueExpression,
+                        /*allowFinal*/ false,
+                        /*allowRequired*/ false,
+                        /*allowForwardReferences*/ true
+                    ).type
+                )
+            );
             return ClassType.cloneForSpecialization(type, types, true);
         } else {
             args.forEach((arg) => getTypeOfArgument(arg));
