@@ -6863,7 +6863,7 @@ export class Parser {
             this._addError(Localizer.Diagnostic.expectedCloseParen(), openParenToken);
         }
 
-        const trailBlock = this._parseCBlockTrail();
+        const trailBlock = this._parseCBlockTrail(/*allowConst*/ true);
 
         let suite: SuiteNode;
         let isForwardDecl = false;
