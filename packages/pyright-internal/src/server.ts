@@ -44,7 +44,13 @@ export class PyrightServer extends LanguageServerBase {
 
     constructor(connection: Connection) {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const version = require('../package.json').version || '';
+        let version = require('../package.json').version || '';
+
+        // ! Cython
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const cythonVSVersion = require('../../../../package.json').version || undefined;
+        const cythonVersion = '2.0.0';
+        version = `${version}_cython-${cythonVersion}${cythonVSVersion ? '_vscode-' + cythonVSVersion : ''}`;
 
         // When executed from CLI command (pyright-langserver), __rootDirectory is
         // already defined. When executed from VSCode extension, rootDirectory should
