@@ -2342,37 +2342,37 @@ export class Parser {
             } else if (nextToken.keywordType === KeywordType.Class) {
                 return this._parseClassDef(decoratorList);
             }
-        } else {
-            // ! Cython
-            let node: ParseNode | undefined = undefined;
-            if (
-                nextToken.type === TokenType.Keyword &&
-                (nextToken.keywordType === KeywordType.Cdef || nextToken.keywordType === KeywordType.Cpdef)
-            ) {
-                node = nextToken.keywordType === KeywordType.Cdef ? this._parseCDef() : this._parseCpdef();
-            } else if (isInCSuite) {
-                // Could be a function if in c suite
-                node = this._parseCVarDecl();
-            }
+        }
 
-            if (node) {
-                if (CFunctionNode.isInstance(node) || node.nodeType === ParseNodeType.Class) {
-                    node.decorators = decoratorList;
-                    decoratorList.forEach((decorator) => {
-                        decorator.parent = node;
-                    });
+        // ! Cython
+        let node: ParseNode | undefined = undefined;
+        if (
+            nextToken.type === TokenType.Keyword &&
+            (nextToken.keywordType === KeywordType.Cdef || nextToken.keywordType === KeywordType.Cpdef)
+        ) {
+            node = nextToken.keywordType === KeywordType.Cdef ? this._parseCDef() : this._parseCpdef();
+        } else if (isInCSuite) {
+            // Could be a function if in c suite
+            node = this._parseCVarDecl();
+        }
 
-                    if (decoratorList.length > 0) {
-                        extendRange(node, decoratorList[0]);
-                    }
-                    if (CFunctionNode.isInstance(node) && node.isForwardDeclaration) {
-                        // Consume new line if forward declared
-                        this._expectNewLine();
-                        this._consumeTokenIfType(TokenType.NewLine);
-                    }
+        if (node) {
+            if (CFunctionNode.isInstance(node) || node.nodeType === ParseNodeType.Class) {
+                node.decorators = decoratorList;
+                decoratorList.forEach((decorator) => {
+                    decorator.parent = node;
+                });
+
+                if (decoratorList.length > 0) {
+                    extendRange(node, decoratorList[0]);
                 }
-                return node;
+                if (CFunctionNode.isInstance(node) && node.isForwardDeclaration) {
+                    // Consume new line if forward declared
+                    this._expectNewLine();
+                    this._consumeTokenIfType(TokenType.NewLine);
+                }
             }
+            return node;
         }
 
         this._addError(Localizer.Diagnostic.expectedAfterDecorator(), this._peekToken());
