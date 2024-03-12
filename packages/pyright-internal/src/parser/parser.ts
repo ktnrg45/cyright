@@ -7307,6 +7307,8 @@ export class Parser {
                 // Consume redundant 'cdef'
                 this._consumeTokenIfKeyword(KeywordType.Cdef);
                 return this._parseCDefStatementInSuite();
+            } else if (kwType === KeywordType.Cpdef) {
+                return this._parseCpdef();
             } else if (this._isParsingCFused) {
                 const param = this._parseCParameterAnnotation();
                 statement = StatementListNode.create(this._peekToken());
