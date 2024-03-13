@@ -109,6 +109,7 @@ import {
 } from './codeFlowTypes';
 import { assignTypeToTypeVar, populateTypeVarContextBasedOnExpectedType } from './constraintSolver';
 import { applyConstructorTransform } from './constructorTransform';
+import { isCythonBuiltIn, isCythonFunction, transformCythonToPython } from './cythonTransform';
 import {
     applyDataClassClassBehaviorOverrides,
     applyDataClassDecorator,
@@ -4677,12 +4678,29 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             };
         }
 
-        const typeResult = getTypeOfMemberAccessWithBaseType(
+        let typeResult = getTypeOfMemberAccessWithBaseType(
             node,
             baseTypeResult,
             { method: 'get' },
             flags | EvaluatorFlags.DoNotSpecialize
         );
+
+        // ! Cython
+        // Try to transform cython type to python type
+        if (isAnyOrUnknown(typeResult.type)) {
+            const pyType = transformCythonToPython(getBuiltInType, node, baseTypeResult.type);
+            if (!isAnyOrUnknown(pyType)) {
+                typeResult = getTypeOfMemberAccessWithBaseType(
+                    node,
+                    { type: pyType },
+                    { method: 'get' },
+                    flags | EvaluatorFlags.DoNotSpecialize
+                );
+                // Overwrite the base type
+                baseTypeResult.type = pyType;
+                writeTypeCache(node.leftExpression, pyType, flags, /* isIncomplete */ false);
+            }
+        }
 
         if (isCodeFlowSupportedForReference(node)) {
             // Before performing code flow analysis, update the cache to prevent recursion.
@@ -24692,24 +24710,6 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             if (classType.cythonDetails && classType.cythonDetails.isPointer) {
                 return true;
             }
-        }
-        return false;
-    }
-
-    const cythonModules = ['cython', 'cython_builtins'];
-
-    function isCythonBuiltIn(type: Type) {
-        if (isFunction(type) || isClass(type)) {
-            if (cythonModules.includes(type.details.moduleName.split('.')[0])) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function isCythonFunction(type: Type) {
-        if (isFunction(type) && isCythonBuiltIn(type)) {
-            return true;
         }
         return false;
     }
