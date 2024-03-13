@@ -24462,6 +24462,8 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         }
         const typeResult = getTypeOfExpression(node.typeNode, flags);
         typeResult.type = convertToInstance(typeResult.type);
+        // Evaluate the expression as well
+        getTypeOfExpression(node.valueExpression, flags);
         return typeResult;
     }
 

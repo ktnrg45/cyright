@@ -4086,7 +4086,7 @@ export class Parser {
                 }
                 const closeToken = this._peekToken() as OperatorToken;
                 if (this._consumeTokenIfOperator(OperatorType.GreaterThan)) {
-                    return CCastNode.create(op, typeNode, closeToken, this._parseExpressionStatement());
+                    return CCastNode.create(op, typeNode, closeToken, this._parseAtomExpression());
                 } else {
                     this._addError(Localizer.DiagnosticCython.expectedCastClose(), closeToken);
                 }
