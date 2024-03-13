@@ -6667,9 +6667,9 @@ export class Parser {
         return false;
     }
 
-    private _parseCVarArgsList(terminator: TokenType, allowAnnotations: boolean): CParameterNode[] {
+    private _parseCVarArgsList(terminator: TokenType, allowAnnotations: boolean): ParameterNode[] {
         const paramMap = new Map<string, string>();
-        const paramList: CParameterNode[] = [];
+        const paramList: ParameterNode[] = [];
         let sawDefaultParam = false;
         let reportedNonDefaultParamErr = false;
         let sawKeywordOnlySeparator = false;
@@ -6683,8 +6683,17 @@ export class Parser {
             if (this._peekTokenType() === terminator) {
                 break;
             }
-
-            const param = this._parseCParameter(false, index);
+            let param: ParameterNode | undefined;
+            if (
+                allowAnnotations &&
+                this._peekTokenType() === TokenType.Identifier &&
+                this._peekToken(1).type === TokenType.Colon
+            ) {
+                // Allow python type annotation
+                param = this._parseParameter(allowAnnotations);
+            } else {
+                param = this._parseCParameter(false, index);
+            }
             index++;
             if (!param) {
                 this._consumeTokensUntilType([terminator]);
@@ -6884,7 +6893,7 @@ export class Parser {
         functionNode.parameters = paramList;
         paramList.forEach((param) => {
             param.parent = functionNode;
-            if (!isForwardDecl && param.isNameAmbiguous && param.typeAnnotation) {
+            if (!isForwardDecl && CParameterNode.isInstance(param) && param.isNameAmbiguous && param.typeAnnotation) {
                 // If this is not a forward declaration and name is ambiguous
                 // assume that the annotation was the name
                 const annotation = param.typeAnnotation;

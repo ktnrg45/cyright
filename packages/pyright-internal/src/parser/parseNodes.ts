@@ -3064,7 +3064,7 @@ export namespace CClassExtNode {
 }
 
 export interface CFunctionNode extends FunctionNode {
-    parameters: CParameterNode[];
+    parameters: ParameterNode[];
     readonly isCythonAlias: true;
     cpdef?: boolean;
     blockTrail?: CBlockTrailNode;
