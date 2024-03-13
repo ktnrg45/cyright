@@ -25441,10 +25441,17 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
     // Assign specialized template types for nested cpp class and methods of a cppclass with type parameters
     // TODO: Handle local templates as well?
     function specializeNestedCppClassOrMethod(type: Type, classType: ClassType) {
+        type = TypeBase.cloneType(type);
+        classType = TypeBase.cloneType(classType);
         if (classType.details.structType === CStructType.CppClass) {
             const typeVarScopeId = classType.details.typeVarScopeId;
             if (typeVarScopeId && classType.details.typeParameters.length) {
-                if (isClass(type) && !type.details.typeParameters.length) {
+                if (
+                    isClass(type) &&
+                    type.details.structType === CStructType.CppClass &&
+                    !type.details.typeParameters.length // TODO: Is this correct?
+                ) {
+                    // ! Only apply type parameters if member type is also a cppclass
                     type.details.typeParameters = classType.details.typeParameters.map((tp) =>
                         TypeVarType.cloneForScopeId(tp, typeVarScopeId, classType.details.name, TypeVarScopeType.Class)
                     );
