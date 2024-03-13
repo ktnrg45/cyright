@@ -24431,8 +24431,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             details.ptrRefCount++;
             type.cythonDetails = details;
             return type;
+        } else if (isClass(type)) {
+            type.cythonDetails = { isPointer: true, ptrRefCount: 1 };
+            return type;
         }
-        // TODO: Add errors for python objects
+
+        // TODO: Add errors for python objects, temporary references
         // addError(Localizer.DiagnosticCython.invalidAddressOf(), node, node);
         return UnknownType.create();
     }

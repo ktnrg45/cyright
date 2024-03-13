@@ -4071,8 +4071,9 @@ export class Parser {
             const op = nextToken as OperatorToken;
             if (op.operatorType === OperatorType.BitwiseAnd) {
                 // Address Of
+                // TODO: this should really be a unary operator expression
                 this._getNextToken();
-                return CAddressOfNode.create(op, this._parseExpressionStatement());
+                return CAddressOfNode.create(op, this._parseAtomExpression());
             } else if (op.operatorType === OperatorType.LessThan) {
                 this._getNextToken();
                 const typeNode = this._parseCType();
