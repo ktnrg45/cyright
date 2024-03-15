@@ -1131,6 +1131,19 @@ export class Binder extends ParseTreeWalker {
             this.walk(node.typeAnnotation);
         }
 
+        // ! Cython
+        // Check if this is a cdef annotation.
+        // These are valid declarations even without assignment and should not be marked unbound
+        if (
+            node.typeAnnotation.nodeType === ParseNodeType.CType &&
+            node.valueExpression.nodeType === ParseNodeType.Name
+        ) {
+            const symbol = this._currentScope.lookUpSymbol(node.valueExpression.value);
+            if (symbol) {
+                symbol.setInitiallyBound();
+            }
+        }
+
         return false;
     }
 
