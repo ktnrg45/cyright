@@ -25254,11 +25254,23 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             return undefined;
         }
 
-        const symbolWithScope = lookUpSymbolRecursive(node, node.name.value, true);
-        const decls = symbolWithScope?.symbol.getDeclarations();
-        const pxdDeclAlias = decls?.find((decl) => decl.type === DeclarationType.Alias);
-        const pyxDecl = decls?.find((decl) => decl.type === DeclarationType.Class);
-        if (pxdDeclAlias && pyxDecl && symbolWithScope) {
+        // Look for an imported declaration
+        let symbol = lookUpSymbolRecursive(node, node.name.value, true)?.symbol;
+        let pxdDecl = symbol?.getDeclarations().find((decl) => decl.type === DeclarationType.Alias);
+
+        if (!symbol) {
+            // This could be a private symbol
+            // Cython allows 'private' cdef declarations to be visible externally with no name mangling
+            // TODO: Only allow for this use case for now but it should be all cdef symbols
+            const importLookup = fileInfo.importLookup(fileInfo.filePath.replace('.pyx', '.pxd'), '.pxd');
+            symbol = importLookup?.symbolTable.get(node.name.value);
+            const decls = symbol?.getDeclarations() ?? [];
+            if (decls.length) {
+                pxdDecl = decls[decls.length - 1];
+            }
+        }
+        const pyxDecl = AnalyzerNodeInfo.getDeclaration(node);
+        if (pxdDecl && pyxDecl && symbol) {
             const pyxTypeResult = getTypeOfClass(node);
             if (!pyxTypeResult) {
                 return undefined;
@@ -25270,7 +25282,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
             }
 
             const pxdDeclInfo = resolveAliasDeclarationWithInfo(
-                pxdDeclAlias,
+                pxdDecl,
                 /*resolveLocalNames*/ false,
                 /*allowExternallyHidden*/ false
             );

@@ -7785,6 +7785,7 @@ export class Parser {
         const importFromNode = ImportFromNode.create(fromToken, module);
         importFromNode.isWildcardImport = true;
         importFromNode.wildcardToken = OperatorToken.create(0, 0, OperatorType.Multiply, undefined);
+        importFromNode.isCython = true;
         const pxdImport = {
             nameNode: importFromNode.module,
             leadingDots: importFromNode.module.leadingDots,
