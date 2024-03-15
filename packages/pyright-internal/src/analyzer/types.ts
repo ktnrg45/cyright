@@ -171,7 +171,12 @@ export namespace TypeBase {
     }
 
     export function cloneType<T extends TypeBase>(type: T): T {
-        return { ...type };
+        // ! Cython
+        const newType = { ...type };
+        if (type.cythonDetails) {
+            newType.cythonDetails = { ...type.cythonDetails };
+        }
+        return newType;
     }
 
     export function cloneTypeAsInstance<T extends TypeBase>(type: T): T {
