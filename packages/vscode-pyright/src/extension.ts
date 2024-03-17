@@ -185,6 +185,16 @@ export async function activate(context: ExtensionContext) {
             (editor: TextEditor, edit: TextEditorEdit, ...args: any[]) => {
                 cythonServices.compiler.compileCurrentFile(editor.document.uri);
             }
+        ),
+        commands.registerTextEditorCommand(
+            Commands.createCythonTypeStub,
+            (editor: TextEditor, edit: TextEditorEdit, ...args: any[]) => {
+                const command = Commands.createCythonTypeStub;
+                client.sendRequest('workspace/executeCommand', {
+                    command,
+                    arguments: [editor.document.uri.toString(), ...args],
+                });
+            }
         )
     );
 

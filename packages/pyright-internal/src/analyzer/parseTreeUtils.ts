@@ -456,6 +456,12 @@ export function printExpression(node: ExpressionNode, flags = PrintExpressionFla
         case ParseNodeType.Set: {
             return node.entries.map((entry) => printExpression(entry, flags)).join(', ');
         }
+
+        // ! Cython
+        case ParseNodeType.CType: {
+            // Should check if type is convertible to Python
+            return printExpression(node.expression, flags);
+        }
     }
 
     return '<Expression>';

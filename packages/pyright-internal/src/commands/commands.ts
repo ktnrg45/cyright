@@ -17,4 +17,5 @@ export const enum Commands {
     // ! Cython
     // Cython specific
     compileCurrentFile = 'cython.compileCurrentFile',
+    createCythonTypeStub = 'cython.createCythonTypeStub',
 }

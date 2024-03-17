@@ -10,6 +10,7 @@ import { CancellationToken, ExecuteCommandParams, ResponseError } from 'vscode-l
 
 import { LanguageServerInterface } from '../languageServerBase';
 import { Commands } from './commands';
+import { CreateCythonTypeStubCommand } from './createCythonTypeStub';
 import { CreateTypeStubCommand } from './createTypeStub';
 import { QuickActionCommand } from './quickActionCommand';
 import { RestartServerCommand } from './restartServer';
@@ -22,11 +23,15 @@ export class CommandController implements ServerCommand {
     private _createStub: CreateTypeStubCommand;
     private _restartServer: RestartServerCommand;
     private _quickAction: QuickActionCommand;
+    // ! Cython
+    private _createCythonStub: CreateCythonTypeStubCommand;
 
     constructor(ls: LanguageServerInterface) {
         this._createStub = new CreateTypeStubCommand(ls);
         this._restartServer = new RestartServerCommand(ls);
         this._quickAction = new QuickActionCommand(ls);
+        // ! Cython
+        this._createCythonStub = new CreateCythonTypeStubCommand(ls);
     }
 
     async execute(cmdParams: ExecuteCommandParams, token: CancellationToken): Promise<any> {
@@ -44,6 +49,11 @@ export class CommandController implements ServerCommand {
                 return this._restartServer.execute(cmdParams);
             }
 
+            // ! Cython
+            case Commands.createCythonTypeStub: {
+                return this._createCythonStub.execute(cmdParams, token);
+            }
+
             default: {
                 return new ResponseError<string>(1, 'Unsupported command');
             }
@@ -53,6 +63,7 @@ export class CommandController implements ServerCommand {
     isLongRunningCommand(command: string): boolean {
         switch (command) {
             case Commands.createTypeStub:
+            case Commands.createCythonTypeStub: // ! Cython
                 return true;
 
             default:

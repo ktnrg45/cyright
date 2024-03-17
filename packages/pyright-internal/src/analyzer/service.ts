@@ -875,6 +875,11 @@ export class AnalyzerService {
         );
     }
 
+    // ! Cython
+    writeTypeStubInBackgroundCython(path: string, stubPath: string, token: CancellationToken): Promise<any> {
+        return this._backgroundAnalysisProgram.writeTypeStubCython(path, stubPath, token);
+    }
+
     // This is called after a new type stub has been created. It allows
     // us to invalidate caches and force reanalysis of files that potentially
     // are affected by the appearance of a new type stub.

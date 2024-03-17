@@ -252,6 +252,26 @@ export class BackgroundAnalysisBase {
         port1.close();
     }
 
+    //! Cython
+    async writeTypeStubCython(path: string, stubPath: string, token: CancellationToken): Promise<any> {
+        throwIfCancellationRequested(token);
+
+        const { port1, port2 } = new MessageChannel();
+        const waiter = getBackgroundWaiter(port1);
+
+        const cancellationId = getCancellationTokenId(token);
+        this.enqueueRequest({
+            requestType: 'writeTypeStubCython',
+            data: { path, stubPath, cancellationId },
+            port: port2,
+        });
+
+        await waiter;
+
+        port2.close();
+        port1.close();
+    }
+
     invalidateAndForceReanalysis(rebuildUserFileIndexing: boolean) {
         this.enqueueRequest({ requestType: 'invalidateAndForceReanalysis', data: rebuildUserFileIndexing });
     }
@@ -474,6 +494,25 @@ export abstract class BackgroundAnalysisRunnerBase extends BackgroundThreadBase 
                 break;
             }
 
+            // ! Cython
+            case 'writeTypeStubCython': {
+                run(() => {
+                    const { path, stubPath, cancellationId } = msg.data;
+                    const token = getCancellationTokenFromId(cancellationId);
+
+                    analyzeProgram(
+                        this.program,
+                        undefined,
+                        this._configOptions,
+                        nullCallback,
+                        this.getConsole(),
+                        token
+                    );
+                    this.program.writeTypeStubCython(path, stubPath, token);
+                }, msg.port!);
+                break;
+            }
+
             default: {
                 debug.fail(`${msg.requestType} is not expected`);
             }
@@ -600,7 +639,9 @@ export interface AnalysisRequest {
         | 'setExperimentOptions'
         | 'setImportResolver'
         | 'getInlayHints'
-        | 'shutdown';
+        | 'shutdown'
+        // ! Cython
+        | 'writeTypeStubCython';
 
     data: any;
     port?: MessagePort | undefined;

@@ -225,6 +225,23 @@ export class BackgroundAnalysisProgram {
         return this._program.writeTypeStub(targetImportPath, targetIsSingleFile, stubPath, token);
     }
 
+    // ! Cython
+    async writeTypeStubCython(path: string, stubPath: string, token: CancellationToken): Promise<any> {
+        if (this._backgroundAnalysis) {
+            return this._backgroundAnalysis.writeTypeStubCython(path, stubPath, token);
+        }
+
+        analyzeProgram(
+            this._program,
+            /* maxTime */ undefined,
+            this._configOptions,
+            this._onAnalysisCompletion,
+            this._console,
+            token
+        );
+        return this._program.writeTypeStubCython(path, stubPath, token);
+    }
+
     invalidateAndForceReanalysis(rebuildUserFileIndexing: boolean, rebuildLibraryIndexing: boolean) {
         if (rebuildLibraryIndexing) {
             this.refreshIndexing();

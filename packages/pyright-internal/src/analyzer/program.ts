@@ -34,6 +34,7 @@ import { LogTracker } from '../common/logTracker';
 import {
     combinePaths,
     getDirectoryPath,
+    getFileExtension,
     getFileName,
     getRelativePath,
     isFile,
@@ -744,6 +745,35 @@ export class Program {
                 // for situations where we need to discard the type cache.
                 this._handleMemoryHighUsage();
             }
+        }
+    }
+
+    // ! Cython
+    writeTypeStubCython(path: string, stubPath: string, token: CancellationToken) {
+        const filePaths: string[] = [path];
+
+        for (const path of filePaths) {
+            throwIfCancellationRequested(token);
+
+            const sourceFileInfo = this._getSourceFileInfoFromPath(path);
+            if (!sourceFileInfo || getFileExtension(path) !== '.pyx') {
+                return;
+            }
+
+            // Write in same directory
+            const typeStubPath = stripFileExtension(path) + '.pyi';
+
+            this._bindFile(sourceFileInfo);
+
+            this._runEvaluatorWithCancellationToken(token, () => {
+                const writer = new TypeStubWriter(typeStubPath, sourceFileInfo.sourceFile, this._evaluator!, true);
+                writer.write();
+            });
+
+            // This operation can consume significant memory, so check
+            // for situations where we need to discard the type cache.
+            this._handleMemoryHighUsage();
+            // }
         }
     }
 
