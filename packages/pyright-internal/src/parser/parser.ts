@@ -6839,16 +6839,12 @@ export class Parser {
     private _parseCBlockTrail(allowConst = false) {
         const token = this._peekToken();
         const otherTokens: Token[] = [];
-        let trailType: CBlockTrailType;
+        let trailType: CBlockTrailType | undefined = undefined;
         let exceptToken: Token | undefined = undefined;
         let expr: ExpressionNode | undefined = undefined;
 
-        if (this._consumeIfWithGil()) {
-            otherTokens.push(this._peekToken(-1));
-            trailType = CBlockTrailType.WithGil;
-        } else if (this._consumeTokenIfKeyword(KeywordType.Nogil)) {
-            trailType = CBlockTrailType.NoGil;
-        } else if (this._consumeTokenIfKeyword(KeywordType.Noexcept)) {
+        // TODO: Make TrailType a flag
+        if (this._consumeTokenIfKeyword(KeywordType.Noexcept)) {
             trailType = CBlockTrailType.NoExcept;
         } else if (this._consumeTokenIfKeyword(KeywordType.Except)) {
             trailType = CBlockTrailType.Except;
@@ -6856,12 +6852,21 @@ export class Parser {
             if (op === OperatorType.Multiply || op === OperatorType.Add) {
                 exceptToken = this._getNextToken();
                 otherTokens.push(exceptToken);
-            } else if (token) {
+            } else {
                 expr = this._parseTestExpression(/*allowAssignmentExpression*/ false);
             }
+        }
+
+        if (this._consumeIfWithGil()) {
+            otherTokens.push(this._peekToken(-1));
+            trailType = CBlockTrailType.WithGil;
+        } else if (this._consumeTokenIfKeyword(KeywordType.Nogil)) {
+            trailType = CBlockTrailType.NoGil;
         } else if (allowConst && this._consumeTokenIfKeyword(KeywordType.Const)) {
             trailType = CBlockTrailType.Const;
-        } else {
+        }
+
+        if (trailType === undefined) {
             return undefined;
         }
         return CBlockTrailNode.create(token, otherTokens, trailType, exceptToken, expr);
