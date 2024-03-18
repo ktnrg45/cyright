@@ -1,6 +1,6 @@
 // Compiler command
 import { exec } from 'child_process';
-import { ExtensionContext, OutputChannel, ProgressLocation, Uri, window } from 'vscode';
+import { ExtensionContext, OutputChannel, ProgressLocation, window } from 'vscode';
 
 import { combinePaths, getDirectoryPath } from 'pyright-internal/common/pathUtils';
 
@@ -88,14 +88,14 @@ function _compileWithProgress(filename: string, pythonPath: string, reporter: Pr
     });
 }
 
-function _compileCurrentFileCommand(uri: Uri, pythonPath: string, outputChannel: OutputChannel, callback: () => void) {
-    const filename = uri.path;
+function _compileCurrentFileCommand(
+    filename: string,
+    pythonPath: string,
+    outputChannel: OutputChannel,
+    callback: () => void
+) {
     const reporter = new ProgressReporter(filename, outputChannel);
 
-    if (uri.scheme !== 'file') {
-        callback();
-        return;
-    }
     if (!filename.endsWith('.pyx')) {
         reporter.outputChannel.appendLine(reporter.invalidExtension());
         callback();
@@ -124,11 +124,11 @@ export class CythonCompiler {
         this._pythonPath = pythonPath;
     }
 
-    compileCurrentFile(uri: Uri) {
+    compileCurrentFile(path: string) {
         if (!this._pythonPath || this._compiling) {
             return;
         }
         this._compiling = true;
-        _compileCurrentFileCommand(uri, this._pythonPath, this._outputChannel, this._compilingDone.bind(this));
+        _compileCurrentFileCommand(path, this._pythonPath, this._outputChannel, this._compilingDone.bind(this));
     }
 }

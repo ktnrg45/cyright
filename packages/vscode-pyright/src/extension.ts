@@ -40,6 +40,7 @@ import {
 import { CythonTypeStubResult } from 'pyright-internal/commands/commandResult';
 import { Commands } from 'pyright-internal/commands/commands';
 import { isThenable } from 'pyright-internal/common/core';
+import { extractPathFromUri } from 'pyright-internal/common/pathUtils';
 
 import { FileBasedCancellationStrategy } from './cancellationUtils';
 import { CythonServices } from './cythonServices';
@@ -182,37 +183,52 @@ export async function activate(context: ExtensionContext) {
 
     // ! Cython
     const cythonServices = new CythonServices(client, context);
-    context.subscriptions.push(
-        commands.registerTextEditorCommand(
-            Commands.compileCurrentFile,
-            (editor: TextEditor, edit: TextEditorEdit, ...args: any[]) => {
-                cythonServices.compiler.compileCurrentFile(editor.document.uri);
-            }
-        ),
-        commands.registerTextEditorCommand(
-            Commands.createCythonTypeStub,
-            (editor: TextEditor, edit: TextEditorEdit, ...args: any[]) => {
-                const command = Commands.createCythonTypeStub;
-                client
-                    .sendRequest('workspace/executeCommand', {
-                        command,
-                        arguments: [editor.document.uri.toString(), ...args],
-                    })
-                    .then(async (result) => {
-                        if (CythonTypeStubResult.is(result)) {
-                            if (result.success && result.isFile && result.outPaths.length === 1) {
-                                // Try to open created file
-                                try {
-                                    const document = await workspace.openTextDocument(result.outPaths[0]);
-                                    await window.showTextDocument(document);
-                                } catch (error) {
-                                    console.error('Error opening typestub file:', error);
-                                }
-                            }
+    const cythonCommandGetPath = (...args: any[]) => {
+        let filePath: string | undefined = undefined;
+        if (args.length > 0) {
+            // Filepath is first arg if activated from 'explorer' context menu
+            filePath = extractPathFromUri(args[0] as string);
+        } else {
+            // Get filepath from current editor
+            const editor = window.activeTextEditor;
+            filePath = editor?.document.uri.path;
+        }
+        return filePath;
+    };
+    const onCreateCythonTypeStub = (uri: Uri | string) => {
+        const command = Commands.createCythonTypeStub;
+        client
+            .sendRequest('workspace/executeCommand', {
+                command,
+                arguments: [uri.toString()],
+            })
+            .then(async (result) => {
+                if (CythonTypeStubResult.is(result)) {
+                    if (result.success && result.isFile && result.outPaths.length === 1) {
+                        // Try to open created file
+                        try {
+                            const document = await workspace.openTextDocument(result.outPaths[0]);
+                            await window.showTextDocument(document);
+                        } catch (error) {
+                            console.error('Error opening typestub file:', error);
                         }
-                    });
+                    }
+                }
+            });
+    };
+    context.subscriptions.push(
+        commands.registerCommand(Commands.compileCurrentFile, (...args: any[]) => {
+            const filePath = cythonCommandGetPath(...args);
+            if (filePath) {
+                cythonServices.compiler.compileCurrentFile(filePath);
             }
-        )
+        }),
+        commands.registerCommand(Commands.createCythonTypeStub, (...args: any[]) => {
+            const filePath = cythonCommandGetPath(...args);
+            if (filePath) {
+                onCreateCythonTypeStub(filePath);
+            }
+        })
     );
 
     // Register our custom commands.
