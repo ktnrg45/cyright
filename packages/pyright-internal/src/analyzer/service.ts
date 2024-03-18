@@ -876,7 +876,7 @@ export class AnalyzerService {
     }
 
     // ! Cython
-    writeTypeStubInBackgroundCython(path: string, stubPath: string, token: CancellationToken): Promise<any> {
+    writeTypeStubInBackgroundCython(path: string, stubPath: string, token: CancellationToken): Promise<string[]> {
         return this._backgroundAnalysisProgram.writeTypeStubCython(path, stubPath, token);
     }
 

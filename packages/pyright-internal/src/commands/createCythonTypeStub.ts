@@ -11,6 +11,7 @@ import { getFileExtension } from '../common/pathUtils';
 import { LanguageServerInterface } from '../languageServerBase';
 import { AnalyzerServiceExecutor } from '../languageService/analyzerServiceExecutor';
 import { ServerCommand } from './commandController';
+import { CythonTypeStubResult } from './commandResult';
 
 export class CreateCythonTypeStubCommand implements ServerCommand {
     constructor(private _ls: LanguageServerInterface) {}
@@ -31,18 +32,29 @@ export class CreateCythonTypeStubCommand implements ServerCommand {
                 this._ls.createBackgroundAnalysis()
             );
 
+            // Only handle .pyx files
+            // TODO: Possibly handle directories
             const ext = getFileExtension(path);
             if (ext.length && ext !== '.pyx') {
                 return;
             }
 
+            const result: CythonTypeStubResult = {
+                path: path,
+                outPaths: [],
+                isFile: true,
+                success: false,
+            };
+
             try {
-                await service.writeTypeStubInBackgroundCython(path, stubPath, token);
+                const outPaths = await service.writeTypeStubInBackgroundCython(path, stubPath, token);
                 service.dispose();
 
                 const infoMessage = `Type stub was successfully created for '${path}'.`;
                 this._ls.window.showInformationMessage(infoMessage);
                 this._ls.reanalyze();
+                result.success = true;
+                result.outPaths.push(...outPaths);
             } catch (err) {
                 const isCancellation = OperationCanceledException.is(err);
                 if (isCancellation) {
@@ -58,6 +70,7 @@ export class CreateCythonTypeStubCommand implements ServerCommand {
                     this._ls.window.showErrorMessage(errMessage);
                 }
             }
+            return result;
         }
     }
 }

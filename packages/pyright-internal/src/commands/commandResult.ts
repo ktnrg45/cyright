@@ -19,3 +19,22 @@ export namespace CommandResult {
         return value && value.label !== undefined && value.edits && WorkspaceEdit.is(value.edits);
     }
 }
+
+// ! Cython
+export interface CythonTypeStubResult {
+    path: string,
+    outPaths: string[],
+    isFile: boolean,
+    success: boolean,
+}
+
+export namespace CythonTypeStubResult {
+    export function is(value: any): value is CythonTypeStubResult {
+        if (value) {
+            const outPaths = value.outPaths;
+            const pathsValid = (Array.isArray(outPaths) && outPaths.every((p) => typeof p === 'string'))
+            return pathsValid && typeof value.path === 'string' && value.isFile !== undefined && value.success !== undefined;
+        }
+        return false;
+    }
+}

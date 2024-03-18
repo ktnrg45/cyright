@@ -751,13 +751,14 @@ export class Program {
     // ! Cython
     writeTypeStubCython(path: string, stubPath: string, token: CancellationToken) {
         const filePaths: string[] = [path];
+        const outPaths: string[] = [];
 
         for (const path of filePaths) {
             throwIfCancellationRequested(token);
 
             const sourceFileInfo = this._getSourceFileInfoFromPath(path);
             if (!sourceFileInfo || getFileExtension(path) !== '.pyx') {
-                return;
+                continue;
             }
 
             // Write in same directory
@@ -768,13 +769,14 @@ export class Program {
             this._runEvaluatorWithCancellationToken(token, () => {
                 const writer = new TypeStubWriter(typeStubPath, sourceFileInfo.sourceFile, this._evaluator!, true);
                 writer.write();
+                outPaths.push(typeStubPath);
             });
 
             // This operation can consume significant memory, so check
             // for situations where we need to discard the type cache.
             this._handleMemoryHighUsage();
-            // }
         }
+        return outPaths;
     }
 
     getTypeOfSymbol(symbol: Symbol) {

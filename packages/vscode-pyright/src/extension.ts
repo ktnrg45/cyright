@@ -20,6 +20,8 @@ import {
     TextEditor,
     TextEditorEdit,
     Uri,
+    window,
+    workspace,
 } from 'vscode';
 import {
     CancellationToken,
@@ -35,6 +37,7 @@ import {
     TransportKind,
 } from 'vscode-languageclient/node';
 
+import { CythonTypeStubResult } from 'pyright-internal/commands/commandResult';
 import { Commands } from 'pyright-internal/commands/commands';
 import { isThenable } from 'pyright-internal/common/core';
 
@@ -190,10 +193,24 @@ export async function activate(context: ExtensionContext) {
             Commands.createCythonTypeStub,
             (editor: TextEditor, edit: TextEditorEdit, ...args: any[]) => {
                 const command = Commands.createCythonTypeStub;
-                client.sendRequest('workspace/executeCommand', {
-                    command,
-                    arguments: [editor.document.uri.toString(), ...args],
-                });
+                client
+                    .sendRequest('workspace/executeCommand', {
+                        command,
+                        arguments: [editor.document.uri.toString(), ...args],
+                    })
+                    .then(async (result) => {
+                        if (CythonTypeStubResult.is(result)) {
+                            if (result.success && result.isFile && result.outPaths.length === 1) {
+                                // Try to open created file
+                                try {
+                                    const document = await workspace.openTextDocument(result.outPaths[0]);
+                                    await window.showTextDocument(document);
+                                } catch (error) {
+                                    console.error('Error opening typestub file:', error);
+                                }
+                            }
+                        }
+                    });
             }
         )
     );
