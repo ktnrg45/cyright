@@ -772,8 +772,12 @@ export class TypeStubWriter extends ParseTreeWalker {
             });
 
             if (imp.isWildcardImport) {
-                importStr += `from ${imp.importName} import *` + this._lineEnd;
-                lineEmitted = true;
+                // ! Cython
+                // Don't include the matching .pxd which has an invalid range
+                if (!(imp.node && imp.node.isCython && imp.node.start <= 0 && imp.node.length <= 0)) {
+                    importStr += `from ${imp.importName} import *` + this._lineEnd;
+                    lineEmitted = true;
+                }
             }
 
             const sortedSymbols = imp.symbols
