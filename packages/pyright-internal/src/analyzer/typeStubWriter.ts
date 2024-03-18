@@ -10,8 +10,10 @@
 
 import {
     ArgumentCategory,
+    ArgumentNode,
     AssignmentNode,
     AugmentedAssignmentNode,
+    CDefineNode,
     CEnumNode,
     CFunctionNode,
     ClassNode,
@@ -164,6 +166,7 @@ export class TypeStubWriter extends ParseTreeWalker {
     private _accessedImportedSymbols = new Map<string, boolean>();
 
     // ! Cython
+    private _cEnumName: NameNode | undefined = undefined;
     private _cPropertyName: NameNode | undefined = undefined;
 
     constructor(
@@ -446,6 +449,9 @@ export class TypeStubWriter extends ParseTreeWalker {
                     ) {
                         isTypeAlias = true;
                     }
+                } else if (!node.typeAnnotationComment && this._cEnumName) {
+                    // ! Cython add annotation for cenum global fields
+                    line += `: ${this._printExpression(this._cEnumName, /* treatStringsAsSymbols */ true)}`;
                 }
             }
         } else if (node.leftExpression.nodeType === ParseNodeType.TypeAnnotation) {
@@ -817,12 +823,24 @@ export class TypeStubWriter extends ParseTreeWalker {
     // ! Cython
     override visitCEnum(node: CEnumNode): boolean {
         if (node.cpdef) {
+            const enumType = 'IntEnum';
+            this._addSyntheticImport('enum', enumType);
             const alias: ClassNode = { ...CEnumNode.alias(node) };
-            alias.arguments = [];
+            const arg = ArgumentNode.create(undefined, this._createDummyName(enumType), ArgumentCategory.Simple);
+            alias.arguments = [arg];
             this.visitClass(alias);
-            // Also add fields to parent scope
-            return true;
+
+            // Also add fields to parent scope if cpdef enum; (No class)
+            if (!node.classToken) {
+                this._cEnumName = node.name;
+                this.walkMultiple(node.suite.statements);
+                this._cEnumName = undefined;
+            }
         }
+        return false;
+    }
+
+    override visitCDefine(node: CDefineNode): boolean {
         return false;
     }
 
@@ -855,14 +873,11 @@ export class TypeStubWriter extends ParseTreeWalker {
         }
         this._cPropertyName = undefined; // Unset so we can handle the next function normally
         // Create dummy property function
-        const propToken = IdentifierToken.create(0, 0, 'property', undefined);
+        const propToken = this._createDummyIdentifier('property');
         const propExpression =
             accessorName === 'getter'
                 ? NameNode.create(propToken)
-                : MemberAccessNode.create(
-                      { ...propertyName },
-                      NameNode.create(IdentifierToken.create(0, 0, accessorName, undefined))
-                  );
+                : MemberAccessNode.create({ ...propertyName }, this._createDummyName(accessorName));
         const decorator = DecoratorNode.create(propToken, propExpression);
         const functionNode = { ...node };
         functionNode.name = { ...propertyName };
@@ -884,12 +899,7 @@ export class TypeStubWriter extends ParseTreeWalker {
             // Add buffer import
             const bufferMod = 'array';
             const bufferType = 'array';
-            let trackedImport = this._trackedImportFrom.get(bufferMod);
-            if (!trackedImport) {
-                trackedImport = new TrackedImportFrom(bufferMod, false, undefined);
-                this._trackedImportFrom.set(bufferMod, trackedImport);
-            }
-            trackedImport.addSymbol(undefined, bufferType, undefined, true);
+            this._addSyntheticImport(bufferMod, bufferType);
             transformed = `${bufferType}[${this._printExpression(node.expression, isType)}]`;
         } else {
             // TODO: transform basic ctypes to python
@@ -905,8 +915,24 @@ export class TypeStubWriter extends ParseTreeWalker {
         return transformed;
     }
 
+    private _addSyntheticImport(moduleName: string, importName: string) {
+        let trackedImport = this._trackedImportFrom.get(moduleName);
+        if (!trackedImport) {
+            trackedImport = new TrackedImportFrom(moduleName, false, undefined);
+            this._trackedImportFrom.set(moduleName, trackedImport);
+        }
+        trackedImport.addSymbol(undefined, importName, undefined, true);
+    }
+
     private _isGlobalScopeCython() {
         return this._isCython && this._functionNestCount === 0 && this._classNestCount === 0;
+    }
+
+    private _createDummyIdentifier(name: string) {
+        return IdentifierToken.create(0, 0, name, undefined);
+    }
+    private _createDummyName(name: string) {
+        return NameNode.create(this._createDummyIdentifier(name));
     }
 
     private _isPrivateOrProtectedNameFunction(name: string) {

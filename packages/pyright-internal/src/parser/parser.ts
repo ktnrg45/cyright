@@ -5532,9 +5532,10 @@ export class Parser {
         this._consumeTokenIfKeyword(KeywordType.Enum);
 
         // TODO: `class` cpdef not allowed when language is not C++
+        const classToken = this._peekToken();
         let isClass = this._consumeTokenIfKeyword(KeywordType.Class);
         if (!cpdef && isClass) {
-            this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken(-1));
+            this._addError(Localizer.Diagnostic.expectedIdentifier(), classToken);
             isClass = false;
         }
 
@@ -5615,6 +5616,9 @@ export class Parser {
         if (classType) {
             node.arguments.push(classType);
             classType.parent = node;
+        }
+        if (isClass) {
+            node.classToken = classToken;
         }
         return node;
     }
