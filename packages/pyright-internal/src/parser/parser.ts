@@ -5738,7 +5738,7 @@ export class Parser {
         let node: ParseNode | undefined = undefined;
         switch (token.type) {
             case TokenType.OpenParenthesis:
-            case TokenType.Identifier:
+            case TokenType.Identifier: {
                 if (
                     nextToken.type === TokenType.Operator &&
                     (nextToken as OperatorToken).operatorType === OperatorType.Assign
@@ -5757,6 +5757,7 @@ export class Parser {
                     return node;
                 }
                 break;
+            }
             case TokenType.Keyword: {
                 if (varModifiers.includes(kwToken.keywordType) || numericModifiers.includes(kwToken.keywordType)) {
                     // Var modifier (var declaration)
@@ -5772,8 +5773,14 @@ export class Parser {
                             this._pushStatements(statements, node);
                             return statements;
                         }
-                        case KeywordType.Extern:
-                            return this._parseExtern(cdefToken);
+                        case KeywordType.Extern: {
+                            if ((nextToken as KeywordToken).keywordType === KeywordType.From) {
+                                return this._parseExtern(cdefToken);
+                            }
+                            this._consumeTokenIfKeyword(KeywordType.Extern);
+                            // One line extern
+                            return this._parseCVarDecl();
+                        }
                         case KeywordType.Enum:
                             return this._parseEnum(false);
                         case KeywordType.Packed:
@@ -7287,7 +7294,7 @@ export class Parser {
 
         // Handle keywords that are unexpected
         // cdef is optional here so keyword can also be type modifiers
-        const validKeyWords = [...varModifiers, ...numericModifiers];
+        const validKeyWords = [...varModifiers, ...numericModifiers, KeywordType.Extern];
         const otherKeyWords = [
             KeywordType.Struct,
             KeywordType.Packed,
@@ -7342,6 +7349,7 @@ export class Parser {
             } else if (this._peekOperatorType() === OperatorType.MatrixMultiply) {
                 statement = this._parseDecorated(/*isInCSuite*/ true);
             } else {
+                this._consumeTokenIfKeyword(KeywordType.Extern); // Handle one line extern
                 statement = this._parseCVarDecl();
             }
         } else {
