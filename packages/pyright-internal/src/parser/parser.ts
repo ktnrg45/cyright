@@ -5458,7 +5458,7 @@ export class Parser {
                 return CTypeDefNode.create(typeDefToken, nameOrError, { ...nameOrError.name });
             }
             this._addError(Localizer.Diagnostic.expectedIdentifier(), this._peekToken());
-            node = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration, node);
+            node = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.MissingExpression, node);
         }
 
         const statements = StatementListNode.create(typeDefToken);
@@ -5553,7 +5553,7 @@ export class Parser {
             }
             if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
                 return this._handleExpressionParseError(
-                    ErrorExpressionCategory.InvalidDeclaration,
+                    ErrorExpressionCategory.MissingCallCloseParen,
                     Localizer.Diagnostic.expectedCloseParen()
                 );
             }
@@ -5652,12 +5652,14 @@ export class Parser {
         }
         if (packedToken && structType !== CStructType.Struct) {
             return this._handleExpressionParseError(
+                // TODO: Missing struct
                 ErrorExpressionCategory.InvalidDeclaration,
                 Localizer.DiagnosticCython.expectedStruct()
             );
         }
         if (structType === undefined) {
             return this._handleExpressionParseError(
+                // TODO: Missing struct type
                 ErrorExpressionCategory.InvalidDeclaration,
                 Localizer.DiagnosticCython.expectedStructType()
             );
@@ -5719,7 +5721,7 @@ export class Parser {
             return node;
         }
         if (!node) {
-            node = ErrorNode.create(cdefToken, ErrorExpressionCategory.InvalidDeclaration);
+            node = ErrorNode.create(cdefToken, ErrorExpressionCategory.MissingExpression);
             // TODO: Is this the right error?
             this._addError(Localizer.Diagnostic.expectedIdentifier(), token);
         }
@@ -5808,7 +5810,7 @@ export class Parser {
                 break;
         }
         if (!node) {
-            node = ErrorNode.create(cdefToken, ErrorExpressionCategory.InvalidDeclaration);
+            node = ErrorNode.create(cdefToken, ErrorExpressionCategory.MissingExpression);
             // TODO: Is this the right error?
             this._addError(Localizer.Diagnostic.expectedIdentifier(), token);
         }
@@ -6403,7 +6405,7 @@ export class Parser {
     // parse from ptr or ref and name only; `**name`
     private _parseCVarName(typeNode: CTypeNode, allowReference = false, skipPointersAndRefs = false) {
         const operators: OperatorToken[] = [];
-        const errorNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration);
+        const errorNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.MissingExpression);
         const validTypes = [TokenType.Identifier, TokenType.Operator, TokenType.Keyword];
         const ptrRefTypes = [OperatorType.Multiply, OperatorType.Power, OperatorType.BitwiseAnd];
         let name: NameNode | undefined = undefined;
@@ -6979,7 +6981,7 @@ export class Parser {
         const name = NameNode.create(iden);
         if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
             return this._handleExpressionParseError(
-                ErrorExpressionCategory.InvalidDeclaration,
+                ErrorExpressionCategory.MissingCallCloseParen,
                 Localizer.Diagnostic.expectedCloseParen(),
                 this._peekToken()
             );
@@ -7010,7 +7012,7 @@ export class Parser {
         const closeToken = this._peekToken();
         if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
             return this._handleExpressionParseError(
-                ErrorExpressionCategory.InvalidDeclaration,
+                ErrorExpressionCategory.MissingCallCloseParen,
                 Localizer.Diagnostic.expectedCloseParen(),
                 this._peekToken()
             );
@@ -7049,14 +7051,14 @@ export class Parser {
             nodes.push(firstNode);
         } else {
             return this._handleExpressionParseError(
-                ErrorExpressionCategory.InvalidDeclaration,
+                ErrorExpressionCategory.MissingExpression,
                 Localizer.Diagnostic.expectedIdentifier()
             );
         }
         while (this._peekTokenType() !== TokenType.CloseParenthesis) {
             if (!this._consumeTokenIfType(TokenType.Comma)) {
                 return this._handleExpressionParseError(
-                    ErrorExpressionCategory.InvalidDeclaration,
+                    ErrorExpressionCategory.MissingFunctionParameterList,
                     Localizer.Diagnostic.typeArgListExpected()
                 );
             }
@@ -7066,7 +7068,7 @@ export class Parser {
                 nodes.push(nextNode);
             } else {
                 return this._handleExpressionParseError(
-                    ErrorExpressionCategory.InvalidDeclaration,
+                    ErrorExpressionCategory.MissingExpression,
                     Localizer.Diagnostic.expectedIdentifier()
                 );
             }
@@ -7074,13 +7076,13 @@ export class Parser {
         const closeToken = this._peekToken();
         if (!this._consumeTokenIfType(TokenType.CloseParenthesis)) {
             return this._handleExpressionParseError(
-                ErrorExpressionCategory.InvalidDeclaration,
+                ErrorExpressionCategory.MissingTupleCloseParen,
                 Localizer.Diagnostic.expectedCloseParen()
             );
         }
         if (nodes.length === 0) {
             return this._handleExpressionParseError(
-                ErrorExpressionCategory.InvalidDeclaration,
+                ErrorExpressionCategory.MissingExpression,
                 Localizer.Diagnostic.expectedIdentifier()
             );
         }
@@ -7096,7 +7098,7 @@ export class Parser {
         const modifiers: KeywordToken[] = [];
         const numModifiers: IdentifierToken[] = [];
         let longCount = 0;
-        const errorNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.InvalidDeclaration);
+        const errorNode = ErrorNode.create(this._peekToken(), ErrorExpressionCategory.MissingExpression);
         const validTypes = [TokenType.Keyword, TokenType.Identifier];
         let expression: ExpressionNode | undefined = undefined;
 
@@ -7590,7 +7592,7 @@ export class Parser {
                 this._pushStatements(
                     statements,
                     this._handleExpressionParseError(
-                        ErrorExpressionCategory.InvalidDeclaration,
+                        ErrorExpressionCategory.MissingExpression,
                         Localizer.Diagnostic.expectedIdentifier(),
                         this._peekToken()
                     )
@@ -7606,7 +7608,7 @@ export class Parser {
         this._pushStatements(
             statements,
             this._handleExpressionParseError(
-                ErrorExpressionCategory.InvalidDeclaration,
+                ErrorExpressionCategory.MissingExpression,
                 Localizer.Diagnostic.expectedIdentifier(),
                 startToken
             )
@@ -7700,14 +7702,14 @@ export class Parser {
         const module = this._getTokenIfIdentifier();
         if (!module) {
             return this._handleExpressionParseError(
-                ErrorExpressionCategory.InvalidDeclaration,
+                ErrorExpressionCategory.MissingExpression,
                 Localizer.Diagnostic.expectedModuleName(),
                 this._peekToken()
             );
         }
         if (!this._getTokenIfType(TokenType.Dot)) {
             return this._handleExpressionParseError(
-                ErrorExpressionCategory.InvalidDeclaration,
+                ErrorExpressionCategory.MissingMemberAccessName,
                 Localizer.Diagnostic.expectedMemberName(),
                 this._peekToken()
             );
@@ -7715,7 +7717,7 @@ export class Parser {
         const name = this._getTokenIfIdentifier();
         if (!name) {
             return this._handleExpressionParseError(
-                ErrorExpressionCategory.InvalidDeclaration,
+                ErrorExpressionCategory.MissingMemberAccessName,
                 Localizer.Diagnostic.expectedMemberName(),
                 this._peekToken()
             );
@@ -7730,7 +7732,7 @@ export class Parser {
                 const argName = this._getTokenIfIdentifier();
                 if (!argName) {
                     return this._handleExpressionParseError(
-                        ErrorExpressionCategory.InvalidDeclaration,
+                        ErrorExpressionCategory.MissingExpression,
                         Localizer.Diagnostic.expectedNamedParameter(),
                         this._peekToken()
                     );
@@ -7738,7 +7740,7 @@ export class Parser {
                 const argValue = this._getTokenIfIdentifier();
                 if (!argValue) {
                     return this._handleExpressionParseError(
-                        ErrorExpressionCategory.InvalidDeclaration,
+                        ErrorExpressionCategory.MissingExpression,
                         Localizer.Diagnostic.expectedNamedParameter(),
                         this._peekToken()
                     );
@@ -7761,7 +7763,7 @@ export class Parser {
             }
             if (!this._getTokenIfType(TokenType.CloseBracket)) {
                 return this._handleExpressionParseError(
-                    ErrorExpressionCategory.InvalidDeclaration,
+                    ErrorExpressionCategory.MissingIndexCloseBracket,
                     Localizer.Diagnostic.expectedCloseBracket(),
                     this._peekToken()
                 );
