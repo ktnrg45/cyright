@@ -756,7 +756,15 @@ export class Program {
         for (const path of filePaths) {
             throwIfCancellationRequested(token);
 
-            const sourceFileInfo = this._getSourceFileInfoFromPath(path);
+            let _sourceFileInfo = this._getSourceFileInfoFromPath(path);
+            const wasFileOpened = _sourceFileInfo !== undefined;
+            if (!wasFileOpened) {
+                // File may not be opened in editor
+                // Set opened so we can get source file info
+                this.setFileOpened(path, null, []);
+                _sourceFileInfo = this._getSourceFileInfoFromPath(path);
+            }
+            const sourceFileInfo = _sourceFileInfo;
             if (!sourceFileInfo || getFileExtension(path) !== '.pyx') {
                 continue;
             }
@@ -775,6 +783,10 @@ export class Program {
             // This operation can consume significant memory, so check
             // for situations where we need to discard the type cache.
             this._handleMemoryHighUsage();
+
+            if (!wasFileOpened) {
+                this.setFileClosed(path);
+            }
         }
         return outPaths;
     }

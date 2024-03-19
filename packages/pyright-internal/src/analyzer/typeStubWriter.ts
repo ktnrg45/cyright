@@ -46,7 +46,7 @@ import {
 } from '../parser/parseNodes';
 import { IdentifierToken, OperatorType } from '../parser/tokenizerTypes';
 import * as AnalyzerNodeInfo from './analyzerNodeInfo';
-import { isCythonBuiltIn, transformCythonToPython } from './cythonTransform';
+import { isCythonBuiltIn, isCythonType, transformCythonToPython } from './cythonTransform';
 import * as ParseTreeUtils from './parseTreeUtils';
 import { ParseTreeWalker } from './parseTreeWalker';
 import { getScopeForNode } from './scopeUtils';
@@ -62,6 +62,7 @@ import {
     isNever,
     isUnknown,
     removeUnknownFromUnion,
+    TypeBase,
 } from './types';
 
 class TrackedImport {
@@ -917,13 +918,20 @@ export class TypeStubWriter extends ParseTreeWalker {
         } else {
             // TODO: transform basic ctypes to python
             let type = this._evaluator.getType(node);
-            if (type && isCythonBuiltIn(type)) {
-                //type = convertToInstance(type);
-                type = transformCythonToPython(this._evaluator.getBuiltInType, node, type);
+            if (type && isCythonType(type)) {
+                if (isCythonBuiltIn(type)) {
+                    type = transformCythonToPython(this._evaluator.getBuiltInType, node, type);
+                }
                 if (isAnyOrUnknown(type)) {
                     this._addSyntheticImport('typing', 'Any');
                 }
-                transformed = this._evaluator.printType(type, /*expandTypeAlias*/ false);
+                type = TypeBase.cloneType(type);
+                // Remove cython details
+                type.cythonDetails = undefined;
+                if (TypeBase.isInstantiable(type)) {
+                    type = TypeBase.cloneTypeAsInstance(type);
+                }
+                transformed = this._evaluator.printType(type, /*expandTypeAlias*/ true);
             }
         }
         return transformed;
