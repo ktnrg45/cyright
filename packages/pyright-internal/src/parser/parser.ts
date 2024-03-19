@@ -4553,12 +4553,18 @@ export class Parser {
         // ! Cython deprecated print
         // this could be a python2 print statement
         // We'll verify this in type evaluator
-        if (leftExpr.nodeType === ParseNodeType.Name && leftExpr.value === 'print') {
+        if (
+            leftExpr.nodeType === ParseNodeType.Name &&
+            leftExpr.value === 'print' &&
+            this._peekTokenType() !== TokenType.NewLine
+        ) {
             const argToken = this._peekToken();
             const nextExpression = this._parseTestExpression(/*allowAssigmentExpression*/ false);
-            const arg = ArgumentNode.create(argToken, nextExpression, ArgumentCategory.Simple);
-            leftExpr = CallNode.create(leftExpr, [arg], false);
-            leftExpr.possibleDeprecatedPrint = true;
+            if (nextExpression.nodeType !== ParseNodeType.Error) {
+                const arg = ArgumentNode.create(argToken, nextExpression, ArgumentCategory.Simple);
+                leftExpr = CallNode.create(leftExpr, [arg], false);
+                leftExpr.possibleDeprecatedPrint = true;
+            }
         }
 
         return leftExpr;
