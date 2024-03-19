@@ -8,10 +8,12 @@ import { CStructType, CTrailType, ParseNode } from '../parser/parseNodes';
 import { getEnclosingModule } from './parseTreeUtils';
 import { AnyType, ClassType, isClass, isFunction, Type, TypeBase, UnknownType } from './types';
 
-const cythonModules = ['cython', 'cython_builtins'];
+const cython_builtins = 'cython_builtins';
+const cythonModules = ['cython', cython_builtins];
 
 // C Types that a Python Type can be converted into
 export const validFromPythonTypeMap: Map<string, string[]> = new Map([
+    ['bool', ['bint']],
     ['int', ['char', 'short', 'long', 'float', 'double']],
     ['float', ['float', 'double']],
     ['str', ['char*']],
@@ -20,6 +22,7 @@ export const validFromPythonTypeMap: Map<string, string[]> = new Map([
 
 // Automatic type conversion to Python
 const toPythonTypeMap: Map<string, string> = new Map([
+    ['bint', 'bool'],
     ['char', 'int'],
     ['short', 'int'],
     ['long', 'int'],
@@ -52,9 +55,10 @@ export function isCythonType(type: Type) {
 
 // Transform Cython type to Python.
 export function transformCythonToPython(
-    builtInGetter: (node: ParseNode, name: string) => Type,
+    getBuiltInType: (node: ParseNode, name: string) => Type,
     node: ParseNode,
-    type: Type
+    type: Type,
+    memberAccess = false
 ): Type {
     if (!isClass(type) || !(isCythonBuiltIn(type) || isCythonType(type))) {
         return type;
@@ -72,25 +76,36 @@ export function transformCythonToPython(
             key = 'struct';
         } else if (type.cythonDetails?.trailType === CTrailType.Array) {
             key = 'array';
+        } else if (type.cythonDetails?.structType === CStructType.Union && memberAccess) {
+            // TODO: Check this
+            // ! Unions don't seem to transform with member access
+            key = 'union';
         }
     }
-    // ! Unions don't seem to transform with member access
-    // } else if (type.cythonDetails?.structType === CStructType.Union) {
-    //     key = 'union';
 
-    const pyName = toPythonTypeMap.get(key);
+    let pyName = toPythonTypeMap.get(key);
+    if (!pyName) {
+        if (
+            type.details.baseClasses.find(
+                (base) => isClass(base) && base.details.fullName === `${cython_builtins}.__CythonInteger__`
+            )
+        ) {
+            // This is a basic c integer type
+            pyName = 'int';
+        }
+    }
     if (!pyName) {
         return UnknownType.create();
     }
     const modNode = getEnclosingModule(node);
-    let newType = builtInGetter(modNode, pyName);
+    let pyType = getBuiltInType(modNode, pyName);
 
-    if (isClass(newType)) {
+    if (isClass(pyType)) {
         switch (pyName) {
             case 'dict':
-                newType = ClassType.cloneForSpecialization(
-                    newType,
-                    [TypeBase.cloneTypeAsInstance(builtInGetter(modNode, 'str')), AnyType.create()],
+                pyType = ClassType.cloneForSpecialization(
+                    pyType,
+                    [TypeBase.cloneTypeAsInstance(getBuiltInType(modNode, 'str')), AnyType.create()],
                     true
                 );
                 break;
@@ -110,13 +125,13 @@ export function transformCythonToPython(
                         }
                     }
                     // Transform the containing type to python as well
-                    const typeArg = transformCythonToPython(builtInGetter, node, type);
-                    newType = ClassType.cloneForSpecialization(newType, [typeArg], true);
+                    const typeArg = transformCythonToPython(getBuiltInType, node, type, memberAccess);
+                    pyType = ClassType.cloneForSpecialization(pyType, [typeArg], true);
                 }
                 break;
             default:
                 break;
         }
     }
-    return TypeBase.cloneTypeAsInstance(newType);
+    return TypeBase.cloneTypeAsInstance(pyType);
 }

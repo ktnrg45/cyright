@@ -46,6 +46,7 @@ import {
 } from '../parser/parseNodes';
 import { IdentifierToken, OperatorType } from '../parser/tokenizerTypes';
 import * as AnalyzerNodeInfo from './analyzerNodeInfo';
+import { isCythonBuiltIn, transformCythonToPython } from './cythonTransform';
 import * as ParseTreeUtils from './parseTreeUtils';
 import { ParseTreeWalker } from './parseTreeWalker';
 import { getScopeForNode } from './scopeUtils';
@@ -53,8 +54,15 @@ import { SourceFile } from './sourceFile';
 import { Symbol } from './symbol';
 import * as SymbolNameUtils from './symbolNameUtils';
 import { TypeEvaluator } from './typeEvaluatorTypes';
-import { ClassType, isFunction, isInstantiableClass, isNever, isUnknown, removeUnknownFromUnion } from './types';
-import { convertToInstance } from './typeUtils';
+import {
+    ClassType,
+    isAnyOrUnknown,
+    isFunction,
+    isInstantiableClass,
+    isNever,
+    isUnknown,
+    removeUnknownFromUnion,
+} from './types';
 
 class TrackedImport {
     constructor(public importName: string) {}
@@ -899,6 +907,7 @@ export class TypeStubWriter extends ParseTreeWalker {
             return undefined;
         }
         // Show view as a buffer. Closest type is `array.array`
+        // TODO: use typing.WriteableBuffer
         if (node.nodeType === ParseNodeType.CType && node.typeTrailNode?.trailType === CTrailType.View) {
             // Add buffer import
             const bufferMod = 'array';
@@ -908,12 +917,13 @@ export class TypeStubWriter extends ParseTreeWalker {
         } else {
             // TODO: transform basic ctypes to python
             let type = this._evaluator.getType(node);
-            if (type) {
-                type = convertToInstance(type);
-                if (type && type.cythonDetails) {
-                    // If Cython type expand alias
-                    transformed = this._evaluator.printType(type, /*expandTypeAlias*/ true);
+            if (type && isCythonBuiltIn(type)) {
+                //type = convertToInstance(type);
+                type = transformCythonToPython(this._evaluator.getBuiltInType, node, type);
+                if (isAnyOrUnknown(type)) {
+                    this._addSyntheticImport('typing', 'Any');
                 }
+                transformed = this._evaluator.printType(type, /*expandTypeAlias*/ false);
             }
         }
         return transformed;
