@@ -7803,7 +7803,9 @@ export class Parser {
         for (const part of nameParts) {
             if (part !== '') {
                 const token = IdentifierToken.create(0, 0, part, undefined);
-                module.nameParts.push(NameNode.create(token));
+                const namePart = NameNode.create(token);
+                namePart.parent = module;
+                module.nameParts.push(namePart);
             }
         }
         const fromToken = KeywordToken.create(0, 0, KeywordType.From, undefined);
