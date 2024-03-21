@@ -31,6 +31,9 @@ const toPythonTypeMap: Map<string, string> = new Map([
     ['struct', 'dict'],
     ['union', 'dict'],
     ['array', 'list'],
+    // Also want to transform these so modifiers/specifiers are removed
+    ['int', 'int'],
+    ['float', 'float'],
 ]);
 
 export function isCythonBuiltIn(type: Type) {

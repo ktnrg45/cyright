@@ -14512,6 +14512,7 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 }
 
                 // ! Cython
+                srcType = transformPossiblePythonAssignmentFromCython(node, srcType, declaredType);
                 if (srcType.category === TypeCategory.Null && declaredType) {
                     // Use lefthand type
                     rightHandType = declaredType;
@@ -25385,6 +25386,17 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
                 }
             }
         }
+    }
+
+    function transformPossiblePythonAssignmentFromCython(node: AssignmentNode, type: Type, declaredType?: Type) {
+        // Determine if assignment needs to be transformed to python basic type
+        // If there was no declared type or the declared type is a basic python type then try to transform it
+        const isBuiltIn = !!declaredType && isClass(declaredType) && declaredType.details.moduleName === 'builtins';
+        const isTransformable = !declaredType || isBuiltIn;
+        if (type.cythonDetails && isTransformable) {
+            type = transformCythonToPython(getBuiltInType, node, type);
+        }
+        return type;
     }
 
     // ! Cython CPP
