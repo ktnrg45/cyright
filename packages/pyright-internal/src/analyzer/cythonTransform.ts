@@ -6,10 +6,14 @@
  */
 import { CStructType, CTrailType, ParseNode } from '../parser/parseNodes';
 import { getEnclosingModule } from './parseTreeUtils';
-import { AnyType, ClassType, isClass, isFunction, Type, TypeBase, UnknownType } from './types';
+import { AnyType, ClassType, isAnyOrUnknown, isClass, isFunction, Type, TypeBase, UnknownType } from './types';
 
-const cython_builtins = 'cython_builtins';
-const cythonModules = ['cython', cython_builtins];
+const cythonBuiltins = 'cython_builtins';
+const cythonModules = ['cython', cythonBuiltins];
+const cythonInteger = '__CythonInteger__';
+const cythonCpp = 'libcpp';
+
+type getBuiltInType = (node: ParseNode, name: string) => Type;
 
 // C Types that a Python Type can be converted into
 export const validFromPythonTypeMap: Map<string, string[]> = new Map([
@@ -36,6 +40,16 @@ const toPythonTypeMap: Map<string, string> = new Map([
     ['float', 'float'],
 ]);
 
+const toPythonTypeMapCpp: Map<string, string> = new Map([
+    [`${cythonCpp}.string.string`, 'bytes'],
+    [`${cythonCpp}.vector.vector`, 'list'],
+    [`${cythonCpp}.utility.pair`, 'tuple'],
+    [`${cythonCpp}.map.map`, 'dict'],
+    [`${cythonCpp}.unordered_map.unordered_map`, 'dict'],
+    [`${cythonCpp}.set.set`, 'set'],
+    [`${cythonCpp}.list.list`, 'list'],
+]);
+
 export function isCythonBuiltIn(type: Type) {
     if (isFunction(type) || isClass(type)) {
         if (cythonModules.includes(type.details.moduleName.split('.')[0])) {
@@ -56,9 +70,46 @@ export function isCythonType(type: Type) {
     return !!type.cythonDetails;
 }
 
+export function isCythonCpp(type: Type) {
+    return isClass(type) && type.details.structType === CStructType.CppClass;
+}
+
+export function isBuiltInCythonCpp(type: Type) {
+    if (isCythonCpp(type) && isClass(type)) {
+        const moduleParts = type.details.moduleName.split('.');
+        if (moduleParts.length > 0) {
+            return moduleParts[0] === cythonCpp;
+        }
+    }
+    return false;
+}
+
+function transformCythonCppToPython(
+    getBuiltInType: getBuiltInType,
+    node: ParseNode,
+    type: ClassType,
+    memberAccess = false
+) {
+    const pyName = toPythonTypeMapCpp.get(type.details.fullName);
+    if (pyName) {
+        let newType = TypeBase.cloneType(getBuiltInType(node, pyName));
+        if (!isAnyOrUnknown(newType) && isClass(newType)) {
+            if (newType.details.typeParameters && type.typeArguments) {
+                const typeArgs: Type[] = [];
+                for (let i = 0; i < type.details.typeParameters.length && i < type.typeArguments.length; i++) {
+                    typeArgs.push(transformCythonToPython(getBuiltInType, node, type.typeArguments[i]));
+                }
+                newType = ClassType.cloneForSpecialization(newType, typeArgs, true);
+            }
+            type = ClassType.cloneAsInstance(newType);
+        }
+    }
+    return type;
+}
+
 // Transform Cython type to Python.
 export function transformCythonToPython(
-    getBuiltInType: (node: ParseNode, name: string) => Type,
+    getBuiltInType: getBuiltInType,
     node: ParseNode,
     type: Type,
     memberAccess = false
@@ -88,13 +139,14 @@ export function transformCythonToPython(
 
     let pyName = toPythonTypeMap.get(key);
     if (!pyName) {
-        if (
-            type.details.baseClasses.find(
-                (base) => isClass(base) && base.details.fullName === `${cython_builtins}.__CythonInteger__`
-            )
-        ) {
+        const isCythonInt = type.details.baseClasses.find(
+            (base) => isClass(base) && base.details.fullName === `${cythonBuiltins}.${cythonInteger}`
+        );
+        if (isCythonInt) {
             // This is a basic c integer type
             pyName = 'int';
+        } else if (isCythonCpp(type) && isClass(type)) {
+            return transformCythonCppToPython(getBuiltInType, node, type, memberAccess);
         }
     }
     if (!pyName) {
