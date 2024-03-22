@@ -201,6 +201,11 @@ export class TypeStubWriter extends ParseTreeWalker {
 
         this.walk(parseResults.parseTree);
 
+        // ! Cython
+        if (this._isCython) {
+            this._visitCythonExtras();
+        }
+
         this._writeFile();
     }
 
@@ -968,5 +973,47 @@ export class TypeStubWriter extends ParseTreeWalker {
 
     private _isAnnotationCython(node: TypeAnnotationNode) {
         return [ParseNodeType.CType, ParseNodeType.CCallback].includes(node.typeAnnotation.nodeType);
+    }
+
+    private _visitCythonExtras() {
+        // Visit extra nodes from matching .pxd
+        let matchingImport: TrackedImportFrom | undefined = undefined;
+        for (const value of this._trackedImportFrom.values()) {
+            if (value.node && value.node.start < 0) {
+                // matching import should have invalid start
+                matchingImport = value;
+                break;
+            }
+        }
+        if (matchingImport && matchingImport.node) {
+            const imports = this._sourceFile.getImports();
+            // Matching pxd result should be first import
+            const importResult = imports.length > 0 ? imports[0] : undefined;
+            const scope = getScopeForNode(matchingImport.node);
+            if (scope && importResult) {
+                for (const name of scope.symbolTable.keys()) {
+                    const symbol = this._evaluator.lookUpSymbolRecursive(matchingImport.node, name, true)?.symbol;
+                    const decls = symbol?.getDeclarations();
+                    const decl = decls && decls.length > 0 ? decls[decls.length - 1] : undefined;
+                    const aliasInfo = decl ? this._evaluator.resolveAliasDeclarationWithInfo(decl, false) : undefined;
+                    const aliasPath = aliasInfo?.declaration?.path;
+                    if (
+                        aliasPath &&
+                        aliasPath !== this._sourceFile.getFilePath() &&
+                        importResult.resolvedPaths.includes(aliasPath)
+                    ) {
+                        // Check that declaration is from the matching .pxd and is not declared in this file
+                        const node = aliasInfo?.declaration?.node;
+                        if (node?.nodeType === ParseNodeType.Class && node.structType === CStructType.Enum) {
+                            // Write cpdef enums declared in matching .pxd
+                            const enumNode = node as unknown as CEnumNode;
+                            if (enumNode.cpdef) {
+                                this.visitCEnum(enumNode);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
