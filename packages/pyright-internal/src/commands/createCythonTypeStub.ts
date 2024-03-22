@@ -62,11 +62,14 @@ export class CreateCythonTypeStubCommand implements ServerCommand {
                     this._ls.console.error(errMessage);
                 } else {
                     let errMessage = '';
+                    let errStack = '';
                     if (err instanceof Error) {
                         errMessage = ': ' + err.message;
+                        errStack = err.stack ?? '';
                     }
                     errMessage = `An error occurred when creating type stub for '${path}'` + errMessage;
                     this._ls.console.error(errMessage);
+                    this._ls.console.error(errStack);
                     this._ls.window.showErrorMessage(errMessage);
                 }
             }
