@@ -266,10 +266,12 @@ export class BackgroundAnalysisBase {
             port: port2,
         });
 
-        await waiter;
+        const result = await waiter;
 
         port2.close();
         port1.close();
+
+        return result;
     }
 
     invalidateAndForceReanalysis(rebuildUserFileIndexing: boolean) {
@@ -508,7 +510,7 @@ export abstract class BackgroundAnalysisRunnerBase extends BackgroundThreadBase 
                         this.getConsole(),
                         token
                     );
-                    this.program.writeTypeStubCython(path, stubPath, token);
+                    return this.program.writeTypeStubCython(path, stubPath, token);
                 }, msg.port!);
                 break;
             }

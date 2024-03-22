@@ -228,7 +228,7 @@ export class BackgroundAnalysisProgram {
     // ! Cython
     async writeTypeStubCython(path: string, stubPath: string, token: CancellationToken): Promise<string[]> {
         if (this._backgroundAnalysis) {
-            return this._backgroundAnalysis.writeTypeStubCython(path, stubPath, token);
+            return await this._backgroundAnalysis.writeTypeStubCython(path, stubPath, token);
         }
 
         analyzeProgram(
