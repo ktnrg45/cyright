@@ -44,7 +44,7 @@ import {
     WhileNode,
     WithNode,
 } from '../parser/parseNodes';
-import { IdentifierToken, OperatorType } from '../parser/tokenizerTypes';
+import { IdentifierToken, KeywordType, OperatorType } from '../parser/tokenizerTypes';
 import * as AnalyzerNodeInfo from './analyzerNodeInfo';
 import { isCythonBuiltIn, isCythonType, transformCythonToPython } from './cythonTransform';
 import * as ParseTreeUtils from './parseTreeUtils';
@@ -997,19 +997,27 @@ export class TypeStubWriter extends ParseTreeWalker {
                     const decl = decls && decls.length > 0 ? decls[decls.length - 1] : undefined;
                     const aliasInfo = decl ? this._evaluator.resolveAliasDeclarationWithInfo(decl, false) : undefined;
                     const aliasPath = aliasInfo?.declaration?.path;
+                    const node = aliasInfo?.declaration?.node;
                     if (
+                        node &&
                         aliasPath &&
                         aliasPath !== this._sourceFile.getFilePath() &&
                         importResult.resolvedPaths.includes(aliasPath)
                     ) {
                         // Check that declaration is from the matching .pxd and is not declared in this file
-                        const node = aliasInfo?.declaration?.node;
-                        if (node?.nodeType === ParseNodeType.Class && node.structType === CStructType.Enum) {
+                        if (node.nodeType === ParseNodeType.Class && node.structType === CStructType.Enum) {
                             // Write cpdef enums declared in matching .pxd
                             const enumNode = node as unknown as CEnumNode;
                             if (enumNode.cpdef) {
                                 this.visitCEnum(enumNode);
                             }
+                        } else if (
+                            CFunctionNode.isInstance(node) &&
+                            node.cpdef &&
+                            node.modifier === KeywordType.Inline
+                        ) {
+                            // Write inline cpdef functions
+                            this.visitCFunction(node);
                         }
                     }
                 }
