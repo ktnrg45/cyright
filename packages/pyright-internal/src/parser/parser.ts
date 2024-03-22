@@ -5699,11 +5699,15 @@ export class Parser {
         const cdefToken = this._getKeywordToken(KeywordType.Cpdef);
         const token = this._peekToken();
         const kwToken = token as KeywordToken;
+        let inlineToken: KeywordToken | undefined = undefined;
         let node: ParseNode | undefined = undefined;
         switch (token.type) {
             case TokenType.Keyword:
                 if (kwToken.keywordType === KeywordType.Enum) {
                     node = this._parseEnum(true);
+                } else if (kwToken.keywordType === KeywordType.Inline) {
+                    this._consumeTokenIfKeyword(KeywordType.Inline);
+                    inlineToken = kwToken;
                 }
                 break;
             default:
@@ -5717,6 +5721,7 @@ export class Parser {
                 if (possibleFunction) {
                     if (CFunctionNode.isInstance(possibleFunction)) {
                         possibleFunction.cpdef = true;
+                        possibleFunction.modifier = inlineToken?.keywordType;
                     }
                     return possibleFunction;
                 }
