@@ -6,7 +6,7 @@
  */
 import { CStructType, CTrailType, ParseNode } from '../parser/parseNodes';
 import { getEnclosingModule } from './parseTreeUtils';
-import { AnyType, ClassType, isAnyOrUnknown, isClass, isFunction, Type, TypeBase, UnknownType } from './types';
+import { AnyType, ClassType, isAnyOrUnknown, isClass, isFunction, Type, TypeBase } from './types';
 
 const cythonBuiltins = 'cython_builtins';
 const cythonModules = ['cython', cythonBuiltins];
@@ -84,27 +84,54 @@ export function isBuiltInCythonCpp(type: Type) {
     return false;
 }
 
+function finalizeCythonToPythonTypes(
+    cyType: ClassType,
+    pyType: ClassType,
+    memberAccessName?: string,
+    forcePython = false
+) {
+    if (forcePython) {
+        return pyType;
+    }
+    // TODO: is there a better way to do this? union?
+    let finalized = cyType;
+    if (memberAccessName) {
+        const possibleTypes = [cyType, pyType].filter((tp) => tp.details.fields.get(memberAccessName));
+        // Narrow based on if member name is valid
+        if (possibleTypes.length === 1) {
+            // Only narrow if one of the types has member else prefer cython type
+            finalized = possibleTypes[0];
+        }
+    }
+    return finalized;
+}
+
 function transformCythonCppToPython(
     getBuiltInType: getBuiltInType,
     node: ParseNode,
     type: ClassType,
-    memberAccess = false
+    memberAccessName?: string,
+    forcePython = false
 ) {
     const pyName = toPythonTypeMapCpp.get(type.details.fullName);
     if (pyName) {
-        let newType = TypeBase.cloneType(getBuiltInType(node, pyName));
-        if (!isAnyOrUnknown(newType) && isClass(newType)) {
-            if (newType.details.typeParameters && type.typeArguments) {
+        let pyType = TypeBase.cloneType(getBuiltInType(node, pyName));
+        if (!isAnyOrUnknown(pyType) && isClass(pyType)) {
+            if (pyType.details.typeParameters && type.typeArguments) {
                 const typeArgs: Type[] = [];
                 for (let i = 0; i < type.details.typeParameters.length && i < type.typeArguments.length; i++) {
-                    typeArgs.push(transformCythonToPython(getBuiltInType, node, type.typeArguments[i]));
+                    // Transform the type parameters to python as well
+                    typeArgs.push(
+                        transformCythonToPython(getBuiltInType, node, type.typeArguments[i], undefined, true)
+                    );
                 }
-                newType = ClassType.cloneForSpecialization(newType, typeArgs, true);
+                pyType = ClassType.cloneForSpecialization(pyType, typeArgs, true);
             }
-            type = ClassType.cloneAsInstance(newType);
+            pyType = ClassType.cloneAsInstance(pyType);
+            return finalizeCythonToPythonTypes(type, pyType, memberAccessName, forcePython);
         }
     }
-    return type;
+    return !forcePython ? type : AnyType.create();
 }
 
 // Transform Cython type to Python.
@@ -112,7 +139,8 @@ export function transformCythonToPython(
     getBuiltInType: getBuiltInType,
     node: ParseNode,
     type: Type,
-    memberAccess = false
+    memberAccessName?: string,
+    forcePython = false
 ): Type {
     if (!isClass(type) || !(isCythonBuiltIn(type) || isCythonType(type))) {
         return type;
@@ -130,8 +158,7 @@ export function transformCythonToPython(
             key = 'struct';
         } else if (type.cythonDetails?.trailType === CTrailType.Array) {
             key = 'array';
-        } else if (type.cythonDetails?.structType === CStructType.Union && memberAccess) {
-            // TODO: Check this
+        } else if (type.cythonDetails?.structType === CStructType.Union && memberAccessName) {
             // ! Unions don't seem to transform with member access
             key = 'union';
         }
@@ -146,11 +173,11 @@ export function transformCythonToPython(
             // This is a basic c integer type
             pyName = 'int';
         } else if (isCythonCpp(type) && isClass(type)) {
-            return transformCythonCppToPython(getBuiltInType, node, type, memberAccess);
+            return transformCythonCppToPython(getBuiltInType, node, type, memberAccessName, forcePython);
         }
     }
     if (!pyName) {
-        return UnknownType.create();
+        return !forcePython ? type : AnyType.create();
     }
     const modNode = getEnclosingModule(node);
     let pyType = getBuiltInType(modNode, pyName);
@@ -170,7 +197,7 @@ export function transformCythonToPython(
                     if (type.cythonDetails) {
                         if (type.cythonDetails.isPointer) {
                             // Cannot make a list of pointers
-                            return UnknownType.create();
+                            return !forcePython ? type : AnyType.create();
                         }
                         if (type.cythonDetails.ndims) {
                             type.cythonDetails.ndims--;
@@ -180,13 +207,14 @@ export function transformCythonToPython(
                         }
                     }
                     // Transform the containing type to python as well
-                    const typeArg = transformCythonToPython(getBuiltInType, node, type, memberAccess);
+                    const typeArg = transformCythonToPython(getBuiltInType, node, type, memberAccessName, true);
                     pyType = ClassType.cloneForSpecialization(pyType, [typeArg], true);
                 }
                 break;
             default:
                 break;
         }
+        return finalizeCythonToPythonTypes(type, pyType, memberAccessName, forcePython);
     }
-    return TypeBase.cloneTypeAsInstance(pyType);
+    return type;
 }

@@ -921,11 +921,16 @@ export class TypeStubWriter extends ParseTreeWalker {
             this._addSyntheticImport(bufferMod, bufferType);
             transformed = `${bufferType}[${this._printExpression(node.expression, isType)}]`;
         } else {
-            // TODO: transform basic ctypes to python
             let type = this._evaluator.getType(node);
             if (type && isCythonType(type)) {
                 if (isCythonBuiltIn(type)) {
-                    type = transformCythonToPython(this._evaluator.getBuiltInType, node, type);
+                    type = transformCythonToPython(
+                        this._evaluator.getBuiltInType,
+                        node,
+                        type,
+                        /*memberAccessName*/ undefined,
+                        /*forcePython*/ true
+                    );
                 }
                 if (isAnyOrUnknown(type)) {
                     this._addSyntheticImport('typing', 'Any');

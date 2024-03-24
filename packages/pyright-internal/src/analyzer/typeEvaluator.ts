@@ -4688,7 +4688,12 @@ export function createTypeEvaluator(importLookup: ImportLookup, evaluatorOptions
         // ! Cython
         // Try to transform cython type to python type
         if (isAnyOrUnknown(typeResult.type)) {
-            const pyType = transformCythonToPython(getBuiltInType, node, baseTypeResult.type, /*memberAccess*/ true);
+            const pyType = transformCythonToPython(
+                getBuiltInType,
+                node,
+                baseTypeResult.type,
+                /*memberAccessName*/ node.memberName.value
+            );
             if (!isAnyOrUnknown(pyType)) {
                 typeResult = getTypeOfMemberAccessWithBaseType(
                     node,
