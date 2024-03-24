@@ -1022,6 +1022,13 @@ export class TypeStubWriter extends ParseTreeWalker {
                 case TypeCategory.Union:
                     tp.subtypes.forEach((t) => addType(t));
                     break;
+
+                case TypeCategory.Any:
+                case TypeCategory.Never:
+                case TypeCategory.Unbound:
+                case TypeCategory.Unknown:
+                    this._addSyntheticImport('typing', 'Any');
+                    break;
             }
             if (module && name) {
                 if (typeText.match(name)) {
