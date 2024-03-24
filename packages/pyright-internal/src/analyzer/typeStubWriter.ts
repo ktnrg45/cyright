@@ -62,7 +62,9 @@ import {
     isNever,
     isUnknown,
     removeUnknownFromUnion,
+    Type,
     TypeBase,
+    TypeCategory,
 } from './types';
 
 class TrackedImport {
@@ -310,6 +312,12 @@ export class TypeStubWriter extends ParseTreeWalker {
                 ) {
                     returnAnnotation = 'bool';
                 }
+            }
+
+            // ! Cython
+            if (this._isCython && !returnAnnotation) {
+                // If Cython try to get the return type
+                returnAnnotation = this._tryGetReturnAnnotationInferred(node);
             }
 
             if (returnAnnotation) {
@@ -948,6 +956,10 @@ export class TypeStubWriter extends ParseTreeWalker {
     }
 
     private _addSyntheticImport(moduleName: string, importName: string) {
+        if (moduleName === 'builtins') {
+            // Don't add builtins
+            return;
+        }
         let trackedImport = this._trackedImportFrom.get(moduleName);
         if (!trackedImport) {
             trackedImport = new TrackedImportFrom(moduleName, false, undefined);
@@ -978,6 +990,69 @@ export class TypeStubWriter extends ParseTreeWalker {
 
     private _isAnnotationCython(node: TypeAnnotationNode) {
         return [ParseNodeType.CType, ParseNodeType.CCallback].includes(node.typeAnnotation.nodeType);
+    }
+
+    private _printReturnTypeInferred(type: Type) {
+        const typeText = this._evaluator.printType(type);
+        const addType = (tp: Type) => {
+            let module: string | undefined = undefined;
+            let name: string | undefined = undefined;
+            switch (tp.category) {
+                case TypeCategory.Class:
+                    {
+                        if (tp.typeAliasInfo) {
+                            const idx = tp.typeAliasInfo.fullName.lastIndexOf('.');
+                            module = tp.typeAliasInfo.fullName.slice(0, idx);
+                            name = tp.typeAliasInfo.name;
+                            if (tp.typeAliasInfo.typeArguments) {
+                                tp.typeAliasInfo.typeArguments.forEach((t) => addType(t));
+                            }
+                        } else {
+                            module = tp.details.moduleName;
+                            name = tp.details.name;
+                            if (tp.typeArguments) {
+                                tp.typeArguments.forEach((t) => addType(t));
+                            }
+                        }
+                        if (tp.literalValue) {
+                            this._addSyntheticImport('typing', 'Literal');
+                        }
+                    }
+                    break;
+                case TypeCategory.Union:
+                    tp.subtypes.forEach((t) => addType(t));
+                    break;
+            }
+            if (module && name) {
+                if (typeText.match(name)) {
+                    this._addSyntheticImport(module, name);
+                }
+            }
+        };
+        addType(type);
+
+        return typeText;
+    }
+
+    private _tryGetReturnAnnotationInferred(node: FunctionNode): string | undefined {
+        const functionType = this._evaluator.getTypeOfFunction(node);
+        if (functionType && isFunction(functionType.functionType)) {
+            let returnType = this._evaluator.getFunctionInferredReturnType(functionType.functionType);
+            returnType = removeUnknownFromUnion(returnType);
+            if (returnType.cythonDetails) {
+                returnType = transformCythonToPython(
+                    this._evaluator.getBuiltInType,
+                    node,
+                    returnType,
+                    /*memberAccessName*/ undefined,
+                    /*forcePython*/ true
+                );
+            }
+
+            const text = this._printReturnTypeInferred(returnType);
+            return text.length > 0 ? text : undefined;
+        }
+        return undefined;
     }
 
     private _visitCythonExtras() {
