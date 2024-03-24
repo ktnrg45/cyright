@@ -212,6 +212,9 @@ export function transformCythonToPython(
                 }
                 break;
             default:
+                if (TypeBase.isInstantiable(pyType)) {
+                    pyType = TypeBase.cloneTypeAsInstance(pyType);
+                }
                 break;
         }
         return finalizeCythonToPythonTypes(type, pyType, memberAccessName, forcePython);
